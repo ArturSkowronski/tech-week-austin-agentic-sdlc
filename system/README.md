@@ -10,14 +10,21 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 4. Raise it. Visdom refines the ticket, finds the cause, and opens a pull request with a preview you can play.
 5. Play the preview. The symptom is gone, the creature is gone, the beacon burns. On merge the fix lands in the shared world.
 
+## How it is built
+
+- TypeScript, Vite, PixiJS for rendering, Vitest for tests.
+- Deployed as a static site on Cloudflare Workers from GitHub Actions, one preview per branch.
+- Every decision is a short record under `docs/plan/01-decisions/`; the newest record wins on a conflict.
+
 ## Where things stand
 
-8 September 2026. The concept and the visitor's first five minutes are written. Nothing runs yet. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+8 September 2026. The concept is written and the stack and the deployment are decided. Nothing runs yet. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
 - [The game concept](docs/plan/00-vision/game-concept.md)
 - [The visitor's first five minutes](docs/plan/00-vision/visitor-journey.md)
+- [Decision records](docs/plan/01-decisions/)
 
 ## Licence
 
