@@ -18,12 +18,13 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 ## Where things stand
 
-8 September 2026. The concept is written and the stack and the deployment are decided. Nothing runs yet. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+9 September 2026. A day of prototyping changed the movement: the wizard walks and jumps, and riding the wand is now the attack, the wand charge. The concept's bouncing locomotion is superseded, see ADR-002. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
 - [The game concept](docs/plan/00-vision/game-concept.md)
 - [The visitor's first five minutes](docs/plan/00-vision/visitor-journey.md)
+- [ADR-002, the wand ride is the attack](docs/plan/01-decisions/ADR-002-wand-ride-becomes-the-charge.md)
 - [Decision records](docs/plan/01-decisions/)
 
 ## Licence
