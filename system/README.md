@@ -1,3 +1,5 @@
+![Hobby Wizard](assets/splash-textless.png)
+
 # Hobby Wizard and the Hidden Bug
 
 A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real defects are planted in the game and show up in the world as creatures. You play, feel that something is wrong, find the evidence, and hand the bug to Visdom, which fixes the game with a reviewed pull request. Then you play the fix.
@@ -19,9 +21,13 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 - Tickets are GitHub issues in this repository. Season 1 ships three bugs, one per beat of the forest.
 - Every decision is a short record under `docs/plan/01-decisions/`; the newest record wins on a conflict.
 
+## Art
+
+The art is generated from written prompts, and every file in `assets/` records how and when it was made in `assets/PROVENANCE.md`. Original character, original places, no borrowed compositions.
+
 ## Where things stand
 
-9 September 2026. The decisions from the prototype are recorded: pixel density, painted levels, the bug manifest, tickets as GitHub issues, the Season 1 scope. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+10 September 2026. The raw art for the forest exists: the background layers, the wizard's sheets, the tileset, the prop sheet, the two ruin gate panels and the splash. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
@@ -31,4 +37,4 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 ## Licence
 
-Apache-2.0.
+Code is Apache-2.0. Generated art carries its provenance record in `assets/PROVENANCE.md`.
