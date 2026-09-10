@@ -1,0 +1,39 @@
+/**
+ * Ruin Gate, 132 x 22 tiles. Text map, see game/sim/room.ts for the legend.
+ * A first tracing over public/assets/paintings/ruin-gate.png with the trace
+ * tool, to be verified against the painting and corrected when the room is built.
+ * Beats left to right: the broken gate tower, climbed on its ledges or walked
+ * under at ground level, with the cracked rock at its foot; the flag before the
+ * pit and the two-tile parapet; the waterfall pit, six tiles wide with its
+ * surface level with the parapet, crossed by a jump and a wand charge to the
+ * road beyond, where a plain jump falls short; the road with the bush where the
+ * creature waits, far from any pit, the log and the second flag; the second
+ * gate, climbed from the left over the banner beam and descended by the stair
+ * on the right; the well, a dry six-tile drop crossed the same way, and the
+ * spike hole; the bastion with the beacon, which ends the room. Every hop is
+ * at most three tiles up.
+ */
+export const ruinGate = [
+  "                                                                                                                                    ",
+  "                                                                                                                                    ",
+  "                                                                                                                                    ",
+  "                       -------                                                                                                      ",
+  "                       -                                                                                                            ",
+  "                       -      ------                                                                                                ",
+  "                    ====            -----                                                                                           ",
+  "                         ==                                                                                                         ",
+  "                                                                                                                                    ",
+  "               ------                                                                      ==========                               ",
+  "                                                                                                     --                             ",
+  "                                                                                             --       --                            ",
+  "           -------                                                                                      --                          ",
+  "                                                                                          ===            --                         ",
+  "                  =======           =====                                                                -----                      ",
+  "                                                                                                           --             ----- E   ",
+  "                =                      ==W     ==                          =====   ---  --            ---   -=               -----  ",
+  "   P            R                   F  ##      ##               B    L  F                   ---              --    -------          ",
+  "#########################################      ################################################      ###########  ##################",
+  "#########################################      ################################################      ###########^^##################",
+  "#########################################      ################################################      ###############################",
+  "#########################################      ################################################      ###############################",
+].join("\n");

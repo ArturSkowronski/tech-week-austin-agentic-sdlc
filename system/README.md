@@ -21,19 +21,25 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 - Tickets are GitHub issues in this repository. Season 1 ships three bugs, one per beat of the forest.
 - Every decision is a short record under `docs/plan/01-decisions/`; the newest record wins on a conflict.
 
+## How the game works
+
+The simulation is deterministic: sixty ticks a second, no clocks, no randomness outside a seed in the state. A recorded run replays exactly, so every movement rule has a replay test. The renderer only reads the state and never keeps time of its own. Each room has one waterfall that hides the log lines of that room's bug behind the water; part it and read them. The rules for anyone, human or agent, working in this repository are in `docs/plan/02-design/agents-rules.md`.
+
 ## Art
 
 The art is generated from written prompts, and every file in `assets/` records how and when it was made in `assets/PROVENANCE.md`. Original character, original places, no borrowed compositions.
 
 ## Where things stand
 
-10 September 2026. The raw art for the forest exists: the background layers, the wizard's sheets, the tileset, the prop sheet, the two ruin gate panels and the splash. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+10 September 2026. The design is written: movement and physics with a frozen tuning table, the simulation architecture, rendering, level design with two rooms as text maps, the bug quest, CI and deploy, the rules for agents, the art direction, the asset list and the pipeline. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
 - [The game concept](docs/plan/00-vision/game-concept.md)
 - [The visitor's first five minutes](docs/plan/00-vision/visitor-journey.md)
 - [Decision records](docs/plan/01-decisions/)
+- [Design documents](docs/plan/02-design/)
+- [Art direction and asset briefs](docs/plan/03-assets/)
 
 ## Licence
 
