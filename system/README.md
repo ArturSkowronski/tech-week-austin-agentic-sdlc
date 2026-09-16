@@ -25,16 +25,34 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 The simulation is deterministic: sixty ticks a second, no clocks, no randomness outside a seed in the state. A recorded run replays exactly, so every movement rule has a replay test. The renderer only reads the state and never keeps time of its own. Each room has one waterfall that hides the log lines of that room's bug behind the water; part it and read them. The rules for anyone, human or agent, working in this repository are in `docs/plan/02-design/agents-rules.md`.
 
+## How Visdom builds it
+
+The plan under `docs/plan/` is complete: the vision, eight decision records, the design, the art briefs and 53 tickets in nine milestones. Visdom takes the tickets in dependency order and opens one pull request per ticket, with a preview to play; a human reviews each one and supplies art where a ticket asks for it. Once the bug quest is in, Visdom moves to the other side of the loop and fixes the planted bugs from the game's own tickets.
+
+| Milestone | Done when |
+|---|---|
+| M0 Repository, toolchain, CI, deploy | green CI on `main`; a PR gets a preview URL |
+| M1 Deterministic simulation | every tuning rule has a replay test; the glade playthrough reaches the beacon |
+| M2 Renderer | the settled look at 640 by 360; nothing reads wall time |
+| M3 Asset kit and trace tool | `pnpm assets` is idempotent; a room round-trips through the trace tool |
+| M4 Season 1 content | three painted rooms chained, playable in under eight minutes |
+| M5 Bug Quest | three planted bugs proven both ways; the world heals per branch |
+| M6 Atmosphere and audio | 60 fps; sounds follow simulation events |
+| M7 Visdom integration | each planted bug goes from issue to merged PR through Visdom alone |
+| M8 Launch hygiene | ten trial visitors complete the loop unassisted |
+
 ## Art
 
 The art is generated from written prompts, and every file in `assets/` records how and when it was made in `assets/PROVENANCE.md`. Original character, original places, no borrowed compositions.
 
 ## Where things stand
 
-10 September 2026. The design is written: movement and physics with a frozen tuning table, the simulation architecture, rendering, level design with two rooms as text maps, the bug quest, CI and deploy, the rules for agents, the art direction, the asset list and the pipeline. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+16 September 2026. The plan is complete and the tickets are cut. Next: a human sets up secrets, labels and Visdom's access (HWP-004), then Visdom starts M0. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
+- [The plan and how it is consumed](docs/plan/README.md)
+- [The tickets](docs/plan/tickets/)
 - [The game concept](docs/plan/00-vision/game-concept.md)
 - [The visitor's first five minutes](docs/plan/00-vision/visitor-journey.md)
 - [Decision records](docs/plan/01-decisions/)
