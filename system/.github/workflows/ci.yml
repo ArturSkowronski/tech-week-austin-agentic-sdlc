@@ -1,0 +1,161 @@
+# The four gates, the browser suite, and a Cloudflare Workers deploy that gives
+# every branch a playable preview URL (ADR-007, docs/plan/02-design/ci-and-deploy.md).
+name: CI
+
+on:
+  push:
+    branches: [main, stable, seed]
+  pull_request:
+
+# One run per ref: a new push supersedes the old one so a pull request never
+# collects two preview comments for two versions at once. Only pull requests are
+# cancelled: a second merge to main must never cancel an in-flight production
+# deploy half way through.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No version here: pnpm comes from "packageManager" in package.json, so
+      # local and CI run the same pinned toolchain.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The four gates, each judged by its exit code and never by its output.
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm bugs:check
+
+      - run: pnpm build
+
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    # Pushes, and pull requests from a branch of this repository. A fork's pull
+    # request has no access to the secrets, so there is nothing to deploy.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # The secrets context is not available to an `if:` expression, so the
+      # presence of the token becomes a step output the later steps read.
+      # Absent secrets leave every deploy step skipped and the job green.
+      - name: Check for the Cloudflare secrets
+        id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo 'CLOUDFLARE_API_TOKEN is not set; skipping the deploy.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check out the Cloudflare configuration
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/checkout@v4
+
+      - name: Download dist
+        if: steps.secrets.outputs.present == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      # The alias is the branch name, lower-cased, non-alphanumerics to dashes,
+      # cut to 40 characters. A cut that lands on a dash would leave a trailing
+      # dash, which is not a legal host label, so trailing dashes are dropped.
+      - name: Compute the preview alias
+        if: steps.secrets.outputs.present == 'true'
+        id: alias
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          alias=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | cut -c1-40 | sed 's/-*$//')
+          echo "value=$alias" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to production
+        if: steps.secrets.outputs.present == 'true' && github.ref_name == 'main' && github.event_name == 'push'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NO_COLOR: '1'
+        run: npx --yes wrangler@4 deploy
+
+      - name: Upload a preview version
+        if: steps.secrets.outputs.present == 'true' && !(github.ref_name == 'main' && github.event_name == 'push')
+        id: preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALIAS: ${{ steps.alias.outputs.value }}
+          NO_COLOR: '1'
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 versions upload --preview-alias "$ALIAS" 2>&1 | tee upload.log
+          # wrangler prints two workers.dev URLs: the version URL first, then the
+          # per-branch alias URL. Take the alias one, so the URL in the comment
+          # stays the same across pushes; fall back to the first URL found.
+          url=$(grep -oE "https://${ALIAS}-[A-Za-z0-9._-]*workers\.dev[^[:space:]]*" upload.log | head -n 1 || true)
+          if [ -z "$url" ]; then
+            url=$(grep -oE 'https://[A-Za-z0-9._-]*workers\.dev[^[:space:]]*' upload.log | head -n 1 || true)
+          fi
+          if [ -z "$url" ]; then
+            echo 'No workers.dev URL in the wrangler output.' >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      # One comment per pull request: the marker finds the comment a previous run
+      # left and the body is replaced, so a re-push updates instead of piling up.
+      - name: Comment the preview URL on the pull request
+        if: steps.secrets.outputs.present == 'true' && github.event_name == 'pull_request' && steps.preview.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          URL: ${{ steps.preview.outputs.url }}
+        run: |
+          set -euo pipefail
+          marker='<!-- hobby-wizard-preview -->'
+          body=$(printf '%s\nPreview: %s\n' "$marker" "$URL")
+          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"$marker\")) | .id] | first // empty")
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body"
+          fi

@@ -1,0 +1,13 @@
+// Cloudflare Workers configuration (ADR-007, docs/plan/02-design/ci-and-deploy.md).
+// The built dist/ is served as Workers static assets; unknown paths fall back to
+// index.html so the game is a single-page application. Preview URLs are on so
+// every branch gets a playable alias from `wrangler versions upload`.
+{
+  "name": "hobby-wizard",
+  "compatibility_date": "2026-09-23",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "preview_urls": true
+}
