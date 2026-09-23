@@ -1,0 +1,10 @@
+# Single-package repository; this file also carries pnpm's settings.
+# Only esbuild and sharp may run install scripts
+# (ADR-001, docs/plan/02-design/ci-and-deploy.md). pnpm 11 spells this
+# `allowBuilds`; it was `onlyBuiltDependencies` in pnpm 10.
+packages:
+  - .
+
+allowBuilds:
+  esbuild: true
+  sharp: true

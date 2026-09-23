@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Local configuration; .env.example is committed instead.
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store

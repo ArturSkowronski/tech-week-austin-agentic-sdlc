@@ -1,0 +1,41 @@
+{
+  "name": "hobby-wizard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Hobby Wizard and the Hidden Bug — a browser platformer that doubles as the Visdom sandbox codebase.",
+  "packageManager": "pnpm@11.27.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "trace": "tsx tools/not-yet.ts trace",
+    "build": "pnpm assets && vite build",
+    "preview": "vite preview",
+    "assets": "tsx tools/not-yet.ts assets",
+    "assets:report": "tsx tools/not-yet.ts assets:report",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "playwright test --pass-with-no-tests",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "bugs:check": "tsx tools/not-yet.ts bugs:check"
+  },
+  "dependencies": {
+    "pixi.js": "^8.21.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.19.2",
+    "eslint": "^10.11.0",
+    "sharp": "^0.35.4",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
