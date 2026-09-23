@@ -12,6 +12,33 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 4. Raise it. Visdom refines the ticket, finds the cause, and opens a pull request with a preview you can play.
 5. Play the preview. The symptom is gone, the creature is gone, the beacon burns. On merge the fix lands in the shared world.
 
+## Run it
+
+Node 22 or newer, and pnpm.
+
+```
+pnpm install    # once
+pnpm dev        # http://localhost:5173
+pnpm build      # production build into dist/
+```
+
+## Controls
+
+Keyboard only in Season 1.
+
+| Action | Keys |
+|---|---|
+| left / right | arrows or A / D |
+| jump | Z, Space, up arrow or W |
+| charge (attack) | X or J |
+| down | down arrow or S |
+| raise ticket | T |
+| restart | R |
+| hitboxes and tiles over a painting | F1 |
+| start | Enter, Space or Z on the title |
+
+Enter never restarts a run. Gamepad and touch come later.
+
 ## How it is built
 
 - TypeScript, Vite, PixiJS for rendering, Vitest for tests.
@@ -23,7 +50,7 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 ## How the game works
 
-The simulation is deterministic: sixty ticks a second, no clocks, no randomness outside a seed in the state. A recorded run replays exactly, so every movement rule has a replay test. The renderer only reads the state and never keeps time of its own. Each room has one waterfall that hides the log lines of that room's bug behind the water; part it and read them. The rules for anyone, human or agent, working in this repository are in `docs/plan/02-design/agents-rules.md`.
+The simulation is deterministic: sixty ticks a second, no clocks, no randomness outside a seed in the state. A recorded run replays exactly, so every movement rule has a replay test. The renderer only reads the state and never keeps time of its own. Each room has one waterfall that hides the log lines of that room's bug behind the water; part it and read them. The rules for anyone, human or agent, working in this repository are in [AGENTS.md](AGENTS.md), copied from `docs/plan/02-design/agents-rules.md`.
 
 ## How Visdom builds it
 
@@ -47,7 +74,7 @@ The art is generated from written prompts, and every file in `assets/` records h
 
 ## Where things stand
 
-16 September 2026. The plan is complete and the tickets are cut. Next: a human sets up secrets, labels and Visdom's access (HWP-004), then Visdom starts M0. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+23 September 2026. M0 is under way. The repository and the toolchain are in (HWP-001) and the four gate commands run green from the first commit — there are no simulation tests to run yet, and nothing enforces the gates in CI until HWP-002; the game so far is an empty page that builds green; the repository documents you are reading are HWP-003. Next in M0: the CI workflow with the gates and a preview deploy per branch (HWP-002). The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
