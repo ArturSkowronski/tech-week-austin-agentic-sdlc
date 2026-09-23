@@ -42,6 +42,27 @@ export const COYOTE_TICKS = 6;
 /** Ticks before landing during which a jump press is remembered. */
 export const JUMP_BUFFER_TICKS = 6;
 
+/** Ticks the wand charge winds up before it moves; he is astride the wand (ADR-002). */
+export const CHARGE_WINDUP_TICKS = 2;
+
+/** Ticks the dash lasts, after the wind-up. */
+export const CHARGE_TICKS = 14;
+
+/** Speed of the dash in the facing direction, units per second. */
+export const CHARGE_SPEED = 260;
+
+/** Ticks he stands in the recoil after the crystal tip meets a wall. */
+export const CHARGE_RECOIL_TICKS = 3;
+
+/** Ticks after a charge during which attack does nothing. */
+export const CHARGE_COOLDOWN_TICKS = 24;
+
+/** Width of the charge hitbox at the crystal tip, in world units. */
+export const CHARGE_HITBOX_WIDTH = 12;
+
+/** Height of the charge hitbox at the crystal tip, in world units. */
+export const CHARGE_HITBOX_HEIGHT = 8;
+
 /** Ticks the landing state lasts; it locks no input. */
 export const LAND_TICKS = 4;
 
