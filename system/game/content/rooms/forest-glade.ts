@@ -1,0 +1,35 @@
+/**
+ * Forest Glade, 80 x 22 tiles. Text map, see game/sim/room.ts for the legend.
+ * Beats left to right: start and flag, three low ledges, the first pit, the
+ * plateau with a bush, a log, and a flag, the six-tile charge gap with the
+ * waterfall in it, a ledge climb on one-way platforms and solid steps over
+ * spikes, the rock on the path, steps up to the beacon tower, which ends the
+ * room. The waterfall of logs fills the charge gap, its surface level with the
+ * plateau: a jump then an air charge crosses it and parts the water; a plain
+ * jump falls a tile short. Every climb is at most two tiles; a jump clears three.
+ */
+
+export default [
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                                                ',
+  '                                                ###                             ',
+  '                                             ###                                ',
+  '                                          ###                      E            ',
+  '                       B   L  F         --                      ########        ',
+  '                    #############W                              ########        ',
+  '                    #############      --                    ## ########        ',
+  '                 ## #############                               ########        ',
+  '              ##    #############      ###                ##    ########        ',
+  '  P  F     ##       #############      ### ^^^        R         ########      ^^',
+  '###############     #############      #########################################',
+  '###############     #############      #########################################',
+  '###############     #############      #########################################',
+  '###############     #############      #########################################',
+].join('\n');

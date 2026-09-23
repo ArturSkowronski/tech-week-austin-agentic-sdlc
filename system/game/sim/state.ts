@@ -6,8 +6,8 @@
 // pure function of its state and the input frames it is given, so a recorded
 // session replays tick for tick anywhere.
 
-import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
 import { NO_INPUT, type InputFrame } from './input';
+import { parseRoom } from './room';
 
 /** A point in world units. */
 export interface Vec2 {
@@ -17,8 +17,7 @@ export interface Vec2 {
 
 /**
  * The collision kinds a tile can have. The text-map legend that produces them
- * is parsed in full by game/sim/room.ts; createWorld below reads only the
- * collision characters of docs/plan/02-design/level-design.md.
+ * is in game/sim/room.ts (docs/plan/02-design/level-design.md).
  */
 export const Tile = {
   /** Air. */
@@ -175,17 +174,6 @@ const ZERO_SEED_WORD = 0x9e37_79b9;
 /** Divisor that turns an unsigned 32-bit word into a fraction below one. */
 const WORD_RANGE = 0x1_0000_0000;
 
-/** The collision characters of the legend; every other character is empty. */
-const COLLISION_TILES: Readonly<Record<string, Tile>> = {
-  '#': Tile.Solid,
-  '-': Tile.OneWay,
-  '=': Tile.OneWayHalf,
-  '^': Tile.Spike,
-};
-
-/** The legend's player-spawn character. */
-const SPAWN_CHAR = 'P';
-
 /**
  * The tile at a tile coordinate. Coordinates outside the room read as empty:
  * a room's walls are tiles it draws itself, and leaving the room is a death the
@@ -218,49 +206,6 @@ export function nextRandom(state: WorldState): number {
   return word / WORD_RANGE;
 }
 
-/**
- * Parse the collision grid of a text map. The full legend, with its props, is
- * game/sim/room.ts; this reads what the world needs to exist and to be stepped.
- */
-function parseTiles(roomText: string): { room: Room; spawnTile: Vec2 | null } {
-  const rows = roomText.split('\n');
-
-  while (rows.length > 0 && rows[rows.length - 1]?.trim() === '') {
-    rows.pop();
-  }
-
-  const height = rows.length;
-  const width = rows.reduce((widest, row) => Math.max(widest, row.length), 0);
-  const tiles = new Uint8Array(width * height);
-  let spawnTile: Vec2 | null = null;
-
-  for (let ty = 0; ty < height; ty += 1) {
-    const row = rows[ty] ?? '';
-
-    for (let tx = 0; tx < width; tx += 1) {
-      const char = row[tx] ?? ' ';
-
-      if (char === SPAWN_CHAR) {
-        spawnTile = { x: tx, y: ty };
-      }
-
-      tiles[ty * width + tx] = COLLISION_TILES[char] ?? Tile.Empty;
-    }
-  }
-
-  return { room: { width, height, tiles, spawn: { x: 0, y: 0 } }, spawnTile };
-}
-
-/** The spawn position: the hitbox centred on its tile, feet on the tile below. */
-function spawnFrom(spawnTile: Vec2 | null): Vec2 {
-  const tile = spawnTile ?? { x: 0, y: 0 };
-
-  return {
-    x: tile.x * TILE + (TILE - PLAYER_WIDTH) / 2,
-    y: (tile.y + 1) * TILE - PLAYER_HEIGHT,
-  };
-}
-
 /** A creature that has not been found yet: hiding, but not placed in a prop. */
 function createCreature(): Creature {
   return { at: -1, travelTo: -1, travelUntil: -1, carriedSince: -1, firstCarried: false };
@@ -271,10 +216,8 @@ function createCreature(): Creature {
  * the same world, so two runs of the same recorded frames stay identical.
  */
 export function createWorld(roomText: string, options: CreateWorldOptions = {}): WorldState {
-  const { room, spawnTile } = parseTiles(roomText);
-  const spawn = spawnFrom(spawnTile);
-
-  room.spawn = spawn;
+  const { room, props } = parseRoom(roomText);
+  const spawn = room.spawn;
 
   const seed = (options.seed ?? 1) >>> 0;
 
@@ -301,9 +244,7 @@ export function createWorld(roomText: string, options: CreateWorldOptions = {}):
       fellFor: 0,
       checkpoint: { x: spawn.x, y: spawn.y },
     },
-    // Props are placed by the room parser (game/sim/room.ts); a world built
-    // from the collision grid alone has none.
-    props: [],
+    props,
     creature: options.creature === true ? createCreature() : null,
     deaths: 0,
     victoryTick: -1,

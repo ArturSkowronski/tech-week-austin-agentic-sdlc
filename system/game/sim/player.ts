@@ -150,12 +150,10 @@ function nextState(player: Player, moving: boolean): PlayerState {
 /**
  * True while the wand owns the tick: the dash itself, or the recoil after it.
  *
- * It is meant to become the answer to "can he be hurt right now" — ADR-002
- * grants no vulnerability during the charge, and the damage path should read
- * this rather than keep a second copy of the rule in `invuln`. Nothing can
- * hurt the wizard yet and `game/sim/index.ts` does not re-export this module,
- * so today this is only a predicate the charge itself uses; wiring the hurt
- * path to it belongs to the ticket that lands `hurt`.
+ * It is also the answer to "can he be hurt right now" — ADR-002 grants no
+ * vulnerability during the charge, so game/sim/props.ts reads this predicate
+ * before it resolves a lethal hazard rather than keeping a second copy of the
+ * rule in `invuln`.
  */
 export function charging(player: Player): boolean {
   return player.state === 'charge' || player.state === 'chargeRecoil';

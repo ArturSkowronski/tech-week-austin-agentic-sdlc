@@ -5,12 +5,8 @@
 
 import type { InputFrame } from './input';
 import { stepPlayer } from './player';
+import { stepProps } from './props';
 import type { WorldState } from './state';
-
-/** Flags, beacons, the rock and the waterfall. Written by the props ticket. */
-function stepProps(_state: WorldState): void {
-  // Deliberately empty until the props ticket lands.
-}
 
 /** Hiding, riding, fleeing. Written by the creature ticket (bug-quest.md). */
 function stepCreature(_state: WorldState): void {

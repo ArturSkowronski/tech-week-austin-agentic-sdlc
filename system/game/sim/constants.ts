@@ -72,6 +72,9 @@ export const LAND_TICKS = 4;
  */
 export const LONG_FALL_TICKS = 20;
 
+/** Ticks the wizard is invulnerable after being hurt. */
+export const HURT_INVULN_TICKS = 30;
+
 /** Player hitbox width, in world units. */
 export const PLAYER_WIDTH = 12;
 
