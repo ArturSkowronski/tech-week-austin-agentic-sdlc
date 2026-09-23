@@ -7,6 +7,7 @@ import type { InputFrame } from './input';
 import { stepPlayer } from './player';
 import { stepProps } from './props';
 import type { WorldState } from './state';
+import { stepWater } from './water';
 
 /** Hiding, riding, fleeing. Written by the creature ticket (bug-quest.md). */
 function stepCreature(_state: WorldState): void {
@@ -25,6 +26,10 @@ export function tick(state: WorldState, input: InputFrame): void {
   state.lastInput = input;
 
   stepPlayer(state, input);
+  // The water has the tick after the movement it changes and before the props
+  // weigh what he touched: a charge the water ended is over by the time the
+  // hazards ask whether the wand still carries him.
+  stepWater(state);
   stepProps(state);
   stepCreature(state);
 }

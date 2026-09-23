@@ -80,3 +80,9 @@ export const PLAYER_WIDTH = 12;
 
 /** Player hitbox height, in world units. */
 export const PLAYER_HEIGHT = 28;
+
+/** Downward speed the water pulls him to while he is in it, units per second. */
+export const WATER_PULL = 160;
+
+/** What one tick in water leaves of his horizontal speed. */
+export const WATER_DRAG = 0.85;

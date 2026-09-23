@@ -11,12 +11,14 @@ import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
 import type { Box } from './physics';
 import { charging } from './player';
 import { Tile, tileAt, type Prop, type Room, type WorldState } from './state';
+import { inWater } from './water';
 
-// `overlaps` and `covers` below are a third copy of predicates game/sim/charge-hit.ts
-// and game/sim/physics.ts (`coveredTiles`) already keep privately. Their one home
-// is physics.ts, next to `Box`; moving them there is a change to two more modules
-// than this ticket owns, so the next sim ticket that touches physics.ts should
-// take them (AGENTS.md rule 9).
+// `overlaps` and `covers` below are one of four copies of predicates
+// game/sim/charge-hit.ts, game/sim/water.ts and game/sim/physics.ts
+// (`coveredTiles`) also keep privately. Their one home is physics.ts, next to
+// `Box`; moving them there is a change to three more modules than this ticket
+// owns, so the next sim ticket that touches physics.ts should take them
+// (AGENTS.md rule 9).
 
 /** Do two boxes share any area? */
 function overlaps(a: Box, b: Box): boolean {
@@ -85,13 +87,13 @@ function holdVictory(state: WorldState): void {
 /**
  * What kills him: spikes under the box, the bottom of the water, or having
  * fallen clean out of the room. A room's sides are walls, never exits, so only
- * its floor can be left.
+ * its floor can be left. Whether he is in water is game/sim/water.ts's to say.
  */
-function killing(state: WorldState, box: Box, inWater: boolean): boolean {
+function killing(state: WorldState, box: Box): boolean {
   return (
     covers(state.room, box, Tile.Spike) ||
     box.y >= state.room.height * TILE ||
-    (inWater && box.y + box.h > (state.room.height - 1) * TILE)
+    (inWater(state) && box.y + box.h > (state.room.height - 1) * TILE)
   );
 }
 
@@ -106,7 +108,6 @@ export function stepProps(state: WorldState): void {
   }
 
   const box: Box = { x: player.x, y: player.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
-  let inWater = false;
 
   for (const prop of state.props) {
     // A cracked rock opens on a charge hit, the only thing that stamps it.
@@ -127,9 +128,6 @@ export function stepProps(state: WorldState): void {
         holdVictory(state);
 
         return;
-      case 'waterfall':
-        inWater = true;
-        break;
     }
   }
 
@@ -140,7 +138,7 @@ export function stepProps(state: WorldState): void {
   // predicate answers "can he be hurt right now" rather than a second copy of
   // that rule living here. The hazard is still under him when the wand lets go:
   // the tick he dismounts on is the one that kills him.
-  if (player.invuln === 0 && !charging(player) && killing(state, box, inWater)) {
+  if (player.invuln === 0 && !charging(player) && killing(state, box)) {
     respawn(state);
   }
 }
