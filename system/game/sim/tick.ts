@@ -4,15 +4,8 @@
 // so the same state and the same frames always give the same next state.
 
 import type { InputFrame } from './input';
+import { stepPlayer } from './player';
 import type { WorldState } from './state';
-
-/**
- * Run, jump, gravity, the charge and the state machine. Written in
- * game/sim/player.ts by HWP-012; the world steps without it in the meantime.
- */
-function stepPlayer(_state: WorldState, _input: InputFrame): void {
-  // Deliberately empty until the locomotion ticket lands.
-}
 
 /** Flags, beacons, the rock and the waterfall. Written by the props ticket. */
 function stepProps(_state: WorldState): void {
