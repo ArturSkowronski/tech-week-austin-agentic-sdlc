@@ -4,5 +4,6 @@
 
 export * from './constants';
 export * from './input';
+export * from './physics';
 export * from './state';
 export * from './tick';
