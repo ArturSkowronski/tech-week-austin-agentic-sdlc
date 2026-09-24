@@ -200,6 +200,7 @@ function frame(now: number): void {
   hud.update(world, debug);
   banner.update(world);
 
+  scene.watch(world);
   scene.render();
   publishUi();
 }

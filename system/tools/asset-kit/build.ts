@@ -10,7 +10,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, VIEW_H, VIEW_W } from '../../game/render/config';
+import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, VIEW_H, VIEW_W } from '../../game/render/config';
 
 import {
   crop,
@@ -43,6 +43,11 @@ const BASE_ROWS = MOUNTAIN_BASE_ROWS;
 /** The red, green and blue channels of a colour, in order. */
 const RGB = [0, 1, 2] as const;
 
+/** A packed colour of the palette as the channels a raster is made of. */
+function channels(colour: number): Rgb {
+  return [(colour >> 16) & 0xff, (colour >> 8) & 0xff, colour & 0xff];
+}
+
 /** One file the kit writes: the drawn art, and the base it stands on if any. */
 interface Output {
   /** The name in the manifest and under public/assets, without the extension. */
@@ -72,8 +77,8 @@ async function main(): Promise<void> {
   const outputs: readonly Output[] = [
     // The mountains loop seamlessly because the tile is followed by its own
     // mirror image, so both joins are one edge meeting itself.
-    { name: 'bg/mountains-big', art: hstack([mountains, flip(mountains)]), base: [0x7b, 0x96, 0x82] },
-    { name: 'bg/trees', art: trees, base: [0x21, 0x3a, 0x2d] },
+    { name: 'bg/mountains-big', art: hstack([mountains, flip(mountains)]), base: channels(BASE_COLOURS.mountains) },
+    { name: 'bg/trees', art: trees, base: channels(BASE_COLOURS.tallForest) },
     { name: 'bg/undergrowth', art: undergrowth },
     // The bushes in front are the undergrowth's own canopy, mirrored so the
     // layer in front does not read as the layer behind a second time.

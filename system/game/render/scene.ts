@@ -5,17 +5,26 @@
 // nearest-neighbour. The UI draws above it at the window's own resolution, so
 // text stays crisp however large the blocks below it are.
 
-import { Application, Container, RenderTexture, Sprite } from 'pixi.js';
+import { Application, Container, Graphics, RenderTexture, Sprite, TilingSprite } from 'pixi.js';
 
+import type { Room, WorldState } from '../sim';
+
+import { floorLine, follow, restCamera, wholePixels, type Camera } from './camera';
 import {
+  BASE_COLOURS,
+  LAYERS,
   LETTERBOX_COLOUR,
   RENDER_DENSITY,
   SCALE_STEP,
+  SKY_BAND_H,
+  SKY_STOPS,
   TEXTURE_H,
   TEXTURE_W,
   VIEW_H,
   VIEW_W,
+  type Layer,
 } from './config';
+import { loadArt, loadManifest, type Art } from './sprites';
 
 export interface Scene {
   /**
@@ -27,8 +36,144 @@ export interface Scene {
   readonly ui: Container;
   /** The canvas the two are drawn on; what the fit produced is published on it. */
   readonly canvas: HTMLCanvasElement;
+  /** Move the camera and the layer stack to where the world now is. */
+  watch(state: WorldState): void;
   /** Draw one frame. */
   render(): void;
+}
+
+/** One layer of the stack, drawn across the view and looping horizontally. */
+interface Backdrop {
+  layer: Layer;
+  art: Art;
+  sprite: TilingSprite;
+}
+
+/**
+ * A tint that keeps this share of a layer's own colour: the depth haze of the
+ * dusk pass, which is a plain multiply because it only ever fades a layer back.
+ */
+function haze(share: number): number {
+  const channel = Math.round(share * 0xff);
+
+  return (channel << 16) | (channel << 8) | channel;
+}
+
+/** Two colours mixed channel by channel. */
+function mix(from: number, to: number, share: number): number {
+  const channel = (shift: number): number =>
+    Math.round(((from >> shift) & 0xff) * (1 - share) + ((to >> shift) & 0xff) * share) << shift;
+
+  return channel(16) | channel(8) | channel(0);
+}
+
+/** The sky at a share of the way from the horizon to the top of the view. */
+function skyColour(share: number): number {
+  const [amber, mauve, indigo] = SKY_STOPS;
+
+  return share < 0.5 ? mix(amber, mauve, share * 2) : mix(mauve, indigo, share * 2 - 1);
+}
+
+/**
+ * The dusk sky: bands of six units from the horizon up through the three
+ * stops, and below the horizon the mountains' own base colour, so no pale gap
+ * shows between the layers when the camera climbs (rendering-and-look.md).
+ */
+function drawSky(sky: Graphics, horizon: number): void {
+  sky.clear();
+  sky.rect(0, horizon, VIEW_W, Math.max(0, VIEW_H - horizon)).fill(BASE_COLOURS.mountains);
+
+  for (let band = 0; band * SKY_BAND_H < horizon; band += 1) {
+    const middle = ((band + 0.5) * SKY_BAND_H) / horizon;
+
+    sky
+      .rect(0, horizon - (band + 1) * SKY_BAND_H, VIEW_W, SKY_BAND_H)
+      .fill(skyColour(Math.min(middle, 1)));
+  }
+}
+
+/** The stack of the look doc's table, loaded from the asset kit's manifest. */
+interface Background {
+  /** The sky, the mountains, the tall forest and the bushes behind the room. */
+  readonly behind: Container;
+  /** The bushes the wizard runs behind. */
+  readonly inFront: Container;
+  /** Put every layer where this camera sees it. */
+  place(camera: Camera, room: Room): void;
+  /**
+   * The top edge of every layer, the horizon and how many times the sky has
+   * been drawn, measured off the objects the way the fit below is.
+   */
+  report(): string;
+}
+
+async function createBackground(): Promise<Background> {
+  const manifest = await loadManifest();
+
+  async function backdrop(layer: Layer): Promise<Backdrop> {
+    const art = await loadArt(manifest, layer.asset);
+    const sprite = new TilingSprite({ texture: art.texture, width: VIEW_W, height: art.height });
+
+    sprite.tileScale.set(1 / art.density);
+    sprite.alpha = layer.alpha;
+    sprite.tint = haze(layer.tint);
+
+    return { layer, art, sprite };
+  }
+
+  const sky = new Graphics();
+  const behind = new Container();
+  const inFront = new Container();
+  // The table of the look doc, back to front, all four files at once.
+  const [mountains, trees, bushes, front] = await Promise.all([
+    backdrop(LAYERS.mountains),
+    backdrop(LAYERS.tallForest),
+    backdrop(LAYERS.bushesBehind),
+    backdrop(LAYERS.bushesFront),
+  ]);
+  const stack = [mountains, trees, bushes, front];
+
+  behind.addChild(sky, mountains.sprite, trees.sprite, bushes.sprite);
+  inFront.addChild(front.sprite);
+
+  /** The horizon the sky was last drawn for; it is redrawn only when it moves. */
+  let drawnAt = Number.NaN;
+  let skies = 0;
+
+  return {
+    behind,
+    inFront,
+
+    place(camera: Camera, room: Room): void {
+      const rest = restCamera(room);
+      // Every bottom offset is read off the floor line as it stands on screen
+      // with the camera at rest; from there each layer takes its own share of
+      // however far the camera has travelled.
+      const floor = floorLine(room) - rest.y;
+
+      for (const { layer, art, sprite } of stack) {
+        const bottom = floor + layer.bottomOffset - (camera.y - rest.y) * layer.parallaxY;
+
+        sprite.tilePosition.x = wholePixels(-(camera.x - rest.x) * layer.parallaxX);
+        sprite.y = wholePixels(bottom - art.height);
+      }
+
+      // The sky is anchored to the mountains' art base, which is the horizon.
+      const horizon = mountains.sprite.y + mountains.art.artHeight;
+
+      if (horizon !== drawnAt) {
+        drawnAt = horizon;
+        skies += 1;
+        drawSky(sky, horizon);
+      }
+    },
+
+    report(): string {
+      const tops = stack.map(({ layer, sprite }) => `${layer.asset}=${sprite.y}`).join(' ');
+
+      return `${tops} horizon=${drawnAt} skies=${skies}`;
+    },
+  };
 }
 
 /**
@@ -69,6 +214,9 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
   const view = new Sprite(texture);
   const world = new Container();
   const ui = new Container();
+  const background = await createBackground();
+
+  world.addChild(background.behind, background.inFront);
 
   // The density of ADR-003, as the transform it has to be: the texture is
   // 640 by 360 pixels and holds a 320 by 180 view, so a world unit is two
@@ -114,10 +262,27 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
   fit();
   window.addEventListener('resize', fit);
 
+  /** Undefined until the first frame, which starts the camera at rest. */
+  let camera: Camera | undefined;
+  let layers = '';
+
   return {
     world,
     ui,
     canvas: app.canvas,
+
+    watch(state: WorldState): void {
+      camera = follow(camera ?? restCamera(state.room), state);
+      background.place(camera, state.room);
+      // Written only when it changes, the way the fit above is written.
+      const report = background.report();
+
+      if (report !== layers) {
+        layers = report;
+        app.canvas.dataset['layers'] = report;
+      }
+    },
+
     render(): void {
       app.renderer.render({ container: world, target: texture });
       app.renderer.render(app.stage);

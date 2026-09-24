@@ -25,8 +25,16 @@ export const SCALE_STEP = 2;
 /** The bars around the letterboxed view. */
 export const LETTERBOX_COLOUR = 0x000000;
 
+/**
+ * The box at the middle of the view the wizard moves inside without the camera
+ * following him. A whole jump rises about 53 units, so only a climb lifts it.
+ */
+export const CAMERA_DEAD_ZONE = { width: 48, height: 64 } as const;
+
 /** One background layer of the stack, back to front. */
 export interface Layer {
+  /** The asset kit output the layer is drawn from, as the manifest names it. */
+  readonly asset: string;
   /** Share of the camera's horizontal movement the layer takes. */
   readonly parallaxX: number;
   /** Share of the camera's vertical movement the layer takes. */
@@ -40,11 +48,18 @@ export interface Layer {
 
 /** The layer stack of the look doc's table. Backgrounds loop horizontally. */
 export const LAYERS = {
-  mountains: { parallaxX: 0.05, parallaxY: 0.05, bottomOffset: 100, alpha: 0.85, tint: 1 },
-  tallForest: { parallaxX: 0.3, parallaxY: 0.6, bottomOffset: 124, alpha: 1, tint: 0.7 },
-  bushesBehind: { parallaxX: 0.6, parallaxY: 1, bottomOffset: 62, alpha: 1, tint: 0.7 },
-  bushesFront: { parallaxX: 1.3, parallaxY: 1, bottomOffset: 64, alpha: 1, tint: 1 },
+  mountains: { asset: 'bg/mountains-big', parallaxX: 0.05, parallaxY: 0.05, bottomOffset: 100, alpha: 0.85, tint: 1 },
+  tallForest: { asset: 'bg/trees', parallaxX: 0.3, parallaxY: 0.6, bottomOffset: 124, alpha: 1, tint: 0.7 },
+  bushesBehind: { asset: 'bg/undergrowth', parallaxX: 0.6, parallaxY: 1, bottomOffset: 62, alpha: 1, tint: 0.7 },
+  bushesFront: { asset: 'bg/foreground', parallaxX: 1.3, parallaxY: 1, bottomOffset: 64, alpha: 1, tint: 1 },
 } as const satisfies Record<string, Layer>;
+
+/**
+ * The colour of the base rows a layer stands on: the asset kit fills them with
+ * it, and the renderer paints below the horizon in the mountains' one so no
+ * pale gap shows between the layers (art-direction.md, palette).
+ */
+export const BASE_COLOURS = { mountains: 0x7b9682, tallForest: 0x213a2d } as const;
 
 /** Art rows of the mountains, above their base. */
 export const MOUNTAIN_ART_ROWS = 103;
@@ -57,6 +72,9 @@ export const BUSHES_FRONT_ROWS = 76;
 
 /** Height of one band of the sky's stepped gradient, in world units. */
 export const SKY_BAND_H = 6;
+
+/** The dusk sky's three stops: amber at the horizon, mauve, indigo at the top. */
+export const SKY_STOPS = [0xe3a259, 0x8c6a8e, 0x2a2a5c] as const;
 
 /** Alpha of the translucent dark laid over the world at dusk. */
 export const DUSK_ALPHA = 0.08;
