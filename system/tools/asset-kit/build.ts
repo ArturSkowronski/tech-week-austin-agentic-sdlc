@@ -2,10 +2,12 @@
 // file under public/assets, plus the manifest that says what it wrote
 // (docs/plan/03-assets/pipeline.md). Nothing else may put art in public/.
 //
-// This milestone builds the four background layers and the splash. Each one is
-// a whole generated frame, so the work reads the same every time: resample the
-// raw to the view's density, key the magenta sky away, cut the drawn rows off
-// the bottom, reduce them to 32 colours, and stand them on their base.
+// This milestone builds the four background layers and the splash, and the
+// wizard's five pose sheets. A background is a whole generated frame, so the
+// work reads the same every time: resample the raw to the view's density, key
+// the magenta sky away, cut the drawn rows off the bottom, reduce them to 32
+// colours, and stand them on their base. A pose sheet is many small frames
+// instead, and strips.ts cuts it into them.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -26,6 +28,7 @@ import {
   type Raster,
   type Rgb,
 } from './lib';
+import { cutStrip, type Sheet, type StripEntry } from './strips';
 
 /** Where the generated raws are read from, and where the output goes. */
 const RAWS = 'assets';
@@ -67,6 +70,23 @@ interface Entry {
   colours: number;
 }
 
+/**
+ * The wizard's pose sheets (asset-list.md, wizard table). The pitch is the
+ * block size each raw was drawn at, as PROVENANCE.md records it: these sheets
+ * are painted rather than dithered, so `estimatePitch` reads no block
+ * structure on them, and the recorded size is the one that resamples a pose to
+ * the height its cell expects. The walk, jump and fall sheets take 7 px so
+ * their poses come out the height the idle sheet's do at 8.
+ */
+const WIZARD: readonly Sheet[] = [
+  { state: 'idle', raw: 'wizard-idle.png', pitch: 8, frames: 4 },
+  { state: 'run', raw: 'wizard-walk.png', pitch: 7, frames: 8 },
+  { state: 'jump', raw: 'wizard-jump.png', pitch: 7, frames: 7 },
+  // The fall poses flail wide enough to need a cell wider than it is tall.
+  { state: 'fall', raw: 'wizard-fall.png', pitch: 7, frames: 4, cellW: 40 },
+  { state: 'charge', raw: 'wizard-charge.png', pitch: 8, frames: 5 },
+];
+
 async function main(): Promise<void> {
   // Drawn rows per layer, from asset-list.md's backgrounds table. The
   // mountains' are the one the renderer needs as well, so config.ts owns them.
@@ -87,9 +107,14 @@ async function main(): Promise<void> {
   ];
 
   await mkdir(join(OUT, 'bg'), { recursive: true });
-  const manifest: Record<string, Entry> = {};
+  await mkdir(join(OUT, 'sprites'), { recursive: true });
+  const manifest: Record<string, Entry | StripEntry> = {};
   for (const output of outputs) {
     manifest[output.name] = await write(output);
+  }
+  for (const sheet of WIZARD) {
+    const name = `sprites/wizard-${sheet.state}`;
+    manifest[name] = await writeStrip(sheet, name);
   }
   await writeFile(join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -162,6 +187,18 @@ async function write(output: Output): Promise<Entry> {
     throw new Error(`${output.name} came out ${entry.colours} colours, over the ${COLOURS} asset-list.md gives it`);
   }
   process.stdout.write(`${output.name} ${entry.width}x${entry.height}, ${entry.colours} colours\n`);
+  return entry;
+}
+
+/**
+ * One pose sheet cut into its strip, saved, and its manifest entry. The strip
+ * keeps every colour its poses resample to: the sprite palette pipeline.md
+ * names is a file the kit does not have yet.
+ */
+async function writeStrip(sheet: Sheet, name: string): Promise<StripEntry> {
+  const { image, entry } = cutStrip(sheet, await loadPng(join(RAWS, sheet.raw)));
+  await savePng(image, join(OUT, `${name}.png`));
+  process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.frames} frames\n`);
   return entry;
 }
 
