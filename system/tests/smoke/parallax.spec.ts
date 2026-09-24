@@ -14,8 +14,10 @@ import { readFile } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
-import { BASE_COLOURS, LAYERS, VIEW_H, VIEW_W, type Layer } from '../../game/render/config';
+import { BASE_COLOURS, LAYERS, VIEW_H, VIEW_W, WAND_LIGHT, type Layer } from '../../game/render/config';
 import { PLAYER_HEIGHT, TILE } from '../../game/sim/index';
+
+import { wizardFrame, type Box } from './wizard-frame';
 
 test.use({ viewport: { width: 1280, height: 720 } });
 
@@ -92,12 +94,28 @@ function frame(page: Page): Promise<Buffer> {
   return page.screenshot();
 }
 
+/** A unit of the frame that no colour test may count. */
+const MASKED = -1;
+
+/**
+ * The block the wizard takes out of the frame, in view units: the cell the
+ * renderer published for him, grown by the reach of his wand light. Every
+ * claim below is about the layer stack behind him, and he is neither a layer
+ * nor at a fixed place in the frame, so his block is left out of the counts.
+ */
+async function wizardBlock(page: Page): Promise<Box> {
+  const { cell } = await wizardFrame(page);
+  const reach = WAND_LIGHT.radius;
+
+  return { x: cell.x - reach, y: cell.y - reach, w: cell.w + 2 * reach, h: cell.h + 2 * reach };
+}
+
 /**
  * A frame read back as one colour per world unit, taken from the middle of the
  * block each unit is shown as. The shot has to be the view and nothing else
  * for that to hold, so the size is checked rather than assumed.
  */
-async function units(shot: Buffer): Promise<number[]> {
+async function units(shot: Buffer, ...blocks: Box[]): Promise<number[]> {
   const { data, info } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
   const scale = info.height / VIEW_H;
 
@@ -109,8 +127,13 @@ async function units(shot: Buffer): Promise<number[]> {
   for (let row = 0; row < VIEW_H; row += 1) {
     for (let col = 0; col < VIEW_W; col += 1) {
       const at = ((row * scale + middle) * info.width + col * scale + middle) * info.channels;
+      const inBlock = blocks.some(
+        ({ x, y, w, h }) => col >= x && col < x + w && row >= y && row < y + h,
+      );
 
-      read.push(((data[at] ?? 0) << 16) | ((data[at + 1] ?? 0) << 8) | (data[at + 2] ?? 0));
+      read.push(
+        inBlock ? MASKED : ((data[at] ?? 0) << 16) | ((data[at + 1] ?? 0) << 8) | (data[at + 2] ?? 0),
+      );
     }
   }
 
@@ -129,7 +152,9 @@ function count(read: number[], shows: (colour: number) => boolean): Found {
   const found: Found = { count: 0, top: -1, bottom: -1 };
 
   for (let at = 0; at < read.length; at += 1) {
-    if (!shows(read[at] ?? 0)) continue;
+    const colour = read[at] ?? MASKED;
+
+    if (colour === MASKED || !shows(colour)) continue;
 
     const row = Math.floor(at / VIEW_W);
 
@@ -217,7 +242,7 @@ test('the climb brings the canopy and the peaks into view, with no pale gap betw
 
   await run.attach('at-rest.png', { body: atRest, contentType: 'image/png' });
 
-  const still = await units(atRest);
+  const still = await units(atRest, await wizardBlock(page));
 
   // At rest the canopy and the peaks are both above the view: the tall forest
   // shows its trunks and the gold light between them, and nothing else.
@@ -246,7 +271,7 @@ test('the climb brings the canopy and the peaks into view, with no pale gap betw
     contentType: 'image/png',
   });
 
-  const high = await units(atLedgeTop);
+  const high = await units(atLedgeTop, await wizardBlock(page));
 
   // The canopy is on screen and the horizon has come down with the peaks.
   expect(climbed[LAYERS.tallForest.asset]).toBeGreaterThan(0);
@@ -295,14 +320,29 @@ test('a camera clamped at the room edge draws the very same frame twice', async 
 
   const clamped = await frame(page);
   const report = await canvas.getAttribute('data-layers');
+  const atWall = await wizardBlock(page);
 
   await stand(page, TILES.further);
 
-  expect(await canvas.getAttribute('data-layers')).toBe(report);
-  expect(await frame(page)).toEqual(clamped);
+  const atFurther = await wizardBlock(page);
 
-  // And away from the edge it does move, so the comparison above means something.
+  // Four tiles further on the camera has not moved: the stack says so, and so
+  // does every unit of the frame behind the wizard, who has moved and whose
+  // own block is therefore left out of both readings.
+  expect(await canvas.getAttribute('data-layers')).toBe(report);
+  expect(await units(await frame(page), atWall, atFurther)).toEqual(
+    await units(clamped, atWall, atFurther),
+  );
+
+  // And away from the edge it does move, so the comparison means something.
+  // His block comes out of this reading too: he stands in a different place
+  // in the view at each of the three tiles, so two whole frames would differ
+  // on the wizard alone and the control could no longer fail.
   await stand(page, TILES.middle);
 
-  expect(await frame(page)).not.toEqual(clamped);
+  const atMiddle = await wizardBlock(page);
+
+  expect(await units(await frame(page), atWall, atMiddle)).not.toEqual(
+    await units(clamped, atWall, atMiddle),
+  );
 });

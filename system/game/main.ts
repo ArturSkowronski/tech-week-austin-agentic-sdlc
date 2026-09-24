@@ -9,6 +9,7 @@ import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
 import { createTicketCard, type CardFacts } from './render/ticket';
 import { createTitle, startsRun } from './render/title';
+import { createWizard, type WizardFrame } from './render/wizard';
 import { createWorld, DT, NO_INPUT, tick, type InputFrame, type WorldState } from './sim';
 
 /** The room `?room=` falls back to. */
@@ -32,6 +33,8 @@ export interface Wizard {
   step(n: number, input?: Partial<InputFrame>): void;
   /** The live world. */
   state(): WorldState;
+  /** The frame the renderer draws for the world as it stands right now. */
+  readonly debug: WizardFrame;
 }
 
 declare global {
@@ -58,8 +61,13 @@ if (roomText === undefined) {
 
 const freshWorld = (): WorldState => createWorld(roomText, { roomName });
 
-const scene = await createScene(mount);
+// Neither load needs anything of the other, so both chains are in flight at
+// once and the wizard's sheets do not wait on the backdrops.
+const [scene, wizardView] = await Promise.all([createScene(mount), createWizard()]);
 const keyboard = createKeyboard();
+
+scene.actors.addChild(wizardView.view);
+scene.lights.addChild(wizardView.light);
 
 /** No manifest and no creature yet, so the card holds the clean state. */
 const CARD_FACTS: CardFacts = { bug: null, felt: false, logsRead: false };
@@ -121,7 +129,7 @@ window.addEventListener('resize', layout);
 
 let world = freshWorld();
 let started = false;
-let debug = false;
+let debugHud = false;
 let pending = 0;
 let previous = performance.now();
 
@@ -150,6 +158,14 @@ const wizard: Wizard = {
   state(): WorldState {
     return world;
   },
+
+  // A getter, so a test that steps the clock reads the frame of the tick it
+  // has just run without waiting for one to be drawn. It answers the same
+  // frame the loop below draws: both ask the renderer the same question of
+  // the same state.
+  get debug(): WizardFrame {
+    return wizardView.read(world.player);
+  },
 };
 
 window.wizard = wizard;
@@ -176,7 +192,7 @@ function frame(now: number): void {
   }
 
   if (edges.debug) {
-    debug = !debug;
+    debugHud = !debugHud;
   }
 
   if (edges.ticket && started) {
@@ -197,11 +213,13 @@ function frame(now: number): void {
 
   title.view.visible = !started;
   hud.view.visible = started;
-  hud.update(world, debug);
+  hud.update(world, debugHud);
   banner.update(world);
 
   scene.watch(world);
+  wizardView.update(world.player, scene.camera);
   scene.render();
+  publish('wizard', wizardView.report());
   publishUi();
 }
 

@@ -91,6 +91,25 @@ export const LOG_FALL_SPEED = { min: 0.9, max: 1.6 } as const;
 /** Ticks a hit keeps the water parted. */
 export const WATER_PARTED_TICKS = 150;
 
+/**
+ * Frames per second each wizard strip plays at. The run's ten and the
+ * charge's fifteen are asset-list.md's; the idle breath and the fall's flail
+ * are given no rate there, so these two are the renderer's own choice and the
+ * art brief should settle them.
+ */
+export const WIZARD_FPS = { idle: 8, run: 10, flail: 12, charge: 15 } as const;
+
+/** Ticks the jump sheet's take-off pose holds before the air-up one. */
+export const TAKE_OFF_TICKS = 4;
+
+/**
+ * The wand's crystal light (rendering-and-look.md, Dusk): an additive glow of
+ * this radius in world units, drawn as this many rings of equal alpha so it
+ * falls off in steps rather than in a smooth gradient the pixel art has no
+ * room for. The colour is the crystal's own pale blue.
+ */
+export const WAND_LIGHT = { colour: 0x9fd8ff, radius: 11, alpha: 0.44, rings: 4 } as const;
+
 /** Units below their collision line the wizard and the props are drawn. */
 export const SPRITE_FOOT_OFFSET = 2;
 

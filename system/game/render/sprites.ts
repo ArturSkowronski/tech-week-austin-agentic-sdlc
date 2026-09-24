@@ -7,7 +7,9 @@
 // A loader hands back world units either way, so the layer stack, the camera
 // and the tuning table never learn which of the two a file was drawn at.
 
-import { Assets, Texture } from 'pixi.js';
+import { Assets, Rectangle, Texture } from 'pixi.js';
+
+import type { Vec2 } from '../sim';
 
 /** What the kit records about one output (pipeline.md, manifest entries). */
 export interface Entry {
@@ -17,6 +19,25 @@ export interface Entry {
   density?: number;
   /** Drawn rows at the top; the rest of the height is the layer's flat base. */
   artRows?: number;
+}
+
+/** A pixel of a cell, as the kit records it: in from its left, down from its top. */
+export type Point = readonly [number, number];
+
+/**
+ * What the kit records about one strip of pose cells. The kit writes these
+ * entries and the renderer reads them, so the shape is declared here, on the
+ * side that has to survive in a browser, and tools/asset-kit/strips.ts takes
+ * it from here rather than keeping a second copy (AGENTS.md rule 9).
+ */
+export interface StripEntry extends Entry {
+  /** The cell's height in world units; every pose stands on its floor. */
+  cell: number;
+  /** The cell's width in world units, which the strip is this many frames of. */
+  cellW: number;
+  frames: number;
+  /** Where the crystal sits in each frame, in its cell's pixels. */
+  crystal: readonly Point[];
 }
 
 /** Every output the kit wrote, by name, as `public/assets/manifest.json`. */
@@ -64,21 +85,122 @@ export async function loadManifest(): Promise<Manifest> {
   return (await response.json()) as Manifest;
 }
 
-/**
- * One named output, measured and loaded. Nearest-neighbour is set on the
- * texture itself, so a file keeps its hard pixel edges wherever it is drawn
- * (rendering-and-look.md).
- */
-export async function loadArt(manifest: Manifest, name: string): Promise<Art> {
+/** What the kit recorded for one output, or a refusal that names the file. */
+function entryOf(manifest: Manifest, name: string): Entry {
   const entry = manifest[name];
 
   if (entry === undefined) {
     throw new Error(`the asset manifest has no ${name}; run pnpm assets`);
   }
 
+  return entry;
+}
+
+/**
+ * One of the kit's files as a texture. Nearest-neighbour is set on the
+ * texture itself, so a file keeps its hard pixel edges wherever it is drawn
+ * (rendering-and-look.md), and every loader below goes through here rather
+ * than remembering that rule again.
+ */
+async function loadTexture(name: string): Promise<Texture> {
   const texture = await Assets.load<Texture>(assetUrl(`${name}.png`));
 
   texture.source.scaleMode = 'nearest';
 
-  return { texture, ...measure(entry) };
+  return texture;
+}
+
+/** One named output, measured and loaded. */
+export async function loadArt(manifest: Manifest, name: string): Promise<Art> {
+  const measured = measure(entryOf(manifest, name));
+
+  return { texture: await loadTexture(name), ...measured };
+}
+
+/**
+ * Pixels of a strip per world unit. The kit records a cell's height in world
+ * units and the file's in pixels, so the two together say what the strip was
+ * drawn at, and no strip carries a density of its own (AGENTS.md rule 9).
+ */
+export function densityOf(entry: StripEntry): number {
+  return entry.height / entry.cell;
+}
+
+/**
+ * Where one frame's crystal sits in its cell, in world units. The kit records
+ * the pixel the crystal is drawn on, so the point handed back is that pixel's
+ * middle; facing left mirrors it about the cell's middle, which is the same
+ * mirror the sprite itself is drawn through.
+ *
+ * The recorded point already names a drawn pixel of the crystal — the kit
+ * pulls the patch's centroid onto one — so nothing here moves it again.
+ */
+export function crystalOf(entry: StripEntry, frame: number, facing: 1 | -1): Vec2 {
+  const spot = entry.crystal[frame];
+
+  if (spot === undefined) {
+    throw new Error(`a strip of ${entry.frames} frames has no frame ${frame}`);
+  }
+
+  const density = densityOf(entry);
+  const [x, y] = spot;
+  const middle = (x + 0.5) / density;
+
+  return { x: facing === 1 ? middle : entry.cellW - middle, y: (y + 0.5) / density };
+}
+
+/** One strip of pose cells, ready to draw. */
+export interface Strip {
+  /**
+   * Pixels of this strip per world unit (ADR-003). The frames below are cut
+   * at the file's own pixels, so whatever draws them has to bring them back
+   * to world units by this — the same number `crystal` has already divided
+   * the recorded point by.
+   */
+  readonly density: number;
+  /** The cell's width in world units; the fall sheet's is wider than it is tall. */
+  readonly cellW: number;
+  /** The cell's height in world units. Every pose stands on the cell's floor. */
+  readonly cellH: number;
+  /** One texture per cell, in the sheet's order. */
+  readonly frames: readonly Texture[];
+  /** Where a frame's crystal sits, as a wizard facing this way shows it. */
+  crystal(frame: number, facing: 1 | -1): Vec2;
+}
+
+/** Whether the kit wrote this entry as a strip of pose cells rather than a layer. */
+function isStrip(entry: Entry): entry is StripEntry {
+  return 'crystal' in entry;
+}
+
+/**
+ * One named strip, cut into a texture per cell. The cells are sub-rectangles
+ * of the one file, so the whole strip is a single upload and drawing a frame
+ * is a texture swap.
+ */
+export async function loadStrip(manifest: Manifest, name: string): Promise<Strip> {
+  const entry = entryOf(manifest, name);
+
+  if (!isStrip(entry)) {
+    throw new Error(`the asset manifest's ${name} is no strip of pose cells`);
+  }
+
+  const sheet = await loadTexture(name);
+  const density = densityOf(entry);
+  const width = entry.cellW * density;
+
+  return {
+    density,
+    cellW: entry.cellW,
+    cellH: entry.cell,
+    frames: Array.from(
+      { length: entry.frames },
+      (_, frame) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(frame * width, 0, width, entry.height),
+        }),
+    ),
+    crystal: (frame, facing) => crystalOf(entry, frame, facing),
+  };
 }

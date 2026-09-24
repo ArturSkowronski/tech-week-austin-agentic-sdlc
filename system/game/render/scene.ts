@@ -32,6 +32,18 @@ export interface Scene {
    * container's own 2x, so children of it measure in units, never in pixels.
    */
   readonly world: Container;
+  /**
+   * The room, its props and the wizard, in world units. The layer is moved by
+   * the camera, so what is added to it is placed in world coordinates.
+   */
+  readonly actors: Container;
+  /**
+   * The additive light layer, above the actors and behind the bushes in front
+   * (rendering-and-look.md, layer stack). Moved by the camera as well.
+   */
+  readonly lights: Container;
+  /** Where the camera stands, in world units; the origin until the first watch. */
+  readonly camera: Camera;
   /** The overlay, in window pixels. Drawn straight to the canvas on top. */
   readonly ui: Container;
   /** The canvas the two are drawn on; what the fit produced is published on it. */
@@ -41,6 +53,9 @@ export interface Scene {
   /** Draw one frame. */
   render(): void;
 }
+
+/** Where the camera reads as standing before the first frame moves it. */
+const ORIGIN: Camera = { x: 0, y: 0 };
 
 /** One layer of the stack, drawn across the view and looping horizontally. */
 interface Backdrop {
@@ -213,10 +228,12 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
   });
   const view = new Sprite(texture);
   const world = new Container();
+  const actors = new Container();
+  const lights = new Container();
   const ui = new Container();
   const background = await createBackground();
 
-  world.addChild(background.behind, background.inFront);
+  world.addChild(background.behind, actors, lights, background.inFront);
 
   // The density of ADR-003, as the transform it has to be: the texture is
   // 640 by 360 pixels and holds a 320 by 180 view, so a world unit is two
@@ -268,11 +285,21 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
 
   return {
     world,
+    actors,
+    lights,
     ui,
     canvas: app.canvas,
 
+    get camera(): Camera {
+      return camera ?? ORIGIN;
+    },
+
     watch(state: WorldState): void {
       camera = follow(camera ?? restCamera(state.room), state);
+      // Everything in world coordinates is drawn by moving its layer under
+      // the camera, so a sprite is placed where the world says it is.
+      actors.position.set(-camera.x, -camera.y);
+      lights.position.set(-camera.x, -camera.y);
       background.place(camera, state.room);
       // Written only when it changes, the way the fit above is written.
       const report = background.report();

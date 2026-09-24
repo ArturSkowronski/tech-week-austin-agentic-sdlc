@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { measure } from '../../game/render/sprites';
+import { crystalOf, densityOf, measure, type StripEntry } from '../../game/render/sprites';
 
 describe('measuring a manifest entry', () => {
   it('reads art the kit records no density for as one pixel per unit', () => {
@@ -21,5 +21,63 @@ describe('measuring a manifest entry', () => {
       height: 352,
       artHeight: 352,
     });
+  });
+});
+
+/** The fall strip as the kit wrote it: four 40 by 32 cells at one pixel a unit. */
+const FALL: StripEntry = {
+  width: 160,
+  height: 32,
+  cell: 32,
+  cellW: 40,
+  frames: 4,
+  crystal: [
+    [33, 4],
+    [32, 4],
+    [32, 3],
+    [32, 7],
+  ],
+};
+
+describe('the crystal of one frame of a strip', () => {
+  it('answers the middle of the pixel the kit recorded', () => {
+    expect(crystalOf(FALL, 0, 1)).toEqual({ x: 33.5, y: 4.5 });
+    expect(crystalOf(FALL, 3, 1)).toEqual({ x: 32.5, y: 7.5 });
+  });
+
+  it('mirrors it about the cell when he faces left, as the sprite is mirrored', () => {
+    for (let frame = 0; frame < FALL.frames; frame += 1) {
+      const right = crystalOf(FALL, frame, 1);
+      const left = crystalOf(FALL, frame, -1);
+
+      expect(left.y).toBe(right.y);
+      expect(left.x + right.x).toBe(FALL.cellW);
+    }
+  });
+
+  it('halves the point of a strip drawn at two pixels per unit', () => {
+    expect(crystalOf({ ...FALL, height: 64, width: 320, crystal: [[67, 9]] }, 0, 1)).toEqual({
+      x: 33.75,
+      y: 4.75,
+    });
+  });
+
+  it('refuses a frame the strip does not hold', () => {
+    expect(() => crystalOf(FALL, 4, 1)).toThrow('has no frame 4');
+  });
+});
+
+describe('the density of a strip', () => {
+  it('reads a cell of 32 world units in a file 32 pixels tall as one', () => {
+    expect(densityOf(FALL)).toBe(1);
+  });
+
+  it('reads asset-list.md\'s 64 px cells as two, the number the crystal is divided by', () => {
+    const twice: StripEntry = { ...FALL, height: 64, width: 320 };
+
+    expect(densityOf(twice)).toBe(2);
+    // The same number both halves of the draw have to agree on: the crystal
+    // is divided by it above, so the cell has to be as well (ADR-003).
+    expect(crystalOf(twice, 0, 1).x * densityOf(twice)).toBe(33.5);
   });
 });

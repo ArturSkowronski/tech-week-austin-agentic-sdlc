@@ -20,8 +20,13 @@ import {
   type Raster,
 } from './lib';
 
-/** A point in a cell: how far in from its left edge, how far down from its top. */
-export type Point = readonly [number, number];
+// The renderer is the other reader of what this file records, and it has to
+// survive in a browser, so the shape of a strip entry is declared there and
+// taken from there (AGENTS.md rule 9). Types only: no renderer code, and no
+// pixi.js, reaches the asset build.
+import type { Point, StripEntry } from '../../game/render/sprites';
+
+export type { Point, StripEntry };
 
 /** One pose sheet: which raw it is, and what the plan says it holds. */
 export interface Sheet {
@@ -35,19 +40,6 @@ export interface Sheet {
   frames: number;
   /** Its cell's width, when the poses need more room than a cell is tall. */
   cellW?: number;
-}
-
-/** What the manifest records about one strip (pipeline.md, manifest entries). */
-export interface StripEntry {
-  width: number;
-  height: number;
-  /** The cell's height in world units; every pose stands on its floor. */
-  cell: number;
-  /** The cell's width, which the strip is this many frames of. */
-  cellW: number;
-  frames: number;
-  /** Where the crystal sits in each frame, in its cell's coordinates. */
-  crystal: readonly Point[];
 }
 
 /** Bytes per pixel, as `lib.ts` lays a raster out. */
