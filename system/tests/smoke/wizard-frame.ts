@@ -1,7 +1,10 @@
-// The one reader of the `data-wizard` report game/render/wizard.ts publishes.
-// Two specs measure against that frame — the wand light's own, and the layer
-// stack's, which has to leave the wizard's block out of its colour counts —
-// and one format deserves one parser (AGENTS.md rule 9).
+// The readers of what the renderer publishes on the canvas: the `name=value`
+// report format itself, which every one of its reports is written in, and the
+// `data-wizard` frame game/render/wizard.ts writes in that format. The specs
+// measuring against them — the wand light's own, the layer stack's, which has
+// to leave the wizard's block out of its colour counts, and the room layer's —
+// all read them from here, because one format deserves one parser
+// (AGENTS.md rule 9).
 
 import type { Page } from '@playwright/test';
 
@@ -25,7 +28,7 @@ export interface Drawn {
 }
 
 /** The fields of a `name=value name=value` report, by name. */
-async function fieldsOf(page: Page, name: string): Promise<Map<string, string>> {
+export async function fieldsOf(page: Page, name: string): Promise<Map<string, string>> {
   const report = (await page.locator('#game canvas').getAttribute(`data-${name}`)) ?? '';
 
   return new Map(

@@ -63,7 +63,7 @@ const freshWorld = (): WorldState => createWorld(roomText, { roomName });
 
 // Neither load needs anything of the other, so both chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
-const [scene, wizardView] = await Promise.all([createScene(mount), createWizard()]);
+const [scene, wizardView] = await Promise.all([createScene(mount, roomName), createWizard()]);
 const keyboard = createKeyboard();
 
 scene.actors.addChild(wizardView.view);
@@ -216,7 +216,7 @@ function frame(now: number): void {
   hud.update(world, debugHud);
   banner.update(world);
 
-  scene.watch(world);
+  scene.watch(world, debugHud);
   wizardView.update(world.player, scene.camera);
   scene.render();
   publish('wizard', wizardView.report());

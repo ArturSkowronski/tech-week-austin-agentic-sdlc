@@ -21,3 +21,10 @@ export const TILE_ORDER = [
 
 /** One tile of the atlas, by name. */
 export type TileName = (typeof TILE_ORDER)[number];
+
+/**
+ * The atlas the kit writes and the renderer draws from, as the manifest names
+ * it. It is written here rather than on either side so that the file name and
+ * the order of what is in it stay one fact (AGENTS.md rule 9).
+ */
+export const TILE_ATLAS = 'tiles/forest';

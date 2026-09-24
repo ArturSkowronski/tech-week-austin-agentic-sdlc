@@ -11,8 +11,9 @@
 // painting is a row of whole panels, and paintings.ts joins them.
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
+import { TILE_ATLAS } from '../../game/content/tile-order';
 import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, VIEW_H, VIEW_W } from '../../game/render/config';
 
 import {
@@ -31,6 +32,7 @@ import {
 } from './lib';
 import { fitPanel, joinPanels, PAINTINGS, type Painting, type PaintingEntry } from './paintings';
 import { cutStrip, type Sheet, type StripEntry } from './strips';
+import { sliceTiles } from './tiles';
 
 /** Where the generated raws are read from, and where the output goes. */
 const RAWS = 'assets';
@@ -105,12 +107,17 @@ async function main(): Promise<void> {
     // The bushes in front are the undergrowth's own canopy, mirrored so the
     // layer in front does not read as the layer behind a second time.
     { name: 'bg/foreground', art: flip(crop(undergrowth, { x: 0, y: 0, width: undergrowth.width, height: BUSHES_FRONT_ROWS })) },
+    // The forest atlas as one strip, in the order of game/content/tile-order.ts:
+    // one file and one manifest entry, cut back into its eleven tiles by
+    // game/render/tiles.ts, which draws the rooms that have no painting.
+    { name: TILE_ATLAS, art: hstack(sliceTiles(await loadPng(join(RAWS, 'tileset.png')))) },
     { name: 'splash', art: await frame('splash-textless.png') },
   ];
 
   await mkdir(join(OUT, 'bg'), { recursive: true });
   await mkdir(join(OUT, 'sprites'), { recursive: true });
   await mkdir(join(OUT, 'paintings'), { recursive: true });
+  await mkdir(join(OUT, dirname(TILE_ATLAS)), { recursive: true });
   const manifest: Record<string, Entry | StripEntry | PaintingEntry> = {};
   for (const output of outputs) {
     manifest[output.name] = await write(output);

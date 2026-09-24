@@ -79,6 +79,21 @@ export const SKY_STOPS = [0xe3a259, 0x8c6a8e, 0x2a2a5c] as const;
 /** Alpha of the translucent dark laid over the world at dusk. */
 export const DUSK_ALPHA = 0.08;
 
+/**
+ * Alpha the tiles are drawn at over a room's painting when F1 is on: the
+ * debug view of ADR-004, which shows what the wizard collides with without
+ * hiding what the room looks like.
+ */
+export const DEBUG_TILE_ALPHA = 0.5;
+
+/**
+ * Share of the earth tiles drawn with roots in them, and of the stone tiles
+ * drawn mossy (rendering-and-look.md, tiles). game/render/tiles.ts picks which
+ * ones by a hash of the tile's position, so the shares are how much of the
+ * ground carries them, not a chance rolled per frame.
+ */
+export const TILE_SCATTER = { roots: 0.25, moss: 0.2 } as const;
+
 // The width of a waterfall's water column is not here: PROP_SIZE in
 // game/sim/room.ts already owns every prop size (AGENTS.md rule 9).
 

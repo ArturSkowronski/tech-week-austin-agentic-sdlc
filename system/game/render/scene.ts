@@ -12,6 +12,7 @@ import type { Room, WorldState } from '../sim';
 import { floorLine, follow, restCamera, wholePixels, type Camera } from './camera';
 import {
   BASE_COLOURS,
+  DEBUG_TILE_ALPHA,
   LAYERS,
   LETTERBOX_COLOUR,
   RENDER_DENSITY,
@@ -24,7 +25,8 @@ import {
   VIEW_W,
   type Layer,
 } from './config';
-import { loadArt, loadManifest, type Art } from './sprites';
+import { loadArt, loadManifest, type Art, type Manifest } from './sprites';
+import { drawTiles, loadTileset } from './tiles';
 
 export interface Scene {
   /**
@@ -48,8 +50,11 @@ export interface Scene {
   readonly ui: Container;
   /** The canvas the two are drawn on; what the fit produced is published on it. */
   readonly canvas: HTMLCanvasElement;
-  /** Move the camera and the layer stack to where the world now is. */
-  watch(state: WorldState): void;
+  /**
+   * Move the camera and the layer stack to where the world now is, and draw
+   * the room behind it. Behind F1 the tiles join a painted room as well.
+   */
+  watch(state: WorldState, debug: boolean): void;
   /** Draw one frame. */
   render(): void;
 }
@@ -122,9 +127,7 @@ interface Background {
   report(): string;
 }
 
-async function createBackground(): Promise<Background> {
-  const manifest = await loadManifest();
-
+async function createBackground(manifest: Manifest): Promise<Background> {
   async function backdrop(layer: Layer): Promise<Backdrop> {
     const art = await loadArt(manifest, layer.asset);
     const sprite = new TilingSprite({ texture: art.texture, width: VIEW_W, height: art.height });
@@ -192,6 +195,78 @@ async function createBackground(): Promise<Background> {
 }
 
 /**
+ * The room itself, between the backdrops and the actors: the painting the kit
+ * built for it drawn 1:1, or the tiles where it has none (ADR-004). A painting
+ * is the look of its room and hides the tiles; F1 brings them back over it at
+ * half alpha, which is how the debug view shows what the wizard collides with.
+ */
+interface RoomArt {
+  /** Painting and tiles together, in world units, moved by the camera. */
+  readonly view: Container;
+  /** Draw this room, and show or hide the tiles for this debug state. */
+  draw(room: Room, drawing: string, debug: boolean): void;
+  /** What it drew, measured off the objects the way the fit is. */
+  report(): string;
+}
+
+async function createRoomArt(manifest: Manifest, roomName: string): Promise<RoomArt> {
+  const name = `paintings/${roomName}`;
+  const [painting, tileset] = await Promise.all([
+    manifest[name] === undefined ? undefined : loadArt(manifest, name),
+    loadTileset(manifest),
+  ]);
+  const view = new Container();
+
+  if (painting !== undefined) {
+    const sprite = new Sprite(painting.texture);
+
+    // The painting is drawn at two pixels per world unit, so it covers its
+    // room's tiles exactly when it is brought back to units.
+    sprite.scale.set(1 / painting.density);
+    view.addChild(sprite);
+  }
+
+  /** The room's tiles, built the first time they are shown and kept after. */
+  let tiles: Container | undefined;
+
+  return {
+    view,
+
+    draw(room: Room, drawing: string, debug: boolean): void {
+      // The painting was chosen once, by name, when the scene was built; the
+      // grid arrives every frame with whatever world the loop hands over. They
+      // are one fact today only because game/main.ts passes one variable into
+      // both. Should a second call site or a room switch ever part them, a
+      // room would wear another room's painting over its own collision and
+      // nothing on the screen would say so — so it is said here instead.
+      if (drawing !== roomName) {
+        throw new Error(`the room layer was built for ${roomName} and asked to draw ${drawing}`);
+      }
+
+      const show = painting === undefined || debug;
+
+      // A painted room's tiles are thousands of sprites nobody may ever ask
+      // for, so they are built when F1 first asks and not before.
+      if (show && tiles === undefined) {
+        tiles = drawTiles(room, tileset);
+        tiles.alpha = painting === undefined ? 1 : DEBUG_TILE_ALPHA;
+        view.addChild(tiles);
+      }
+
+      if (tiles !== undefined) {
+        tiles.visible = show;
+      }
+    },
+
+    report(): string {
+      const drawn = tiles?.visible === true ? tiles.children.length : 0;
+
+      return `painting=${painting === undefined ? 'none' : roomName} tiles=${drawn} tileAlpha=${painting === undefined ? 1 : DEBUG_TILE_ALPHA}`;
+    },
+  };
+}
+
+/**
  * Window pixels per world unit: the largest multiple of two whose view fits,
  * never below two, so the render texture's pixels stay whole (ADR-003).
  */
@@ -201,8 +276,12 @@ function displayScale(windowW: number, windowH: number): number {
   return Math.max(steps, 1) * SCALE_STEP;
 }
 
-/** Start Pixi in `mount` and give back the surfaces to draw on. */
-export async function createScene(mount: HTMLElement): Promise<Scene> {
+/**
+ * Start Pixi in `mount` and give back the surfaces to draw on. The room is
+ * named here rather than read off the first frame because its painting, if it
+ * has one, is loaded with the backdrops.
+ */
+export async function createScene(mount: HTMLElement, roomName: string): Promise<Scene> {
   const app = new Application();
 
   await app.init({
@@ -231,9 +310,15 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
   const actors = new Container();
   const lights = new Container();
   const ui = new Container();
-  const background = await createBackground();
+  const manifest = await loadManifest();
+  // Neither the backdrops nor the room needs anything of the other, so both
+  // chains are in flight at once.
+  const [background, roomArt] = await Promise.all([
+    createBackground(manifest),
+    createRoomArt(manifest, roomName),
+  ]);
 
-  world.addChild(background.behind, actors, lights, background.inFront);
+  world.addChild(background.behind, roomArt.view, actors, lights, background.inFront);
 
   // The density of ADR-003, as the transform it has to be: the texture is
   // 640 by 360 pixels and holds a 320 by 180 view, so a world unit is two
@@ -281,7 +366,15 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
 
   /** Undefined until the first frame, which starts the camera at rest. */
   let camera: Camera | undefined;
-  let layers = '';
+  /** What each report last said, so the canvas is written only when it changes. */
+  const published = new Map<string, string>();
+
+  function publish(name: string, report: string): void {
+    if (published.get(name) !== report) {
+      published.set(name, report);
+      app.canvas.dataset[name] = report;
+    }
+  }
 
   return {
     world,
@@ -294,20 +387,17 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
       return camera ?? ORIGIN;
     },
 
-    watch(state: WorldState): void {
+    watch(state: WorldState, debug: boolean): void {
       camera = follow(camera ?? restCamera(state.room), state);
       // Everything in world coordinates is drawn by moving its layer under
       // the camera, so a sprite is placed where the world says it is.
       actors.position.set(-camera.x, -camera.y);
       lights.position.set(-camera.x, -camera.y);
+      roomArt.view.position.set(-camera.x, -camera.y);
+      roomArt.draw(state.room, state.roomName, debug);
       background.place(camera, state.room);
-      // Written only when it changes, the way the fit above is written.
-      const report = background.report();
-
-      if (report !== layers) {
-        layers = report;
-        app.canvas.dataset['layers'] = report;
-      }
+      publish('layers', background.report());
+      publish('room', roomArt.report());
     },
 
     render(): void {
