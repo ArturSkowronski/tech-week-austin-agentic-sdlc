@@ -31,8 +31,8 @@ export interface Box {
   height: number;
 }
 
-/** Bytes per pixel. */
-const CHANNELS = 4;
+/** Bytes per pixel, the one statement of how a raster is laid out. */
+export const CHANNELS = 4;
 
 /** The block sizes the generators draw at (pipeline.md, pitch estimation). */
 export const PITCHES = [2, 4, 7, 8] as const;
@@ -75,7 +75,7 @@ export function pixelAt(raster: Raster, x: number, y: number): Rgba {
 }
 
 /** How opaque the pixel at a point inside the raster is. */
-function alphaAt(raster: Raster, x: number, y: number): number {
+export function alphaAt(raster: Raster, x: number, y: number): number {
   return raster.data[(y * raster.width + x) * CHANNELS + 3] ?? 0;
 }
 
@@ -212,6 +212,25 @@ export function resampleBlocks(raster: Raster, pitch: number): Raster {
     for (let x = 0; x < width; x += 1) {
       const sx = Math.min(x * pitch + centre, raster.width - 1);
       const sy = Math.min(y * pitch + centre, raster.height - 1);
+      out.data.set(pixelAt(raster, sx, sy), (y * width + x) * CHANNELS);
+    }
+  }
+  return out;
+}
+
+/**
+ * The image sampled to a size, each new pixel taking the colour at the centre
+ * of the piece of the old one it stands for. The two axes scale apart, which
+ * is what the tileset's plank and its spike trap need to come out square
+ * tiles; art that has to keep its shape scales both sides by one factor
+ * before asking for a size.
+ */
+export function resampleTo(raster: Raster, width: number, height: number): Raster {
+  const out = createRaster(width, height);
+  for (let y = 0; y < height; y += 1) {
+    const sy = Math.floor(((y + 0.5) * raster.height) / height);
+    for (let x = 0; x < width; x += 1) {
+      const sx = Math.floor(((x + 0.5) * raster.width) / width);
       out.data.set(pixelAt(raster, sx, sy), (y * width + x) * CHANNELS);
     }
   }
