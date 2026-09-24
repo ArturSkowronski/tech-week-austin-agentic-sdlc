@@ -25,6 +25,8 @@ export interface Scene {
   readonly world: Container;
   /** The overlay, in window pixels. Drawn straight to the canvas on top. */
   readonly ui: Container;
+  /** The canvas the two are drawn on; what the fit produced is published on it. */
+  readonly canvas: HTMLCanvasElement;
   /** Draw one frame. */
   render(): void;
 }
@@ -115,6 +117,7 @@ export async function createScene(mount: HTMLElement): Promise<Scene> {
   return {
     world,
     ui,
+    canvas: app.canvas,
     render(): void {
       app.renderer.render({ container: world, target: texture });
       app.renderer.render(app.stage);

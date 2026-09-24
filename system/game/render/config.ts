@@ -78,3 +78,63 @@ export const SPRITE_FOOT_OFFSET = 2;
 
 /** Ticks the ticket card must be up before it can be waved away. */
 export const TICKET_DISMISS_TICKS = 3 * TICK_RATE;
+
+/**
+ * The UI's measurements, in UI pixels; `uiScale` in game/render/panel.ts says
+ * how many window pixels one of them is. The UI draws at the window's own
+ * resolution, so its grid is its own: it steps with the window's height rather
+ * than with the scale the world's blocks are shown at.
+ */
+export const UI_SIZES = {
+  /** A line of panel, button or HUD text. */
+  body: 10,
+  /** The title's wordmark, and the space it holds between its letters. */
+  wordmark: 26,
+  wordmarkSpacing: 3,
+  /** Space between the chrome's edge and what stands inside it. */
+  padding: 6,
+  /** Space between a panel's lines and the button below them. */
+  gap: 5,
+  /** The widest a panel grows before its lines wrap. */
+  maxWidth: 220,
+  /** The chrome's corner radius and the width of its edge. */
+  radius: 3,
+  border: 1,
+  /** The HUD line's distance from the top left corner of the window. */
+  margin: 6,
+} as const;
+
+/**
+ * Aged gold on charcoal, the palette's UI end
+ * (docs/plan/03-assets/art-direction.md). `dim` is the gold stepped back for
+ * a second line, `edge` the gold of the chrome's border.
+ */
+export const UI_COLOURS = {
+  ink: 0xe8c46a,
+  dim: 0x9c8a5e,
+  chrome: 0x17140f,
+  edge: 0x6b5a33,
+} as const;
+
+/** How much of the world a panel keeps out; the dusk shows through the rest. */
+export const UI_PANEL_ALPHA = 0.92;
+
+/**
+ * The UI's typeface. A monospace stack until the typography pass (HWP-064):
+ * every entry is a face the browser already has, so the text draws on the
+ * first frame and no font file joins the build.
+ */
+export const UI_FONT = 'ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace';
+
+/**
+ * Where each piece of the UI sits, as a share of the window's height: the card
+ * low enough to leave the wizard in sight, the banner in the middle of the
+ * screen the run has just ended on.
+ */
+export const UI_ANCHORS = {
+  wordmark: 0.38,
+  tagline: 0.5,
+  prompt: 0.72,
+  card: 0.78,
+  banner: 0.5,
+} as const;
