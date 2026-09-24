@@ -14,7 +14,7 @@
     "trace": "tsx tools/not-yet.ts trace",
     "build": "pnpm assets && vite build",
     "preview": "vite preview",
-    "assets": "tsx tools/not-yet.ts assets",
+    "assets": "tsx tools/asset-kit/build.ts",
     "assets:report": "tsx tools/not-yet.ts assets:report",
     "test": "vitest run",
     "test:watch": "vitest",

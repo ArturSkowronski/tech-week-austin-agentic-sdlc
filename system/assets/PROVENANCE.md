@@ -22,10 +22,10 @@ page colour when it is not.
 
 | File | What it is | Becomes |
 |---|---|---|
-| bg-mountains-big.png | detailed far mountain range, magenta sky | bg/mountains-big.png, mirror-tiled, 120 px base extension |
-| bg-forest.png | tall forest, trunks and canopy | bg/trees.png, 120 px base extension |
-| bg-undergrowth.png | near undergrowth | bg/undergrowth.png, and its top 76 rows mirrored as bg/foreground.png |
-| splash-textless.png | title screen without lettering | splash.png; the wordmark is drawn in code |
+| bg-mountains-big.png | detailed far mountain range, magenta sky | bg/mountains-big.png, 4 px pitch, mirror-tiled, 120 px base extension |
+| bg-forest.png | tall forest, trunks and canopy | bg/trees.png, 4 px pitch, 120 px base extension. Keys to 143 rows of art against the asset list's 142, so the kit's cut from the bottom drops the topmost canopy row (3 pixels) on every build |
+| bg-undergrowth.png | near undergrowth | bg/undergrowth.png, 4 px pitch, and its top 76 rows mirrored as bg/foreground.png |
+| splash-textless.png | title screen without lettering | splash.png, 4 px pitch; the wordmark is drawn in code |
 | wizard-idle.png | idle, 4 frames | sprites/wizard-idle.png, 8 px pitch |
 | wizard-charge.png | wand charge, 5 frames | sprites/wizard-charge.png, 8 px pitch |
 | wizard-walk.png | walk cycle, 8 labelled frames; first of four variants | sprites/wizard-run.png, 7 px pitch so the frames match the idle height |
