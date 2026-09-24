@@ -107,6 +107,73 @@ export const LOG_FALL_SPEED = { min: 0.9, max: 1.6 } as const;
 export const WATER_PARTED_TICKS = 150;
 
 /**
+ * The waterfall's palette (rendering-and-look.md, the waterfall). It is drawn
+ * in code rather than generated, so these nine colours are the whole of its
+ * art: the rock behind it, the base blue and the second blue that scrolls over
+ * it, the white of the foam and the paler white of the mist, the green of the
+ * flicker that says the water is holding something back, and the two inks the
+ * log lines behind it are written in — the manifest's own evidence, and the
+ * fictional chatter it hides among (bug-quest.md, evidence).
+ */
+export const WATERFALL_COLOURS = {
+  rock: 0x1b2230,
+  water: 0x2f6f9e,
+  strand: 0x59a7cf,
+  streak: 0x9fd8ff,
+  foam: 0xdff1ff,
+  mist: 0xbcd9ec,
+  flicker: 0x5ff2a6,
+  evidence: 0x9ff2b5,
+  flavour: 0x47707d,
+} as const;
+
+/**
+ * The shape and the weather of a water column, in world units and in ticks.
+ * How wide the column is is not here: PROP_SIZE in game/sim/room.ts owns every
+ * prop size, and how tall it is is the drop to the room's bottom row.
+ */
+export const WATERFALL = {
+  /** The radius the rock's right edge is rounded by. */
+  radius: 6,
+  /** Foam along the lip, and down the right edge the rock rounds. */
+  lip: 3,
+  edge: 2,
+  /** Mist at the base: this deep, laid on in this many bands of this alpha. */
+  mist: 12,
+  mistBands: 3,
+  mistAlpha: 0.18,
+  /** Thin strands of the second blue, and how wide and long one is. */
+  strands: 9,
+  strandWidth: 1,
+  strandLength: 24,
+  /** Streaks in fixed columns, and how wide, long and bright one is. */
+  streaks: 7,
+  streakWidth: 2,
+  streakLength: 10,
+  streakAlpha: 0.8,
+  /** How much of what is behind the water it keeps back while it is closed. */
+  closedAlpha: 0.94,
+  /** Ticks the water takes to draw back over the gap at the end of a parting. */
+  closeTicks: 12,
+  /** The share of the face a parting opens. */
+  openShare: 0.68,
+  /** Ticks between green flickers, how many of them one lasts, how faint. */
+  flickerPeriod: 37,
+  flickerTicks: 4,
+  flickerAlpha: 0.22,
+  /** Bands of the face a flicker may land on. */
+  flickerPatches: 6,
+} as const;
+
+/**
+ * The log text that falls behind the water. A glyph pixel is one pixel of the
+ * render texture (ADR-003), which is the smallest the font can be drawn at,
+ * and the columns stand this far apart across the face, so the text reads as
+ * rain rather than as a wall.
+ */
+export const LOG_TEXT = { columnStep: 8, pixel: 1 / RENDER_DENSITY } as const;
+
+/**
  * Frames per second each wizard strip plays at. The run's ten and the
  * charge's fifteen are asset-list.md's; the idle breath and the fall's flail
  * are given no rate there, so these two are the renderer's own choice and the

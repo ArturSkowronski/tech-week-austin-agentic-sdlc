@@ -10,6 +10,7 @@ import { createBanner } from './render/panel';
 import { createProps } from './render/props';
 import { createTicketCard, type CardFacts } from './render/ticket';
 import { createTitle, startsRun } from './render/title';
+import { createWaterfall } from './render/waterfall';
 import { createWizard, type WizardFrame } from './render/wizard';
 import { createWorld, DT, NO_INPUT, tick, type InputFrame, type WorldState } from './sim';
 
@@ -71,11 +72,19 @@ const [scene, wizardView, propsView] = await Promise.all([
 ]);
 const keyboard = createKeyboard();
 
-// The props stand behind the wizard on the one actor layer, and the creature's
-// eyes in front of him (rendering-and-look.md, layer stack): carried, they ride
-// on the hat, which is inside the wizard's own cell, so eyes behind him would
-// be painted over by it.
-scene.actors.addChild(propsView.view, wizardView.view, propsView.eyes);
+// The waterfall is drawn in code and loads nothing, so it is built here rather
+// than awaited with the rest. The lines it shows are the room's bug's, as
+// bug-quest.md's manifest gives them: HWP-050 writes that manifest and HWP-052
+// hands this call `bugForRoom(roomName).logs`, so until then it is handed none
+// and the water hides the renderer's own fictional chatter alone.
+const waterfallView = createWaterfall([]);
+
+// The waterfall stands behind everything else on the actor layer — its water
+// is near opaque, and a wizard swept into the column has to stay in sight.
+// Then the props behind the wizard, and the creature's eyes in front of him
+// (rendering-and-look.md, layer stack): carried, they ride on the hat, which
+// is inside the wizard's own cell, so eyes behind him would be painted over.
+scene.actors.addChild(waterfallView.view, propsView.view, wizardView.view, propsView.eyes);
 scene.lights.addChild(wizardView.light);
 
 /** No manifest and no creature yet, so the card holds the clean state. */
@@ -226,10 +235,12 @@ function frame(now: number): void {
   banner.update(world);
 
   scene.watch(world, debugHud);
+  waterfallView.update(world, scene.camera);
   propsView.update(world, wizardView.update(world.player, scene.camera), scene.camera);
   scene.render();
   publish('wizard', wizardView.report());
   publish('props', propsView.report());
+  publish('waterfall', waterfallView.report());
   publishUi();
 }
 
