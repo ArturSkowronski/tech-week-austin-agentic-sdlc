@@ -118,6 +118,20 @@ export const WIZARD_FPS = { idle: 8, run: 10, flail: 12, charge: 15 } as const;
 export const TAKE_OFF_TICKS = 4;
 
 /**
+ * Frames a second every prop animation plays at. asset-list.md gives the props
+ * no rate of their own — "all static or looped" — so this one is the
+ * renderer's choice: slow enough that two frames read as a rustle rather than
+ * as a flicker, and it divides the tick rate evenly.
+ */
+export const PROP_FPS = 10;
+
+/** Ticks a bush rustles and a log chatters after a charge hit. */
+export const PROP_RUSTLE_TICKS = 24;
+
+/** How far a hit knocks a prop sideways, in world units, and for how many ticks. */
+export const PROP_SHAKE = { units: 1, ticks: 4 } as const;
+
+/**
  * The wand's crystal light (rendering-and-look.md, Dusk): an additive glow of
  * this radius in world units, drawn as this many rings of equal alpha so it
  * falls off in steps rather than in a smooth gradient the pixel art has no
@@ -127,6 +141,17 @@ export const WAND_LIGHT = { colour: 0x9fd8ff, radius: 11, alpha: 0.44, rings: 4 
 
 /** Units below their collision line the wizard and the props are drawn. */
 export const SPRITE_FOOT_OFFSET = 2;
+
+/**
+ * The creature's two red eyes, drawn in code in Season 1 (asset-list.md): two
+ * squares of `eye` units at the ends of the 8-unit patch the list gives them,
+ * and `hat` units down from the top of the wizard's cell while it rides him
+ * (bug-quest.md, the creature).
+ */
+export const CREATURE_EYES = { patch: 8, eye: 2, colour: 0xff3b2f, hat: 6 } as const;
+
+/** Ticks from one blink to the next, and how many of them the eyes are shut. */
+export const CREATURE_BLINK = { period: 96, shut: 6 } as const;
 
 /** Ticks the ticket card must be up before it can be waved away. */
 export const TICKET_DISMISS_TICKS = 3 * TICK_RATE;

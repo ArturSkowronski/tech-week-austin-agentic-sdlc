@@ -10,7 +10,7 @@ import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
 import { VIEW_H, VIEW_W, WAND_LIGHT } from '../../game/render/config';
-import type { StripEntry } from '../../game/render/sprites';
+import type { PoseStripEntry } from '../../game/render/sprites';
 import { LONG_FALL_TICKS, type InputFrame, type PlayerState, type Vec2 } from '../../game/sim/index';
 
 import { wizardFrame, type Drawn } from './wizard-frame';
@@ -213,7 +213,7 @@ const STATES: readonly { state: PlayerState; stateTimer: number; fellFor: number
  * the same recorded point — including the density the cell's own height
  * against the file's gives (ADR-003).
  */
-function crystalIn(entry: StripEntry | undefined, frame: number, facing: 1 | -1): Vec2 {
+function crystalIn(entry: PoseStripEntry | undefined, frame: number, facing: 1 | -1): Vec2 {
   const [x = 0, y = 0] = entry?.crystal[frame] ?? [];
   const density = (entry?.height ?? 1) / (entry?.cell ?? 1);
   const middle = (x + 0.5) / density;
@@ -222,10 +222,10 @@ function crystalIn(entry: StripEntry | undefined, frame: number, facing: 1 | -1)
 }
 
 /** The kit's manifest, as the site serves it. */
-async function strips(): Promise<Record<string, StripEntry>> {
+async function strips(): Promise<Record<string, PoseStripEntry>> {
   return JSON.parse(await readFile('public/assets/manifest.json', 'utf8')) as Record<
     string,
-    StripEntry
+    PoseStripEntry
   >;
 }
 

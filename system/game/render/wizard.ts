@@ -16,14 +16,13 @@ import {
   LONG_FALL_TICKS,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
-  TICK_RATE,
   type Player,
   type Vec2,
 } from '../sim';
 
 import { wholePixels, type Camera } from './camera';
 import { SPRITE_FOOT_OFFSET, TAKE_OFF_TICKS, WAND_LIGHT, WIZARD_FPS } from './config';
-import { loadManifest, loadStrip, type Strip } from './sprites';
+import { cycle, loadManifest, loadStrip, type Strip } from './sprites';
 
 /** The strips the kit writes, and the states that borrow each of them. */
 const SHEETS = ['idle', 'run', 'jump', 'fall', 'charge'] as const;
@@ -76,15 +75,6 @@ export interface WizardFrame extends Pose {
   readonly cell: Cell;
   /** Where the wand's crystal stands, and with it the light, in world units. */
   readonly light: Vec2;
-}
-
-/**
- * The cell a loop shows after so many ticks: the frames from `first` to the
- * end of the strip, played at `fps`. The count comes from the manifest, so no
- * strip's length is written down here as well (AGENTS.md rule 9).
- */
-function cycle(ticks: number, fps: number, count: number, first = 0): number {
-  return first + (Math.floor((ticks * fps) / TICK_RATE) % (count - first));
 }
 
 /**
@@ -169,8 +159,8 @@ export interface WizardView {
   readonly light: Container;
   /** The frame this player state draws, without drawing it. */
   read(player: Player): WizardFrame;
-  /** Put the wizard and his light where this player is. */
-  update(player: Player, camera: Camera): void;
+  /** Put the wizard and his light where this player is, and say what it drew. */
+  update(player: Player, camera: Camera): WizardFrame;
   /** What was last drawn, in view units, measured off the frame itself. */
   report(): string;
 }
@@ -234,7 +224,7 @@ export async function createWizard(): Promise<WizardView> {
     light: glow,
     read,
 
-    update(player: Player, camera: Camera): void {
+    update(player: Player, camera: Camera): WizardFrame {
       const frame = read(player);
       const { cell, light } = frame;
 
@@ -263,6 +253,8 @@ export async function createWizard(): Promise<WizardView> {
         `pose=${frame.sheet}:${frame.frame}` +
         ` cell=${cell.x - camera.x},${cell.y - camera.y},${cell.w},${cell.h}` +
         ` light=${light.x - camera.x},${light.y - camera.y}`;
+
+      return frame;
     },
 
     report(): string {

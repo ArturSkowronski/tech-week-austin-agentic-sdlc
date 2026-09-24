@@ -7,6 +7,7 @@ import { createHud } from './render/hud';
 import { createScene } from './render/scene';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
+import { createProps } from './render/props';
 import { createTicketCard, type CardFacts } from './render/ticket';
 import { createTitle, startsRun } from './render/title';
 import { createWizard, type WizardFrame } from './render/wizard';
@@ -61,12 +62,20 @@ if (roomText === undefined) {
 
 const freshWorld = (): WorldState => createWorld(roomText, { roomName });
 
-// Neither load needs anything of the other, so both chains are in flight at
+// No load needs anything of the others, so all three chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
-const [scene, wizardView] = await Promise.all([createScene(mount, roomName), createWizard()]);
+const [scene, wizardView, propsView] = await Promise.all([
+  createScene(mount, roomName),
+  createWizard(),
+  createProps(),
+]);
 const keyboard = createKeyboard();
 
-scene.actors.addChild(wizardView.view);
+// The props stand behind the wizard on the one actor layer, and the creature's
+// eyes in front of him (rendering-and-look.md, layer stack): carried, they ride
+// on the hat, which is inside the wizard's own cell, so eyes behind him would
+// be painted over by it.
+scene.actors.addChild(propsView.view, wizardView.view, propsView.eyes);
 scene.lights.addChild(wizardView.light);
 
 /** No manifest and no creature yet, so the card holds the clean state. */
@@ -217,9 +226,10 @@ function frame(now: number): void {
   banner.update(world);
 
   scene.watch(world, debugHud);
-  wizardView.update(world.player, scene.camera);
+  propsView.update(world, wizardView.update(world.player, scene.camera), scene.camera);
   scene.render();
   publish('wizard', wizardView.report());
+  publish('props', propsView.report());
   publishUi();
 }
 

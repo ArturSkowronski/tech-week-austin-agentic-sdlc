@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { crystalOf, densityOf, measure, type StripEntry } from '../../game/render/sprites';
+import { crystalOf, densityOf, measure, type PoseStripEntry } from '../../game/render/sprites';
 
 describe('measuring a manifest entry', () => {
   it('reads art the kit records no density for as one pixel per unit', () => {
@@ -25,7 +25,7 @@ describe('measuring a manifest entry', () => {
 });
 
 /** The fall strip as the kit wrote it: four 40 by 32 cells at one pixel a unit. */
-const FALL: StripEntry = {
+const FALL: PoseStripEntry = {
   width: 160,
   height: 32,
   cell: 32,
@@ -73,7 +73,7 @@ describe('the density of a strip', () => {
   });
 
   it('reads asset-list.md\'s 64 px cells as two, the number the crystal is divided by', () => {
-    const twice: StripEntry = { ...FALL, height: 64, width: 320 };
+    const twice: PoseStripEntry = { ...FALL, height: 64, width: 320 };
 
     expect(densityOf(twice)).toBe(2);
     // The same number both halves of the draw have to agree on: the crystal

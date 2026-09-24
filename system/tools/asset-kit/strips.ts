@@ -24,9 +24,9 @@ import {
 // survive in a browser, so the shape of a strip entry is declared there and
 // taken from there (AGENTS.md rule 9). Types only: no renderer code, and no
 // pixi.js, reaches the asset build.
-import type { Point, StripEntry } from '../../game/render/sprites';
+import type { Point, PoseStripEntry, StripEntry } from '../../game/render/sprites';
 
-export type { Point, StripEntry };
+export type { Point, PoseStripEntry, StripEntry };
 
 /** One pose sheet: which raw it is, and what the plan says it holds. */
 export interface Sheet {
@@ -55,7 +55,7 @@ const LEAST_POSE_ROWS = CELL / 2;
 const CRYSTAL_BLUE = 24;
 
 /** One sheet cut into the strip its state is written as, and its entry. */
-export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: StripEntry } {
+export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: PoseStripEntry } {
   const cellW = sheet.cellW ?? CELL;
   const poses = dropLabels(keyMagenta(resampleBlocks(raster, sheet.pitch)));
   const columns = runs(poses);

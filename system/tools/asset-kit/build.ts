@@ -31,6 +31,7 @@ import {
   type Rgb,
 } from './lib';
 import { fitPanel, joinPanels, PAINTINGS, type Painting, type PaintingEntry } from './paintings';
+import { sliceProps } from './props';
 import { cutStrip, type Sheet, type StripEntry } from './strips';
 import { sliceTiles } from './tiles';
 
@@ -117,6 +118,7 @@ async function main(): Promise<void> {
   await mkdir(join(OUT, 'bg'), { recursive: true });
   await mkdir(join(OUT, 'sprites'), { recursive: true });
   await mkdir(join(OUT, 'paintings'), { recursive: true });
+  await mkdir(join(OUT, 'props'), { recursive: true });
   await mkdir(join(OUT, dirname(TILE_ATLAS)), { recursive: true });
   const manifest: Record<string, Entry | StripEntry | PaintingEntry> = {};
   for (const output of outputs) {
@@ -124,7 +126,21 @@ async function main(): Promise<void> {
   }
   for (const sheet of WIZARD) {
     const name = `sprites/wizard-${sheet.state}`;
-    manifest[name] = await writeStrip(sheet, name);
+    const { image, entry } = cutStrip(sheet, await loadPng(join(RAWS, sheet.raw)));
+    manifest[name] = await writeStrip(name, image, entry);
+  }
+  for (const strip of sliceProps(await loadPng(join(RAWS, 'props-sheet.png')))) {
+    const name = `props/${strip.name}`;
+    // A prop is no one's light, so its entry is the cell and the frame count
+    // alone; that is what game/render/props.ts animates it from, and the cell
+    // sizes are the simulation's own `PROP_SIZE` (AGENTS.md rule 9).
+    manifest[name] = await writeStrip(name, strip.image, {
+      width: strip.image.width,
+      height: strip.image.height,
+      cell: strip.cell,
+      cellW: strip.cellW,
+      frames: strip.frames,
+    });
   }
   for (const painting of PAINTINGS) {
     const name = `paintings/${painting.room}`;
@@ -205,12 +221,11 @@ async function write(output: Output): Promise<Entry> {
 }
 
 /**
- * One pose sheet cut into its strip, saved, and its manifest entry. The strip
- * keeps every colour its poses resample to: the sprite palette pipeline.md
+ * One strip of cells, saved, and the manifest entry it was cut with. A strip
+ * keeps every colour its cells resample to: the sprite palette pipeline.md
  * names is a file the kit does not have yet.
  */
-async function writeStrip(sheet: Sheet, name: string): Promise<StripEntry> {
-  const { image, entry } = cutStrip(sheet, await loadPng(join(RAWS, sheet.raw)));
+async function writeStrip(name: string, image: Raster, entry: StripEntry): Promise<StripEntry> {
   await savePng(image, join(OUT, `${name}.png`));
   process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.frames} frames\n`);
   return entry;

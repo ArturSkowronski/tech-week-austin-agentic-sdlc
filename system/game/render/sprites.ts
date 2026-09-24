@@ -9,7 +9,22 @@
 
 import { Assets, Rectangle, Texture } from 'pixi.js';
 
-import type { Vec2 } from '../sim';
+import { TICK_RATE, type Vec2 } from '../sim';
+
+/** Frames played in so many ticks at this rate. */
+export function framesIn(ticks: number, fps: number): number {
+  return Math.floor((ticks * fps) / TICK_RATE);
+}
+
+/**
+ * The cell a loop shows after so many ticks: the frames from `first` to the
+ * end of the strip, played at `fps`. The count comes from the manifest, so no
+ * strip's length is written down anywhere else (AGENTS.md rule 9), and the
+ * wizard and the props share the one clock rather than each keeping its own.
+ */
+export function cycle(ticks: number, fps: number, count: number, first = 0): number {
+  return first + (framesIn(ticks, fps) % (count - first));
+}
 
 /** What the kit records about one output (pipeline.md, manifest entries). */
 export interface Entry {
@@ -36,7 +51,15 @@ export interface StripEntry extends Entry {
   /** The cell's width in world units, which the strip is this many frames of. */
   cellW: number;
   frames: number;
-  /** Where the crystal sits in each frame, in its cell's pixels. */
+  /**
+   * Where the crystal sits in each frame, in its cell's pixels. The wizard's
+   * sheets carry one; a prop is no one's light and its strip carries none.
+   */
+  crystal?: readonly Point[];
+}
+
+/** A wizard's strip: the one kind of strip that records a crystal per frame. */
+export interface PoseStripEntry extends StripEntry {
   crystal: readonly Point[];
 }
 
@@ -135,7 +158,7 @@ export function densityOf(entry: StripEntry): number {
  * The recorded point already names a drawn pixel of the crystal — the kit
  * pulls the patch's centroid onto one — so nothing here moves it again.
  */
-export function crystalOf(entry: StripEntry, frame: number, facing: 1 | -1): Vec2 {
+export function crystalOf(entry: PoseStripEntry, frame: number, facing: 1 | -1): Vec2 {
   const spot = entry.crystal[frame];
 
   if (spot === undefined) {
@@ -164,13 +187,21 @@ export interface Strip {
   readonly cellH: number;
   /** One texture per cell, in the sheet's order. */
   readonly frames: readonly Texture[];
-  /** Where a frame's crystal sits, as a wizard facing this way shows it. */
+  /**
+   * Where a frame's crystal sits, as a wizard facing this way shows it. Only
+   * the wizard's sheets record one, so a prop's strip refuses instead.
+   */
   crystal(frame: number, facing: 1 | -1): Vec2;
 }
 
-/** Whether the kit wrote this entry as a strip of pose cells rather than a layer. */
+/** Whether this strip is one of the wizard's sheets, which record a crystal. */
+function records(entry: StripEntry): entry is PoseStripEntry {
+  return entry.crystal !== undefined;
+}
+
+/** Whether the kit wrote this entry as a strip of cells rather than a layer. */
 function isStrip(entry: Entry): entry is StripEntry {
-  return 'crystal' in entry;
+  return 'frames' in entry;
 }
 
 /**
@@ -201,6 +232,12 @@ export async function loadStrip(manifest: Manifest, name: string): Promise<Strip
           frame: new Rectangle(frame * width, 0, width, entry.height),
         }),
     ),
-    crystal: (frame, facing) => crystalOf(entry, frame, facing),
+    crystal: (frame, facing) => {
+      if (!records(entry)) {
+        throw new Error(`the asset manifest's ${name} records no crystal`);
+      }
+
+      return crystalOf(entry, frame, facing);
+    },
   };
 }
