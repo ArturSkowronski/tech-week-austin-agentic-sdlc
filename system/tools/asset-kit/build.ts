@@ -2,12 +2,13 @@
 // file under public/assets, plus the manifest that says what it wrote
 // (docs/plan/03-assets/pipeline.md). Nothing else may put art in public/.
 //
-// This milestone builds the four background layers and the splash, and the
-// wizard's five pose sheets. A background is a whole generated frame, so the
-// work reads the same every time: resample the raw to the view's density, key
-// the magenta sky away, cut the drawn rows off the bottom, reduce them to 32
-// colours, and stand them on their base. A pose sheet is many small frames
-// instead, and strips.ts cuts it into them.
+// This milestone builds the four background layers and the splash, the
+// wizard's five pose sheets, and the room paintings. A background is a whole
+// generated frame, so the work reads the same every time: resample the raw to
+// the view's density, key the magenta sky away, cut the drawn rows off the
+// bottom, reduce them to 32 colours, and stand them on their base. A pose
+// sheet is many small frames instead, and strips.ts cuts it into them; a
+// painting is a row of whole panels, and paintings.ts joins them.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -28,6 +29,7 @@ import {
   type Raster,
   type Rgb,
 } from './lib';
+import { fitPanel, joinPanels, PAINTINGS, type Painting, type PaintingEntry } from './paintings';
 import { cutStrip, type Sheet, type StripEntry } from './strips';
 
 /** Where the generated raws are read from, and where the output goes. */
@@ -108,13 +110,18 @@ async function main(): Promise<void> {
 
   await mkdir(join(OUT, 'bg'), { recursive: true });
   await mkdir(join(OUT, 'sprites'), { recursive: true });
-  const manifest: Record<string, Entry | StripEntry> = {};
+  await mkdir(join(OUT, 'paintings'), { recursive: true });
+  const manifest: Record<string, Entry | StripEntry | PaintingEntry> = {};
   for (const output of outputs) {
     manifest[output.name] = await write(output);
   }
   for (const sheet of WIZARD) {
     const name = `sprites/wizard-${sheet.state}`;
     manifest[name] = await writeStrip(sheet, name);
+  }
+  for (const painting of PAINTINGS) {
+    const name = `paintings/${painting.room}`;
+    manifest[name] = await writePainting(painting, name);
   }
   await writeFile(join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
@@ -199,6 +206,33 @@ async function writeStrip(sheet: Sheet, name: string): Promise<StripEntry> {
   const { image, entry } = cutStrip(sheet, await loadPng(join(RAWS, sheet.raw)));
   await savePng(image, join(OUT, `${name}.png`));
   process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.frames} frames\n`);
+  return entry;
+}
+
+/**
+ * One room's painting joined out of its panels, posterised, saved, and its
+ * manifest entry. It is posterised to the same 32 colours a background gets,
+ * which is a choice: asset-list.md gives paintings no count of their own, and
+ * a room drawn out of the same size palette as the layers behind it is the
+ * point of the reduction.
+ *
+ * The reduction is after the join rather than panel by panel, which is the
+ * order pipeline.md lists the stages in, because that is what keeps the ground
+ * band running through the join one colour: two palettes picked apart drift,
+ * and the join is the one place in the image where that would show.
+ */
+async function writePainting(painting: Painting, name: string): Promise<PaintingEntry> {
+  const panels = await Promise.all(painting.panels.map(async (panel) => fitPanel(panel, await loadPng(join(RAWS, panel.raw)))));
+  const { image, entry } = joinPanels(panels);
+  const reduced = toPalette(image, palette(image, COLOURS));
+  // The count is a requirement on the file the same way it is for a layer, so
+  // the file is what is counted rather than the reduction that was asked for.
+  const count = colours(reduced).length;
+  if (count > COLOURS) {
+    throw new Error(`${name} came out ${count} colours, over the ${COLOURS} it is reduced to`);
+  }
+  await savePng(reduced, join(OUT, `${name}.png`));
+  process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.tiles} tiles, ${count} colours\n`);
   return entry;
 }
 
