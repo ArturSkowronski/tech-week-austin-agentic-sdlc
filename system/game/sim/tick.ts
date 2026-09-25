@@ -3,16 +3,12 @@
 // that matters: everything it reads comes from the state and the input frame,
 // so the same state and the same frames always give the same next state.
 
+import { stepCreature } from './creature';
 import type { InputFrame } from './input';
 import { stepPlayer } from './player';
 import { stepProps } from './props';
 import type { WorldState } from './state';
 import { stepWater } from './water';
-
-/** Hiding, riding, fleeing. Written by the creature ticket (bug-quest.md). */
-function stepCreature(_state: WorldState): void {
-  // Deliberately empty until the creature ticket lands.
-}
 
 /**
  * Advance the world by one tick, in place. The only function that changes a
@@ -31,5 +27,7 @@ export function tick(state: WorldState, input: InputFrame): void {
   // hazards ask whether the wand still carries him.
   stepWater(state);
   stepProps(state);
+  // The creature last, so a death this tick has already put the wizard back
+  // before it decides where to let go (bug-quest.md).
   stepCreature(state);
 }

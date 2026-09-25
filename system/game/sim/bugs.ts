@@ -8,8 +8,16 @@
 import manifest from '../../bugs/manifest.json' with { type: 'json' };
 import type { PropKind } from './state';
 
-/** Where a room's creature hides: the three legend props it can sit in. */
-export type HidingPlace = Extract<PropKind, 'bush' | 'log' | 'rock'>;
+/**
+ * Where a room's creature hides: the three legend props it can sit in. The
+ * list is the source and the type is read off it, so the manifest's `hides`
+ * and the simulation's search for a hiding place cannot drift apart
+ * (AGENTS.md rule 9).
+ */
+export const HIDING_PLACES = ['bush', 'log', 'rock'] as const satisfies readonly PropKind[];
+
+/** One of the {@link HIDING_PLACES}. */
+export type HidingPlace = (typeof HIDING_PLACES)[number];
 
 /** One entry of bugs/manifest.json. */
 export interface PlantedBug {

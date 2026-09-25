@@ -86,3 +86,9 @@ export const WATER_PULL = 160;
 
 /** What one tick in water leaves of his horizontal speed. */
 export const WATER_DRAG = 0.85;
+
+/** Ticks the creature takes to run from one hiding place to the next. */
+export const CREATURE_TRAVEL_TICKS = 30;
+
+/** Ticks the creature rides the wizard before it lets go. */
+export const CREATURE_CARRY_TICKS = 600;
