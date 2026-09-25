@@ -4,6 +4,7 @@
 
 import { rooms } from './content/rooms';
 import { createHud } from './render/hud';
+import { issueBug, issueUrl } from './render/issue';
 import { createScene } from './render/scene';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
@@ -88,7 +89,6 @@ const [scene, wizardView, propsView] = await Promise.all([
   createWizard(),
   createProps(),
 ]);
-const keyboard = createKeyboard();
 
 // The waterfall is drawn in code and loads nothing, so it is built here rather
 // than awaited with the rest. The lines it shows are the room's bug's, as
@@ -107,15 +107,26 @@ scene.lights.addChild(wizardView.light);
 const title = createTitle();
 const hud = createHud();
 const banner = createBanner();
+// The way out of the card: the prefilled issue, opened from the pointer press
+// panel.ts binds and from the keydown the keyboard hands on below (ADR-006).
+// A clean room never reaches the face that offers it; the null is what tells
+// the compiler so, and ISSUE_BUG is the entry with the defect's file already
+// dropped, the way CARD_BUG is for the screen.
+const ISSUE_BUG = issueBug(roomBug);
 const card = createTicketCard(() => {
-  // HWP-053 opens the prefilled issue here. The button's path already obeys
-  // ADR-006 — panel.ts binds it to pointerdown — but the T key's does not:
-  // takeEdges() buffers the press and card.press runs in the frame loop below,
-  // so a window.open called from here on the T path would be popup-blocked.
-  // HWP-053 has to close that gap by giving createKeyboard a synchronous
-  // one-shot callback for T rather than reusing the edge flags. Nothing is
-  // wrong today only because this is empty, and because a clean manifest never
-  // reaches the face that offers the button.
+  if (ISSUE_BUG !== null) {
+    window.open(issueUrl(ISSUE_BUG, world), '_blank', 'noopener');
+  }
+});
+
+const keyboard = createKeyboard({
+  // T puts the card up, and raises the ticket when the card already offers
+  // that. Before the run starts the title screen has the keyboard.
+  ticket(): void {
+    if (started) {
+      card.press(cardFacts(), world.tick);
+    }
+  },
 });
 
 scene.ui.addChild(title.view, hud.view, card.view, banner.view);
@@ -251,16 +262,10 @@ function frame(now: number): void {
 
   // The card is read after the ticks of this frame, so what it says is what
   // the world says now: it comes up by itself as soon as the player has felt
-  // the bug or read the logs, and T is the way back to it and the way out
-  // through it (bug-quest.md, the ticket card).
+  // the bug or read the logs (bug-quest.md, the ticket card). T is the other
+  // way to it, and is answered in the press above, not here.
   if (started) {
-    const facts = cardFacts();
-
-    if (edges.ticket) {
-      card.press(facts, world.tick);
-    }
-
-    card.update(facts, world.tick);
+    card.update(cardFacts(), world.tick);
   }
 
   title.view.visible = !started;

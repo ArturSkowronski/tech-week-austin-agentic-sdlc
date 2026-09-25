@@ -1,12 +1,14 @@
-// The ticket card in a real browser: HWP-052's acceptance. The card is down
-// before the player has done anything, it comes up by itself with what the
-// waterfall's logs told him, it names the bug and offers the way out once the
-// creature has ridden along as well, and the eyes are on the hat while it does
-// (docs/plan/02-design/bug-quest.md, evidence and the ticket card).
+// The ticket card in a real browser: the acceptance of HWP-052 and of
+// HWP-053's T key. The card is down before the player has done anything, it
+// comes up by itself with what the waterfall's logs told him, it names the bug
+// and offers the way out once the creature has ridden along as well, and the
+// eyes are on the hat while it does (docs/plan/02-design/bug-quest.md,
+// evidence and the ticket card).
 //
 // What the card says is read off the report game/main.ts publishes on the
 // canvas, the way the props and the layer stack are read, and the carried
-// frame is attached to the run so the eyes can be looked at.
+// frame is attached to the run so the eyes can be looked at. T is pressed for
+// real, so the browser's own popup rule is what the last tests measure.
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -187,4 +189,86 @@ test('carrying the creature as well names the bug and offers the way out', async
 
   await page.screenshot({ path: shot });
   await info.attach('card-while-carried.png', { path: shot, contentType: 'image/png' });
+});
+
+/**
+ * Answer github.com in the browser, so a raised ticket never leaves the run
+ * and the window that opens still lands on the URL the game built.
+ */
+async function catchTheIssue(page: Page): Promise<void> {
+  await page.context().route('https://github.com/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<title>new issue</title>' }),
+  );
+}
+
+/** Press T and hand back the window it opened, or null when it opened none. */
+async function pressT(page: Page): Promise<Page | null> {
+  // Half a second is long after the frame a press opens its window in.
+  const opened = page.waitForEvent('popup', { timeout: 500 }).catch(() => null);
+
+  await page.keyboard.press('KeyT');
+  await drawn(page);
+
+  return opened;
+}
+
+test('T raises nothing while the bug has been felt and the logs are unread', async ({ page }) => {
+  await catchTheIssue(page);
+  await open(page);
+  await carryTheCreature(page);
+
+  expect(await pressT(page)).toBeNull();
+});
+
+test('T raises nothing before the logs have been read', async ({ page }) => {
+  await catchTheIssue(page);
+  await open(page);
+
+  // Neither half of the bug is known: T is answered with the card, or with
+  // nothing at all in a room whose bug the player knows nothing of yet.
+  expect(await pressT(page)).toBeNull();
+
+  await partTheWater(page);
+
+  // The logs have been read, and that face carries no button either.
+  expect(await pressT(page)).toBeNull();
+  expect(await card(page)).toEqual({ says: LOGS_READ, up: true });
+});
+
+/**
+ * HWP-053's second acceptance, and the half a clean manifest cannot reach: the
+ * face that offers the way out needs a bug the player has both felt and read
+ * the logs for, and `bugs/manifest.json` is empty until HWP-054 plants HW-001.
+ * The guard enables the test by itself the day that entry lands.
+ *
+ * To run it before then, or to re-run it deliberately at HWP-054, plant the
+ * entry and rebuild — the manifest is baked into `dist/`, so a preview served
+ * from a stale build proves nothing:
+ *
+ * ```
+ * git worktree add ../hw-planted HEAD && cd ../hw-planted
+ * pnpm install --frozen-lockfile
+ * # copy bug-quest.md's HW-001 entry into bugs/manifest.json's `bugs` array
+ * pnpm build
+ * pnpm test:browser tests/smoke/ticket.spec.ts     # 7 passed, exit 0
+ * ```
+ *
+ * With the entry planted the two negative tests above also stop landing on the
+ * clean face and assert the two button-less bug faces they are named for,
+ * which is the rest of "and not in others".
+ */
+test('T opens the prefilled issue once the card names the bug', async ({ page }) => {
+  test.skip(BUG === undefined, 'a clean manifest never reaches the face that offers the way out');
+
+  await catchTheIssue(page);
+  await open(page);
+  await partTheWater(page);
+  await carryTheCreature(page);
+
+  // The window is waited for around the press, not after it: it is the press
+  // that is allowed to open one (ADR-006).
+  const [opened] = await Promise.all([page.waitForEvent('popup'), page.keyboard.press('KeyT')]);
+
+  await opened.waitForURL(/\/issues\/new\?/);
+  expect(decodeURIComponent(opened.url())).toContain(`title=${BUG?.id}:`);
 });

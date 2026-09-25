@@ -29,7 +29,7 @@ const BUG: CardBug = {
 };
 
 function edges(pressed: Partial<InputEdges>): InputEdges {
-  return { start: false, restart: false, ticket: false, debug: false, ...pressed };
+  return { start: false, restart: false, debug: false, ...pressed };
 }
 
 describe('the ticket card', () => {

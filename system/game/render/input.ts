@@ -2,9 +2,10 @@
 // InputFrame per tick. The key mapping of
 // docs/plan/02-design/movement-and-physics.md lives here and nowhere else.
 //
-// Buttons are sampled from what is held when the tick runs. The four one-shot
-// keys are remembered as edges instead, so a press is answered exactly once
-// however many frames the key stays down.
+// Buttons are sampled from what is held when the tick runs. The one-shot keys
+// are remembered as edges instead, so a press is answered exactly once however
+// many frames the key stays down — except for the presses the browser only
+// honours inside the event itself, which are called straight through.
 
 import { NO_INPUT, type InputFrame } from '../sim';
 
@@ -14,8 +15,6 @@ export interface InputEdges {
   start: boolean;
   /** R: restart the run. Enter never does. */
   restart: boolean;
-  /** T: raise the ticket card. */
-  ticket: boolean;
   /** F1: hitboxes and tiles over a painting. */
   debug: boolean;
 }
@@ -42,8 +41,22 @@ const ONE_SHOTS: Record<string, keyof InputEdges> = {
   Space: 'start',
   KeyZ: 'start',
   KeyR: 'restart',
-  KeyT: 'ticket',
   F1: 'debug',
+};
+
+/**
+ * The presses that are answered inside the keydown rather than buffered as an
+ * edge: T raises the ticket, which opens a window, and browsers allow that
+ * only from the press itself (ADR-006). Buffering it for the frame loop the
+ * way `takeEdges` does would turn every raised ticket into a blocked popup.
+ */
+export interface KeyPress {
+  ticket(): void;
+}
+
+/** Keys answered in the press, by `KeyboardEvent.code`. */
+const PRESSES: Record<string, keyof KeyPress> = {
+  KeyT: 'ticket',
 };
 
 export interface Keyboard {
@@ -54,25 +67,32 @@ export interface Keyboard {
 }
 
 /** Listen on the window and sample it into frames. */
-export function createKeyboard(): Keyboard {
+export function createKeyboard(press: KeyPress): Keyboard {
   const held = new Set<string>();
   const pressed = new Set<keyof InputEdges>();
 
   function onKeyDown(event: KeyboardEvent): void {
     const oneShot = ONE_SHOTS[event.code];
     const button = BUTTONS[event.code];
+    const atOnce = PRESSES[event.code];
 
-    if (oneShot !== undefined && !event.repeat) {
-      pressed.add(oneShot);
+    if (!event.repeat) {
+      if (oneShot !== undefined) {
+        pressed.add(oneShot);
+      }
+
+      if (atOnce !== undefined) {
+        press[atOnce]();
+      }
     }
 
-    // Only buttons are held: R, T and F1 are answered by their edge alone, and
+    // Only buttons are held: R, T and F1 are answered by the press alone, and
     // a set called `held` that carries them would not mean what it says.
     if (button !== undefined) {
       held.add(event.code);
     }
 
-    if (oneShot !== undefined || button !== undefined) {
+    if (oneShot !== undefined || button !== undefined || atOnce !== undefined) {
       // Arrows and Space would otherwise scroll the page under the game.
       event.preventDefault();
     }
@@ -107,7 +127,7 @@ export function createKeyboard(): Keyboard {
     },
 
     takeEdges(): InputEdges {
-      const edges: InputEdges = { start: false, restart: false, ticket: false, debug: false };
+      const edges: InputEdges = { start: false, restart: false, debug: false };
 
       for (const edge of pressed) {
         edges[edge] = true;
