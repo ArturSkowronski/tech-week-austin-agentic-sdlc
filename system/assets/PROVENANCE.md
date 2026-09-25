@@ -34,7 +34,7 @@ page colour when it is not.
 | tileset.png | forest tileset, eleven tiles on a transparent sheet in a known grid (205 x 202 cells from 39,39 with 39 px gaps, then the plank and the spike trap); cleaned by hand on 2026-09-16 from the fourth of four generated variants | tiles/forest.png, sliced by grid in tools/asset-kit/tiles.ts |
 | props-sheet.png | bush, log, rock, flag, beacon, torch, sparks with frames; second of four variants, re-exported on 2026-09-15 with a real alpha channel instead of the dark page | props/*.png, cut through the region mapping in tools/asset-kit/props.ts. torch and sparks are built but no room places a torch and the sparks are not drawn yet |
 | painting-ruin-gate-1.png | ruin gate level panel, 3:1 at 3840×1280 | left half of paintings/ruin-gate.png; the kit cuts the bridge open before keying (tools/asset-kit/paintings.ts) |
-| painting-ruin-gate-2.png | collapsed courtyard continuation, generated with panel 1 as reference | right half of paintings/ruin-gate.png |
+| painting-ruin-gate-2.png | collapsed courtyard continuation, generated with panel 1 as reference | right half of paintings/ruin-gate.png; the kit cuts the well open before keying (tools/asset-kit/paintings.ts) |
 
 ## Tried and set aside
 

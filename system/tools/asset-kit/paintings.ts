@@ -70,7 +70,12 @@ export const PAINTINGS: readonly Painting[] = [
       // walkway and the stalactite fringe hanging under it, down to where the
       // pit's two rock faces already stand clear of each other.
       { raw: 'painting-ruin-gate-1.png', cuts: [{ x: 2401, y: 952, width: 335, height: 232 }] },
-      { raw: 'painting-ruin-gate-2.png' },
+      // The same hand again at the well: the map leaves columns 95 to 100 open
+      // as the dry six-tile drop of level-design.md's beats table, and the
+      // generator drew the courtyard floor straight across it, grass line and
+      // all. A player read the drawn ground and fell through it. The rectangle
+      // is the six columns from the grass line down to the raw's bottom edge.
+      { raw: 'painting-ruin-gate-2.png', cuts: [{ x: 1687, y: 1040, width: 349, height: 240 }] },
     ],
   },
 ];
