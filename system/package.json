@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "trace": "tsx tools/not-yet.ts trace",
+    "trace": "vite --open /tools/trace/index.html",
     "build": "pnpm assets && vite build",
     "preview": "vite preview",
     "assets": "tsx tools/asset-kit/build.ts",

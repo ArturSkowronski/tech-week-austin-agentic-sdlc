@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Trace — Hobby Wizard</title>
+    <style>
+      body {
+        margin: 0;
+        background: #14181f;
+        color: #dfe4ec;
+        font: 13px/1.5 system-ui, sans-serif;
+      }
+      #bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        background: #1d232d;
+      }
+      #brushes {
+        display: flex;
+        gap: 4px;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+        color: inherit;
+        background: #2a323f;
+        border: 1px solid #3c4655;
+        border-radius: 3px;
+        padding: 3px 7px;
+      }
+      #brushes button.on {
+        border-color: #ffd479;
+        color: #ffd479;
+      }
+      input[type='number'] {
+        width: 4em;
+      }
+      #sheet {
+        overflow: auto;
+        max-height: calc(100vh - 110px);
+      }
+      #grid {
+        display: block;
+        background: #0c0f14;
+        cursor: crosshair;
+      }
+      #status {
+        margin: 0;
+        padding: 6px 8px;
+        color: #9aa6b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bar">
+      <select id="room"></select>
+      <button id="new">New room</button>
+      <label>w <input id="width" type="number" min="1" max="400" /></label>
+      <label>h <input id="height" type="number" min="1" max="60" /></label>
+      <span id="brushes"></span>
+      <button id="auto">Auto-trace</button>
+      <button id="undo">Undo</button>
+      <button id="save">Save room</button>
+      <label>panel <input id="panel" type="number" min="1" max="3" value="1" /></label>
+      <input id="png" type="file" accept="image/png" />
+    </div>
+    <div id="sheet"><canvas id="grid"></canvas></div>
+    <p id="status"></p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
