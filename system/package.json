@@ -21,7 +21,7 @@
     "test:browser": "playwright test --pass-with-no-tests",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "bugs:check": "tsx tools/not-yet.ts bugs:check"
+    "bugs:check": "tsx tools/bugs/check.ts"
   },
   "dependencies": {
     "pixi.js": "^8.21.0"

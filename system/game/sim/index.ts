@@ -2,6 +2,7 @@
 // from here; nothing in game/sim/ imports from game/render/ (enforced by the
 // no-restricted-imports rule in eslint.config.js).
 
+export * from './bugs';
 export * from './checkpoint';
 export * from './constants';
 export * from './input';
