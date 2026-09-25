@@ -9,7 +9,44 @@
 
 import { Assets, Rectangle, Texture } from 'pixi.js';
 
+import { TILE_ATLAS } from '../content/tile-order';
 import { TICK_RATE, type Vec2 } from '../sim';
+
+/**
+ * Every output of the kit the renderer loads, by the name the manifest gives
+ * it: the renderer's own declaration of what it draws (pipeline.md,
+ * invariants). The build compares this list with what the kit wrote and fails
+ * on an output nothing names and on a name the kit builds nothing for, so a
+ * ticket that adds an output adds its consumer here in the same PR.
+ *
+ * Paintings are not on it. A room consumes its own painting, so the build
+ * takes those names from the rooms instead of from here.
+ *
+ * `splash`, `props/torch` and `props/sparks` are on it although nothing draws
+ * them yet: they are built, so something has to claim them.
+ */
+export const CONSUMERS: readonly string[] = [
+  'bg/mountains-big',
+  'bg/trees',
+  'bg/undergrowth',
+  'bg/foreground',
+  // The atlas is named in game/content/tile-order.ts, next to the order of
+  // what is in it, and read from there rather than written again here.
+  TILE_ATLAS,
+  'splash',
+  'sprites/wizard-idle',
+  'sprites/wizard-run',
+  'sprites/wizard-jump',
+  'sprites/wizard-fall',
+  'sprites/wizard-charge',
+  'props/bush',
+  'props/log',
+  'props/rock',
+  'props/flag',
+  'props/beacon',
+  'props/torch',
+  'props/sparks',
+];
 
 /** Frames played in so many ticks at this rate. */
 export function framesIn(ticks: number, fps: number): number {

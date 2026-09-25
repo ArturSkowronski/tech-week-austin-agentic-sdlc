@@ -10,12 +10,14 @@
 // sheet is many small frames instead, and strips.ts cuts it into them; a
 // painting is a row of whole panels, and paintings.ts joins them.
 
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 
 import { TILE_ATLAS } from '../../game/content/tile-order';
 import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, VIEW_H, VIEW_W } from '../../game/render/config';
+import { CONSUMERS } from '../../game/render/sprites';
 
+import { consumerOf, roomNames } from './consumers';
 import {
   crop,
   extendBottom,
@@ -50,6 +52,16 @@ const BASE_ROWS = MOUNTAIN_BASE_ROWS;
 
 /** The red, green and blue channels of a colour, in order. */
 const RGB = [0, 1, 2] as const;
+
+/** Every raw this build opened, which is what `checkRaws` holds assets/ to. */
+const opened = new Set<string>();
+
+/** One raw of `assets/`, loaded and remembered as read. */
+async function loadRaw(file: string): Promise<Raster> {
+  opened.add(file);
+
+  return loadPng(join(RAWS, file));
+}
 
 /** A packed colour of the palette as the channels a raster is made of. */
 function channels(colour: number): Rgb {
@@ -111,7 +123,7 @@ async function main(): Promise<void> {
     // The forest atlas as one strip, in the order of game/content/tile-order.ts:
     // one file and one manifest entry, cut back into its eleven tiles by
     // game/render/tiles.ts, which draws the rooms that have no painting.
-    { name: TILE_ATLAS, art: hstack(sliceTiles(await loadPng(join(RAWS, 'tileset.png')))) },
+    { name: TILE_ATLAS, art: hstack(sliceTiles(await loadRaw('tileset.png'))) },
     { name: 'splash', art: await frame('splash-textless.png') },
   ];
 
@@ -126,10 +138,10 @@ async function main(): Promise<void> {
   }
   for (const sheet of WIZARD) {
     const name = `sprites/wizard-${sheet.state}`;
-    const { image, entry } = cutStrip(sheet, await loadPng(join(RAWS, sheet.raw)));
+    const { image, entry } = cutStrip(sheet, await loadRaw(sheet.raw));
     manifest[name] = await writeStrip(name, image, entry);
   }
-  for (const strip of sliceProps(await loadPng(join(RAWS, 'props-sheet.png')))) {
+  for (const strip of sliceProps(await loadRaw('props-sheet.png'))) {
     const name = `props/${strip.name}`;
     // A prop is no one's light, so its entry is the cell and the frame count
     // alone; that is what game/render/props.ts animates it from, and the cell
@@ -147,6 +159,69 @@ async function main(): Promise<void> {
     manifest[name] = await writePainting(painting, name);
   }
   await writeFile(join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const names = Object.keys(manifest);
+  await checkRaws();
+  await checkConsumers(names);
+  await checkFiles(names);
+}
+
+/**
+ * Every raw in `assets/` went into an output, or the build stops naming the
+ * one that did not (pipeline.md, invariants). A raw nobody wants leaves the
+ * repository; there are no skipped raws, so a new file that no builder reads
+ * is a half-finished ticket rather than something to keep. PROVENANCE.md is
+ * the record of where the raws came from rather than one of them.
+ */
+async function checkRaws(): Promise<void> {
+  const skipped = (await readdir(RAWS)).filter((file) => file !== 'PROVENANCE.md' && !opened.has(file));
+
+  if (skipped.length > 0) {
+    throw new Error(`the kit read nothing from ${skipped.join(', ')} in ${RAWS}/: build it, or take it out of the repository`);
+  }
+}
+
+/**
+ * Every output is consumed and every consumer has its output, or the build
+ * stops naming what is loose at whichever end (pipeline.md, invariants). An
+ * output nothing loads is art the site ships and never shows; a name the
+ * renderer loads with nothing behind it is a room that fails to open.
+ */
+async function checkConsumers(names: readonly string[]): Promise<void> {
+  const rooms = await roomNames();
+  const orphans = names.filter((name) => consumerOf(name, rooms) === undefined);
+
+  if (orphans.length > 0) {
+    throw new Error(`nothing consumes the orphan output ${orphans.join(', ')}: name it in game/render/sprites.ts, or stop building it`);
+  }
+
+  const missing = CONSUMERS.filter((name) => !names.includes(name));
+
+  if (missing.length > 0) {
+    throw new Error(`game/render/sprites.ts loads ${missing.join(', ')}, which the kit builds no output for`);
+  }
+}
+
+/**
+ * Nothing is under `public/assets` that the kit did not write, or the build
+ * stops naming it: `pnpm assets` is the only way art may enter `public/`
+ * (AGENTS.md rule 3). The directory is written over rather than emptied first,
+ * so the other way to land here is an output of an earlier build that a rename
+ * orphaned — which is why the message offers deleting the directory too.
+ */
+async function checkFiles(names: readonly string[]): Promise<void> {
+  const written = new Set([...names.map((name) => `${name}.png`), 'manifest.json']);
+  const entries = await readdir(OUT, { recursive: true, withFileTypes: true });
+  const strays = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(relative(OUT, entry.parentPath), entry.name))
+    .filter((file) => !written.has(file));
+
+  if (strays.length > 0) {
+    throw new Error(
+      `${OUT}/ holds ${strays.join(', ')}, which the kit did not write: art enters public/ through pnpm assets alone — or left over from an earlier build; delete ${OUT} and re-run pnpm assets`,
+    );
+  }
 }
 
 /**
@@ -158,7 +233,7 @@ async function main(): Promise<void> {
  * frame and the manifest would agree with it.
  */
 async function frame(raw: string): Promise<Raster> {
-  const raster = await loadPng(join(RAWS, raw));
+  const raster = await loadRaw(raw);
   const pitch = raster.width / VIEW_W;
   if (!Number.isInteger(pitch)) {
     throw new Error(`${raw} is ${raster.width} px wide, which is no whole number of blocks across the ${VIEW_W} px view`);
@@ -244,7 +319,7 @@ async function writeStrip(name: string, image: Raster, entry: StripEntry): Promi
  * and the join is the one place in the image where that would show.
  */
 async function writePainting(painting: Painting, name: string): Promise<PaintingEntry> {
-  const panels = await Promise.all(painting.panels.map(async (panel) => fitPanel(panel, await loadPng(join(RAWS, panel.raw)))));
+  const panels = await Promise.all(painting.panels.map(async (panel) => fitPanel(panel, await loadRaw(panel.raw))));
   const { image, entry } = joinPanels(panels);
   const reduced = toPalette(image, palette(image, COLOURS));
   // The count is a requirement on the file the same way it is for a layer, so

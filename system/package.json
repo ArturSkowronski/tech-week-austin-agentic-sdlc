@@ -15,7 +15,7 @@
     "build": "pnpm assets && vite build",
     "preview": "vite preview",
     "assets": "tsx tools/asset-kit/build.ts",
-    "assets:report": "tsx tools/not-yet.ts assets:report",
+    "assets:report": "tsx tools/asset-kit/report.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test --pass-with-no-tests",

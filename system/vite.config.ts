@@ -129,7 +129,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     // The bundle goes to dist/bundle/ so dist/assets/ stays exactly what the
-    // asset kit wrote into public/assets/ — the build later fails on any stray
+    // asset kit wrote into public/assets/ — the build fails on any stray
     // file there (docs/plan/02-design/asset-pipeline.md).
     assetsDir: 'bundle',
     // Same language level tsconfig.json type-checks against; one answer to
