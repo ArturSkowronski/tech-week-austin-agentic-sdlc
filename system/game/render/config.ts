@@ -80,6 +80,60 @@ export const SKY_STOPS = [0xe3a259, 0x8c6a8e, 0x2a2a5c] as const;
 export const DUSK_ALPHA = 0.08;
 
 /**
+ * The dark the dusk pass lays over the world and banks the corners with: the
+ * indigo the sky already ends on at the top rather than black, so the overlay
+ * reads as the light going blue and not as the lamp going out.
+ */
+export const DUSK_COLOUR = SKY_STOPS[2];
+
+/**
+ * The soft vignette over that overlay: frames of this alpha, each reaching one
+ * `band` further in from the edge than the last, so the alphas stack into the
+ * corners and the fall-off comes out in steps. Stepped for the reason
+ * WAND_LIGHT is: nearest-neighbour art has no room for a smooth gradient.
+ *
+ * The band is the tuned number rather than the depth, so that it stays a whole
+ * count of world units however deep an art pass makes the vignette: a band of
+ * part of a unit puts its edges inside a texture pixel, which with
+ * `antialias: false` gives a ragged step instead of a soft one.
+ */
+export const VIGNETTE = { band: 7, rings: 4, alpha: 0.05 } as const;
+
+/** How far the whole vignette reaches in from the edge, in world units. */
+export const VIGNETTE_DEPTH = VIGNETTE.band * VIGNETTE.rings;
+
+/**
+ * How much dark the dusk pass leaves over a unit this far in from the nearest
+ * edge of the view: the flat dark, and one more of the vignette's rings for
+ * every band it stands nearer the edge. The renderer draws the overlay from
+ * this, and a browser test takes the overlay back off a frame with it, so the
+ * fall-off is written once (AGENTS.md rule 9).
+ */
+export function duskAlpha(inset: number): number {
+  const rings = Math.max(VIGNETTE.rings - Math.floor(inset / VIGNETTE.band), 0);
+
+  return 1 - (1 - DUSK_ALPHA) * (1 - VIGNETTE.alpha) ** rings;
+}
+
+/** Two colours mixed channel by channel. */
+export function mix(from: number, to: number, share: number): number {
+  const channel = (shift: number): number =>
+    Math.round(((from >> shift) & 0xff) * (1 - share) + ((to >> shift) & 0xff) * share) << shift;
+
+  return channel(16) | channel(8) | channel(0);
+}
+
+/**
+ * The tint a room's painting is drawn with: the ruins stand in the same dusk
+ * as everything else and the kit paints them warmer than it
+ * (rendering-and-look.md, Dusk), so the art is carried this share of the way
+ * from Pixi's own no-tint white towards cool stone. The mix is done here and
+ * not where the sprite is made, so the look keeps no colour of its own outside
+ * this module.
+ */
+export const PAINTING_TINT = mix(0xffffff, 0x9fb0c8, 0.35);
+
+/**
  * Alpha the tiles are drawn at over a room's painting when F1 is on: the
  * debug view of ADR-004, which shows what the wizard collides with without
  * hiding what the room looks like.

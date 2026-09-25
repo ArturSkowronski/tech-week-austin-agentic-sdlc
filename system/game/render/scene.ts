@@ -13,8 +13,11 @@ import { floorLine, follow, restCamera, wholePixels, type Camera } from './camer
 import {
   BASE_COLOURS,
   DEBUG_TILE_ALPHA,
+  DUSK_ALPHA,
+  DUSK_COLOUR,
   LAYERS,
   LETTERBOX_COLOUR,
+  PAINTING_TINT,
   RENDER_DENSITY,
   SCALE_STEP,
   SKY_BAND_H,
@@ -23,6 +26,10 @@ import {
   TEXTURE_W,
   VIEW_H,
   VIEW_W,
+  VIGNETTE,
+  VIGNETTE_DEPTH,
+  duskAlpha,
+  mix,
   type Layer,
 } from './config';
 import { loadArt, loadManifest, type Art, type Manifest } from './sprites';
@@ -77,14 +84,6 @@ function haze(share: number): number {
   const channel = Math.round(share * 0xff);
 
   return (channel << 16) | (channel << 8) | channel;
-}
-
-/** Two colours mixed channel by channel. */
-function mix(from: number, to: number, share: number): number {
-  const channel = (shift: number): number =>
-    Math.round(((from >> shift) & 0xff) * (1 - share) + ((to >> shift) & 0xff) * share) << shift;
-
-  return channel(16) | channel(8) | channel(0);
 }
 
 /** The sky at a share of the way from the horizon to the top of the view. */
@@ -223,6 +222,7 @@ async function createRoomArt(manifest: Manifest, roomName: string): Promise<Room
     // The painting is drawn at two pixels per world unit, so it covers its
     // room's tiles exactly when it is brought back to units.
     sprite.scale.set(1 / painting.density);
+    sprite.tint = PAINTING_TINT;
     view.addChild(sprite);
   }
 
@@ -264,6 +264,39 @@ async function createRoomArt(manifest: Manifest, roomName: string): Promise<Room
       return `painting=${painting === undefined ? 'none' : roomName} tiles=${drawn} tileAlpha=${painting === undefined ? 1 : DEBUG_TILE_ALPHA}`;
     },
   };
+}
+
+/**
+ * The dusk overlay of the look doc's table, over the whole stack and under the
+ * UI: a translucent dark across the view, deepened towards the edges by the
+ * vignette's rings until the outermost band carries all of them, so the
+ * corners step down instead of fading. It goes on the render-texture root
+ * rather than on one of the layers the camera moves, so it is drawn one time
+ * and every frame shows the same of it.
+ */
+function createDusk(): Graphics {
+  const dusk = new Graphics();
+  const depth = VIGNETTE_DEPTH;
+
+  // The middle of the view, which no ring reaches, and then a frame for each
+  // band out to the edge. The frames are laid beside one another rather than
+  // stacked, the rings adding up in duskAlpha instead of in the blend: the
+  // stacked form drew the same picture but put tests/smoke/waterfall.spec.ts
+  // over its timeout on the software renderer a browser test runs on.
+  dusk
+    .rect(depth, depth, VIEW_W - 2 * depth, VIEW_H - 2 * depth)
+    .fill({ color: DUSK_COLOUR, alpha: DUSK_ALPHA });
+
+  for (let ring = 0; ring < VIGNETTE.rings; ring += 1) {
+    const near = ring * VIGNETTE.band;
+    const middle = near + VIGNETTE.band / 2;
+
+    dusk
+      .rect(middle, middle, VIEW_W - 2 * middle, VIEW_H - 2 * middle)
+      .stroke({ width: VIGNETTE.band, color: DUSK_COLOUR, alpha: duskAlpha(near) });
+  }
+
+  return dusk;
 }
 
 /**
@@ -318,7 +351,14 @@ export async function createScene(mount: HTMLElement, roomName: string): Promise
     createRoomArt(manifest, roomName),
   ]);
 
-  world.addChild(background.behind, roomArt.view, actors, lights, background.inFront);
+  world.addChild(
+    background.behind,
+    roomArt.view,
+    actors,
+    lights,
+    background.inFront,
+    createDusk(),
+  );
 
   // The density of ADR-003, as the transform it has to be: the texture is
   // 640 by 360 pixels and holds a 320 by 180 view, so a world unit is two

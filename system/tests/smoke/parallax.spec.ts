@@ -14,7 +14,16 @@ import { readFile } from 'node:fs/promises';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
-import { BASE_COLOURS, LAYERS, VIEW_H, VIEW_W, WAND_LIGHT, type Layer } from '../../game/render/config';
+import {
+  BASE_COLOURS,
+  DUSK_COLOUR,
+  LAYERS,
+  VIEW_H,
+  VIEW_W,
+  WAND_LIGHT,
+  duskAlpha,
+  type Layer,
+} from '../../game/render/config';
 import { PLAYER_HEIGHT, TILE } from '../../game/sim/index';
 
 import { wizardFrame, type Box } from './wizard-frame';
@@ -111,6 +120,25 @@ async function wizardBlock(page: Page): Promise<Box> {
 }
 
 /**
+ * A unit as the layers drew it, with the dusk overlay taken back off: the flat
+ * dark and every vignette ring over the unit carry it the same way towards the
+ * same colour, so config's own fall-off says how much of it to undo. The
+ * colour tests below then read the artwork the kit wrote, wherever in the
+ * frame it lies.
+ */
+function undusk(read: Buffer, at: number, col: number, row: number): number {
+  const alpha = duskAlpha(Math.min(col, row, VIEW_W - 1 - col, VIEW_H - 1 - row));
+  const channel = (shift: number, offset: number): number => {
+    const dark = ((DUSK_COLOUR >> shift) & 0xff) * alpha;
+    const value = Math.round(((read[at + offset] ?? 0) - dark) / (1 - alpha));
+
+    return Math.min(Math.max(value, 0), 0xff) << shift;
+  };
+
+  return channel(16, 0) | channel(8, 1) | channel(0, 2);
+}
+
+/**
  * A frame read back as one colour per world unit, taken from the middle of the
  * block each unit is shown as. The shot has to be the view and nothing else
  * for that to hold, so the size is checked rather than assumed.
@@ -131,9 +159,7 @@ async function units(shot: Buffer, ...blocks: Box[]): Promise<number[]> {
         ({ x, y, w, h }) => col >= x && col < x + w && row >= y && row < y + h,
       );
 
-      read.push(
-        inBlock ? MASKED : ((data[at] ?? 0) << 16) | ((data[at + 1] ?? 0) << 8) | (data[at + 2] ?? 0),
-      );
+      read.push(inBlock ? MASKED : undusk(data, at, col, row));
     }
   }
 
@@ -221,7 +247,12 @@ function peak(colour: number): boolean {
  * same colour, so a gap is this colour exactly, whatever is in front of it.
  */
 function gap(colour: number): boolean {
-  return colour === BASE_COLOURS.mountains;
+  // A step either side of the fill on every channel, the same allowance the
+  // palettes above make: for a renderer that lands elsewhere on a multiply,
+  // and now for the rounding that undoing the dusk costs.
+  return [16, 8, 0].every(
+    (shift) => Math.abs(((colour >> shift) & 0xff) - ((BASE_COLOURS.mountains >> shift) & 0xff)) <= 1,
+  );
 }
 
 test('the climb brings the canopy and the peaks into view, with no pale gap between the layers', async ({
