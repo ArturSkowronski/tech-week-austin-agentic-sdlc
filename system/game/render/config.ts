@@ -278,19 +278,30 @@ export const CREATURE_BLINK = { period: 96, shut: 6 } as const;
 export const TICKET_DISMISS_TICKS = 3 * TICK_RATE;
 
 /**
+ * The cell one character of the UI's font is drawn in, in UI pixels, and the
+ * blank row and column it keeps from the next one. The glyphs themselves are
+ * in game/render/panel.ts, the way the waterfall's log font lives with the
+ * waterfall; the measurements of the look belong here (ADR-003).
+ */
+export const UI_GLYPH = { w: 5, h: 8, gap: 1 } as const;
+
+/**
  * The UI's measurements, in UI pixels; `uiScale` in game/render/panel.ts says
  * how many window pixels one of them is. The UI draws at the window's own
  * resolution, so its grid is its own: it steps with the window's height rather
  * than with the scale the world's blocks are shown at.
+ *
+ * The text sizes are whole character cells, so a font pixel always comes out a
+ * whole number of window pixels across and the glyphs stay square.
  */
 export const UI_SIZES = {
   /** A line of panel, button or HUD text. */
-  body: 10,
+  body: UI_GLYPH.h,
   /** The title's wordmark, and the space it holds between its letters. */
-  wordmark: 26,
+  wordmark: UI_GLYPH.h * 3,
   wordmarkSpacing: 3,
-  /** Space between the chrome's edge and what stands inside it. */
-  padding: 6,
+  /** The one margin: the chrome's edge to what stands inside it, all round. */
+  padding: 8,
   /** Space between a panel's lines and the button below them. */
   gap: 5,
   /** The widest a panel grows before its lines wrap. */
@@ -298,6 +309,8 @@ export const UI_SIZES = {
   /** The chrome's corner radius and the width of its edge. */
   radius: 3,
   border: 1,
+  /** Distance between one leaf of the chrome's border and the next. */
+  leafStep: 12,
   /** The HUD line's distance from the top left corner of the window. */
   margin: 6,
 } as const;
@@ -317,12 +330,8 @@ export const UI_COLOURS = {
 /** How much of the world a panel keeps out; the dusk shows through the rest. */
 export const UI_PANEL_ALPHA = 0.92;
 
-/**
- * The UI's typeface. A monospace stack until the typography pass (HWP-064):
- * every entry is a face the browser already has, so the text draws on the
- * first frame and no font file joins the build.
- */
-export const UI_FONT = 'ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace';
+// The UI's typeface is not here: only its cell is, in UI_GLYPH above. The
+// glyphs are drawn pixel by pixel in game/render/panel.ts.
 
 /**
  * Where each piece of the UI sits, as a share of the window's height: the card

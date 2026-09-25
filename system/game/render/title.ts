@@ -7,7 +7,11 @@ import { UI_ANCHORS, UI_COLOURS, UI_PANEL_ALPHA, UI_SIZES } from './config';
 import type { InputEdges } from './input';
 import { createText, textReport, uiScale } from './panel';
 
-/** The name, drawn in code: the splash art carries no text of its own. */
+/**
+ * The name, drawn in code: the splash art carries no text of its own, and the
+ * letters come out of the pixel font in game/render/panel.ts, so the wordmark
+ * is the same gold on charcoal as the card and the banner below it.
+ */
 const WORDMARK = 'HOBBY WIZARD';
 const TAGLINE = 'and the Hidden Bug';
 const PROMPT = 'Enter, Space or Z to start';
@@ -62,21 +66,26 @@ export function createTitle(): Title {
         [tagline, UI_ANCHORS.tagline],
         [prompt, UI_ANCHORS.prompt],
       ] as const) {
+        const size = line.measure();
+
         line.position.set(
-          Math.round((windowW - line.width) / 2),
-          Math.round(windowH * share - line.height / 2),
+          Math.round((windowW - size.w) / 2),
+          Math.round(windowH * share - size.h / 2),
         );
       }
 
-      // Charcoal over the whole window, and the rule the wordmark stands on.
+      const mark = wordmark.measure();
+
+      // Charcoal over the whole window, and the rule the wordmark stands on,
+      // a panel's own margin below it so the title reads as the same family.
       backdrop
         .clear()
         .rect(0, 0, windowW, windowH)
         .fill({ color: UI_COLOURS.chrome, alpha: UI_PANEL_ALPHA })
         .rect(
           wordmark.x,
-          Math.round(wordmark.y + wordmark.height + UI_SIZES.border * scale),
-          wordmark.width,
+          Math.round(wordmark.y + mark.h + UI_SIZES.gap * scale),
+          mark.w,
           UI_SIZES.border * scale,
         )
         .fill(UI_COLOURS.edge);

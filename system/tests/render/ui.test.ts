@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE } from '../../game/sim/index';
 import { hudLine } from '../../game/render/hud';
 import type { InputEdges } from '../../game/render/input';
-import { bannerLines } from '../../game/render/panel';
+import { UI_GLYPH, UI_SIZES } from '../../game/render/config';
+import { bannerLines, glyphOf, motifOrigins } from '../../game/render/panel';
 import { canDismiss, cardFace, type CardBug } from '../../game/render/ticket';
 import { startsRun } from '../../game/render/title';
 import { worldFrom } from '../sim/helpers';
@@ -127,5 +128,85 @@ describe('the title screen', () => {
 
   it('is not left by R, which is the key that starts a run over', () => {
     expect(startsRun(edges({ restart: true }), false)).toBe(false);
+  });
+});
+
+describe("the UI's pixel font", () => {
+  /** Every character a keyboard can type, which is every one a manifest can. */
+  const PRINTABLE = Array.from({ length: 95 }, (_, index) => String.fromCharCode(0x20 + index));
+
+  it('inks a glyph of the same cell for every printable character', () => {
+    // The card's lines are written in bugs/manifest.json, so the font has to
+    // carry whatever a bug is called. The ink is what says so: the blank it
+    // falls back to is the same cell as a real glyph, and a character the font
+    // lacks would pass a test on the rows alone.
+    for (const char of PRINTABLE) {
+      const rows = glyphOf(char);
+
+      expect(rows, `glyph for ${char}`).toHaveLength(UI_GLYPH.h);
+
+      for (const row of rows) {
+        expect(row, `row of ${char}`).toHaveLength(UI_GLYPH.w);
+      }
+
+      if (char !== ' ') {
+        expect(rows.join(''), `ink for ${char}`).toContain('#');
+      }
+    }
+  });
+
+  it('leaves the space, and a character it does not hold, an empty cell', () => {
+    // Blank rather than missing: a line keeps its length whatever is written
+    // in it. This is also what makes the test above able to fail.
+    for (const char of [' ', '\u00a3']) {
+      expect(glyphOf(char).join(''), `ink for ${char}`).not.toContain('#');
+    }
+  });
+});
+
+describe("the chrome's leaf border", () => {
+  // The leaf is five pixels across, so at an odd UI scale half of it is half a
+  // window pixel. Rounding the centre and then subtracting that half puts the
+  // leaf's own pixels off the window grid; art-direction.md asks for square
+  // pixels on a uniform grid, and with antialias off that offset is resolved
+  // by the rasteriser's fill rule rather than by this code. Origins are what
+  // the drawing actually uses, so origins are what must be whole.
+  const SCALES = [1, 2, 3, 4];
+  const SPANS = [240, 317, 480, 961];
+
+  it('starts every leaf on a whole window pixel, at every scale', () => {
+    for (const scale of SCALES) {
+      const leaf = 5 * scale;
+      const step = UI_SIZES.leafStep * scale;
+
+      for (const span of SPANS) {
+        for (const origin of motifOrigins(span, step, leaf)) {
+          expect(Number.isInteger(origin), `origin ${origin} at scale ${scale} over ${span}`).toBe(
+            true,
+          );
+        }
+      }
+    }
+  });
+
+  it('keeps the run centred and evenly stepped', () => {
+    const origins = motifOrigins(240, 36, 15);
+
+    expect(origins).toHaveLength(6);
+
+    // Symmetric about the span: the gap before the first leaf equals the gap
+    // after the last, to within the whole pixel the rounding may take.
+    const first = origins[0] ?? 0;
+    const last = origins.at(-1) ?? 0;
+
+    expect(Math.abs(first - (240 - (last + 15)))).toBeLessThanOrEqual(1);
+
+    for (let index = 1; index < origins.length; index += 1) {
+      expect((origins[index] ?? 0) - (origins[index - 1] ?? 0)).toBe(36);
+    }
+  });
+
+  it('draws one leaf on a span too narrow for a full step', () => {
+    expect(motifOrigins(20, 36, 15)).toHaveLength(1);
   });
 });
