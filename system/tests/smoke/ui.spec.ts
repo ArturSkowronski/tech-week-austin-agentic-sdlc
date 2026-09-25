@@ -28,6 +28,33 @@ function settle(page: Page): Promise<void> {
   );
 }
 
+/**
+ * Read the room's log lines, which is what brings the card up whatever the
+ * manifest holds: a clean room answers with "The logs are clean." and a room
+ * with a bug with what the logs said, but both have something to say. A bare
+ * T does not — in a room whose bug the player has neither felt nor read about
+ * the card has no face yet (bug-quest.md, the four states) — so the tests
+ * below that only need the card on the screen ask for it this way, and stay
+ * green on the branch that plants HW-001.
+ *
+ * The water is stamped rather than swum through, the way
+ * tests/smoke/waterfall.spec.ts stamps it: what the card does with a parted
+ * waterfall is the subject here, not how the wizard parts one.
+ */
+async function readTheLogs(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const state = window.wizard.state();
+    const water = state.props.find((prop) => prop.kind === 'waterfall');
+
+    if (water === undefined) {
+      throw new Error('the room carries no waterfall');
+    }
+
+    water.hitTick = state.tick;
+  });
+  await settle(page);
+}
+
 /** Open the game with its clock in the test's hands, not the browser's. */
 async function open(page: Page): Promise<void> {
   await page.goto('/');
@@ -65,7 +92,7 @@ for (const { width, height, scale } of WINDOWS) {
 
     // And the card's own lines, which the HUD's size says nothing about: a
     // dropped `* scale` in panel.ts or title.ts would leave the HUD green.
-    await page.keyboard.press('KeyT');
+    await readTheLogs(page);
     await expect(canvas).toHaveAttribute('data-ui', 'card');
     await expect(canvas).toHaveAttribute('data-ui-card-text', `${UI_SIZES.body * scale}px scale 1`);
   });
@@ -79,7 +106,7 @@ test('the card cannot be waved away before three seconds and can after', async (
 
   const canvas = page.locator('#game canvas');
 
-  await page.keyboard.press('KeyT');
+  await readTheLogs(page);
   await expect(canvas).toHaveAttribute('data-ui', 'card');
 
   await page.keyboard.press('Enter');
@@ -99,6 +126,11 @@ test('the card cannot be waved away before three seconds and can after', async (
   });
   await page.keyboard.press('Enter');
   await expect(canvas).toHaveAttribute('data-ui', '');
+
+  // And T is the way back to words that have been waved away: the card the
+  // player asked for is put up again, however long ago he took it down.
+  await page.keyboard.press('KeyT');
+  await expect(canvas).toHaveAttribute('data-ui', 'card');
 });
 
 // The banner's one branch: it is raised on the tick the beacon is lit and

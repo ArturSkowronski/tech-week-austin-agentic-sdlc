@@ -15,7 +15,7 @@ import forestGlade from '../../game/content/rooms/forest-glade';
 import { CREATURE_EYES, PROP_SHAKE, VIEW_H, VIEW_W } from '../../game/render/config';
 import { parseRoom, PLAYER_HEIGHT, type InputFrame, type Vec2 } from '../../game/sim/index';
 
-import { fieldsOf, wizardFrame } from './wizard-frame';
+import { fieldsOf, hatOf } from './wizard-frame';
 
 /** The view at the smallest scale ADR-003 allows: it fills the window exactly. */
 const VIEWPORT = { width: VIEW_W * 2, height: VIEW_H * 2 } as const;
@@ -132,18 +132,6 @@ async function shot(page: Page, info: TestInfo, name: string): Promise<void> {
 /** The point in view units the eyes stand at, as the report gives it. */
 async function eyesAt(page: Page): Promise<string> {
   return (await shown(page)).get('eyes') ?? '';
-}
-
-/**
- * Where the eyes belong while the creature is carried, in view units: the
- * middle of the wizard's cell, the hat's own height down it. Worked out from
- * the frame he published rather than asked of the renderer, so the shot below
- * is checked against an independent reading of the same point.
- */
-async function hatOf(page: Page): Promise<Vec2> {
-  const { cell } = await wizardFrame(page);
-
-  return { x: cell.x + cell.w / 2, y: cell.y + CREATURE_EYES.hat };
 }
 
 /** How far off the eyes' own red, per channel, a pixel may be and still be one. */

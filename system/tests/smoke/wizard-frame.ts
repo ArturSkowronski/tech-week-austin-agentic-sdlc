@@ -8,6 +8,9 @@
 
 import type { Page } from '@playwright/test';
 
+import { CREATURE_EYES } from '../../game/render/config';
+import type { Vec2 } from '../../game/sim/index';
+
 /** A box of the view, in world units. */
 export interface Box {
   x: number;
@@ -38,6 +41,18 @@ export async function fieldsOf(page: Page, name: string): Promise<Map<string, st
       return [key ?? '', value ?? ''];
     }),
   );
+}
+
+/**
+ * Where the creature's eyes belong while it rides, in view units: the middle
+ * of the wizard's cell, the hat's own height down it. Worked out from the
+ * frame he published rather than asked of the renderer, so a shot of the eyes
+ * is checked against an independent reading of the same point.
+ */
+export async function hatOf(page: Page): Promise<Vec2> {
+  const { cell } = await wizardFrame(page);
+
+  return { x: cell.x + cell.w / 2, y: cell.y + CREATURE_EYES.hat };
 }
 
 /** The numbers of one comma-separated field. */

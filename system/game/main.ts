@@ -8,11 +8,19 @@ import { createScene } from './render/scene';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
 import { createProps } from './render/props';
-import { createTicketCard, type CardFacts } from './render/ticket';
+import { cardBug, createTicketCard, type CardFacts } from './render/ticket';
 import { createTitle, startsRun } from './render/title';
-import { createWaterfall } from './render/waterfall';
+import { createWaterfall, logsRead } from './render/waterfall';
 import { createWizard, type WizardFrame } from './render/wizard';
-import { createWorld, DT, NO_INPUT, tick, type InputFrame, type WorldState } from './sim';
+import {
+  bugForRoom,
+  createWorld,
+  DT,
+  NO_INPUT,
+  tick,
+  type InputFrame,
+  type WorldState,
+} from './sim';
 
 /** The room `?room=` falls back to. */
 const DEFAULT_ROOM = 'forest-glade';
@@ -61,7 +69,17 @@ if (roomText === undefined) {
   throw new Error(`game/content/rooms/ has no ${DEFAULT_ROOM}.ts to fall back to`);
 }
 
-const freshWorld = (): WorldState => createWorld(roomText, { roomName });
+// The room's planted bug, or undefined in a clean room. The manifest of the
+// branch being built is the one source (ADR-005): it decides whether the room
+// has a creature to carry the bug, which lines the waterfall hides, and what
+// the ticket card is able to say.
+const roomBug = bugForRoom(roomName);
+
+/** The manifest's entry as the card takes it, settled once with the room. */
+const CARD_BUG = cardBug(roomBug);
+
+const freshWorld = (): WorldState =>
+  createWorld(roomText, { roomName, creature: roomBug !== undefined });
 
 // No load needs anything of the others, so all three chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
@@ -74,10 +92,9 @@ const keyboard = createKeyboard();
 
 // The waterfall is drawn in code and loads nothing, so it is built here rather
 // than awaited with the rest. The lines it shows are the room's bug's, as
-// bug-quest.md's manifest gives them: HWP-050 writes that manifest and HWP-052
-// hands this call `bugForRoom(roomName).logs`, so until then it is handed none
-// and the water hides the renderer's own fictional chatter alone.
-const waterfallView = createWaterfall([]);
+// bug-quest.md's manifest gives them; a clean room is handed none and the
+// water hides the renderer's own fictional chatter alone.
+const waterfallView = createWaterfall(roomBug?.logs ?? []);
 
 // The waterfall stands behind everything else on the actor layer — its water
 // is near opaque, and a wizard swept into the column has to stay in sight.
@@ -86,9 +103,6 @@ const waterfallView = createWaterfall([]);
 // is inside the wizard's own cell, so eyes behind him would be painted over.
 scene.actors.addChild(waterfallView.view, propsView.view, wizardView.view, propsView.eyes);
 scene.lights.addChild(wizardView.light);
-
-/** No manifest and no creature yet, so the card holds the clean state. */
-const CARD_FACTS: CardFacts = { bug: null, felt: false, logsRead: false };
 
 const title = createTitle();
 const hud = createHud();
@@ -128,8 +142,18 @@ function publishUi(): void {
 
   publish('ui', up.filter((name) => name !== '').join(' '));
   publish('uiText', hud.report());
+  publish('uiCard', card.says());
   publish('uiCardText', card.report());
   publish('uiTitleText', title.report());
+}
+
+/** What the player knows on this frame (bug-quest.md, the ticket card). */
+function cardFacts(): CardFacts {
+  return {
+    bug: CARD_BUG,
+    felt: world.creature?.firstCarried ?? false,
+    logsRead: logsRead(world),
+  };
 }
 
 /** Written only when it changes, the way scene.ts writes its own fit. */
@@ -213,10 +237,6 @@ function frame(now: number): void {
     debugHud = !debugHud;
   }
 
-  if (edges.ticket && started) {
-    card.press(CARD_FACTS, world.tick);
-  }
-
   if (started && !wizard.paused) {
     pending += elapsed;
 
@@ -227,6 +247,20 @@ function frame(now: number): void {
       tick(world, input);
       pending -= DT;
     }
+  }
+
+  // The card is read after the ticks of this frame, so what it says is what
+  // the world says now: it comes up by itself as soon as the player has felt
+  // the bug or read the logs, and T is the way back to it and the way out
+  // through it (bug-quest.md, the ticket card).
+  if (started) {
+    const facts = cardFacts();
+
+    if (edges.ticket) {
+      card.press(facts, world.tick);
+    }
+
+    card.update(facts, world.tick);
   }
 
   title.view.visible = !started;

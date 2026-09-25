@@ -208,6 +208,18 @@ export function parted(prop: Prop, tick: number): number {
   return Math.min(1, (WATER_PARTED_TICKS - 1 - since) / WATERFALL.closeTicks);
 }
 
+/**
+ * Has the room's evidence been read this run? The log lines stand behind the
+ * water and can be read only while it is parted (bug-quest.md, evidence), so
+ * the first touch or charge hit on any of the room's waterfalls is what shows
+ * them, and the ticket card treats them as read from then on. `hitTick` is
+ * that record already: game/sim/ stamps it and never clears it, so only a
+ * fresh world takes it back to -1 and starts the run over with the logs unseen.
+ */
+export function logsRead(state: WorldState): boolean {
+  return state.props.some((prop) => prop.kind === 'waterfall' && prop.hitTick >= 0);
+}
+
 /** Is any of this prop inside the view this camera shows? */
 export function onScreen(prop: Prop, camera: Camera): boolean {
   return (

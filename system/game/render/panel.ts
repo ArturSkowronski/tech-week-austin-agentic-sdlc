@@ -396,6 +396,8 @@ export interface Panel {
   readonly view: Container;
   /** What the panel's lines actually drew, for the browser tests to read. */
   report(): string;
+  /** The words on it and whether a button is under them, read off both. */
+  says(): string;
   /** The lines to show, top to bottom. */
   set(lines: readonly string[]): void;
   /** The button below the lines, or none; it lands at the next `set`. */
@@ -452,6 +454,10 @@ export function createPanel(anchorY: number): Panel {
 
     report(): string {
       return textReport(label);
+    },
+
+    says(): string {
+      return `${button === null ? 'no button' : 'button'}: ${label.text}`;
     },
 
     set(next: readonly string[]): void {

@@ -23,12 +23,13 @@ import {
   flickering,
   glyphOf,
   logLines,
+  logsRead,
   onScreen,
   parted,
   speedOf,
   spread,
 } from '../../game/render/waterfall';
-import { parseRoom, type Prop } from '../../game/sim';
+import { createWorld, parseRoom, type Prop, type WorldState } from '../../game/sim';
 
 /** The glade's own waterfall: the six-tile charge gap of its text map. */
 const GLADE_FALL = parseRoom(forestGlade).props.find((prop) => prop.kind === 'waterfall') as Prop;
@@ -235,5 +236,43 @@ describe('what the camera can see', () => {
       true,
     );
     expect(onScreen(GLADE_FALL, { x: GLADE_FALL.x, y: GLADE_FALL.y - VIEW_H + 1 })).toBe(true);
+  });
+});
+
+describe('whether the logs have been read', () => {
+  /** The glade, with every waterfall of it hit on this tick. */
+  const glade = (hitTick: number): WorldState => {
+    const state = createWorld(forestGlade, { roomName: 'forest-glade' });
+
+    for (const prop of state.props) {
+      if (prop.kind === 'waterfall') {
+        prop.hitTick = hitTick;
+      }
+    }
+
+    return state;
+  };
+
+  it('has read nothing while no water of the room has been touched', () => {
+    expect(logsRead(glade(-1))).toBe(false);
+  });
+
+  it('reads them on the tick of the touch and keeps them read for the run', () => {
+    expect(logsRead(glade(0))).toBe(true);
+    // The parting itself is long over by now (see above); the lines were read
+    // all the same, and the card goes on knowing it until the run starts over.
+    expect(logsRead(glade(1))).toBe(true);
+  });
+
+  it('is deaf to the props that are not water', () => {
+    const state = glade(-1);
+
+    for (const prop of state.props) {
+      if (prop.kind !== 'waterfall') {
+        prop.hitTick = 0;
+      }
+    }
+
+    expect(logsRead(state)).toBe(false);
   });
 });
