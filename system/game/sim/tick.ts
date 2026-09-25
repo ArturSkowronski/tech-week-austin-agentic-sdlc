@@ -5,6 +5,7 @@
 
 import { stepCreature } from './creature';
 import type { InputFrame } from './input';
+import { mapInput } from './input-map';
 import { stepPlayer } from './player';
 import { stepProps } from './props';
 import type { WorldState } from './state';
@@ -21,7 +22,11 @@ export function tick(state: WorldState, input: InputFrame): void {
   state.events.length = 0;
   state.lastInput = input;
 
-  stepPlayer(state, input);
+  // `lastInput` is the frame the player pressed, which is what a recording
+  // replays; game/sim/input-map.ts turns it into the one the wizard acts on.
+  const carried = state.creature !== null && state.creature.carriedSince >= 0;
+
+  stepPlayer(state, mapInput(input, carried));
   // The water has the tick after the movement it changes and before the props
   // weigh what he touched: a charge the water ended is over by the time the
   // hazards ask whether the wand still carries him.

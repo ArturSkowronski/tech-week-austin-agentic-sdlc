@@ -204,21 +204,24 @@ describe('the creature riding', () => {
     const world = carrying();
     const creature = creatureOf(world);
 
-    run(world, hold(RIGHT, CREATURE_CARRY_TICKS));
+    // No direction is held while he carries it: game/sim/input-map.ts is where
+    // HW-001 is planted, and the main suite says nothing about what a rider
+    // does to the horizontal axis (AGENTS.md rule 5).
+    run(world, hold({}, CREATURE_CARRY_TICKS));
     const dropped = world.tick;
 
     expect(creature.carriedSince).toBe(-1);
     expect(creature.at).toBe(-1);
-    // The run ended against the wall, which leaves the log the nearer of the two.
-    expect(creature.travelTo).toBe(LOG);
+    // He stood where it climbed on, so the bush is still the nearer of the two.
+    expect(creature.travelTo).toBe(BUSH);
     expect(creature.travelUntil).toBe(dropped + CREATURE_TRAVEL_TICKS);
 
     // Tick-exact: it is still on its way with one tick to go, and home on the next.
-    run(world, hold(RIGHT, CREATURE_TRAVEL_TICKS - 1));
+    run(world, hold({}, CREATURE_TRAVEL_TICKS - 1));
     expect(creature.at).toBe(-1);
 
-    run(world, hold(RIGHT, 1));
-    expect(creature.at).toBe(LOG);
+    run(world, hold({}, 1));
+    expect(creature.at).toBe(BUSH);
     expect(creature.travelTo).toBe(-1);
     expect(creature.travelUntil).toBe(-1);
   });
