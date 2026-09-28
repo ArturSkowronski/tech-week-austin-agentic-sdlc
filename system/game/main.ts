@@ -75,6 +75,12 @@ const wanted = new URLSearchParams(window.location.search).get('room');
 // `hasOwn`, not `in`: `?room=toString` would otherwise find a function on the
 // prototype of the plain object the glob builds and skip the fallback.
 const roomName = wanted !== null && Object.hasOwn(rooms, wanted) ? wanted : DEFAULT_ROOM;
+// The atmosphere pass off, for the one measurement its frame-rate acceptance
+// can be held to on a machine with no graphics card: the same run, twice,
+// with the pass and without it (tests/smoke/particles.spec.ts). A query
+// parameter rather than a build flag, so the measurement is of the very
+// bundle that ships.
+const atmosphere = new URLSearchParams(window.location.search).get('atmosphere') !== 'off';
 const roomText = rooms[roomName];
 
 if (roomText === undefined) {
@@ -96,7 +102,7 @@ const freshWorld = (): WorldState =>
 // No load needs anything of the others, so all three chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
 const [scene, wizardView, propsView] = await Promise.all([
-  createScene(mount, reachable),
+  createScene(mount, reachable, atmosphere),
   createWizard(),
   createProps(),
 ]);
@@ -341,7 +347,12 @@ function frame(now: number): void {
   hud.update(world, debugHud);
   banner.update(world);
 
-  scene.watch(world, debugHud);
+  // The wand's crystal, read before the scene is moved: `read` asks the
+  // player state and the sprite manifest and no camera, so it answers here as
+  // well as after the follow. The atmosphere pass hangs its motes on the very
+  // point the glow hangs on rather than working out a second one
+  // (AGENTS.md rule 9).
+  scene.watch(world, debugHud, wizardView.read(world.player).light);
   stage.waterfall.update(world, scene.camera);
   propsView.update(world, wizardView.update(world.player, scene.camera), scene.camera);
   scene.render();

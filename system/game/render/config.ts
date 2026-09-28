@@ -345,3 +345,84 @@ export const UI_ANCHORS = {
   card: 0.78,
   banner: 0.5,
 } as const;
+
+/**
+ * The atmosphere pass (HWP-060): four fields of specks drawn in code, whose
+ * positions are pure functions of the tick and of the room they stand in.
+ * rendering-and-look.md names none of these numbers — its layer table ends at
+ * the dusk overlay — so counts, speeds, sizes and colours are the renderer's
+ * own choice, kept low because the acceptance is a frame rate. A size is in
+ * world units, and half a unit is one pixel of the render texture (ADR-003).
+ * Each field holds all of its own, the way WAND_LIGHT and CREATURE_EYES do.
+ */
+export const FIREFLIES = {
+  count: 22,
+  size: 1,
+  /** Aged gold, the palette's own (docs/plan/03-assets/art-direction.md). */
+  colour: 0xf2d27a,
+  /** The band they drift in, in view units down from the top of the view. */
+  top: 34,
+  band: 84,
+  /** Slowest and fastest sideways drift, in world units per tick. */
+  drift: { min: 0.08, max: 0.16 },
+  /** How far one bobs as it goes, and the ticks one bob takes. */
+  bob: 7,
+  bobTicks: 190,
+  /** Ticks from one glow to the next, and how bright the brightest is. */
+  glowTicks: 74,
+  alpha: 0.9,
+} as const;
+
+/**
+ * The motes turning in the wand's light: they are the dust it catches, so they
+ * borrow its reach and its colour rather than choosing any of their own.
+ */
+export const MOTES = {
+  count: 12,
+  size: 0.5,
+  colour: WAND_LIGHT.colour,
+  radius: WAND_LIGHT.radius,
+  /** The share of that reach the innermost mote keeps. */
+  inner: 0.35,
+  /** How much flatter a turn is than it is wide, so they lie in the air. */
+  flatten: 0.6,
+  /** Slowest and quickest turn, in ticks; each mote takes one of its own. */
+  turnTicks: { min: 200, max: 320 },
+  /** Ticks from one twinkle to the next. */
+  glowTicks: 43,
+  alpha: 0.55,
+} as const;
+
+/** The spores that come off a bush, per bush. */
+export const SPORES = {
+  count: 5,
+  size: 0.5,
+  /** Forest green lifted until a spore reads against the bush it left. */
+  colour: 0x9bc27a,
+  /** How far above the bush one climbs before it starts again, in units. */
+  rise: 26,
+  /** Units a tick it climbs. */
+  speed: 0.09,
+  /** How far it sways off its lane, and the ticks one sway takes. */
+  sway: 4,
+  swayTicks: 130,
+  alpha: 0.7,
+} as const;
+
+/**
+ * The mist bands along the floor line and over the water. One band every
+ * `spacing` units of the stretch it lies on, so the room's whole floor gets a
+ * run of them and a 96-unit water column gets two. The pale is the one the
+ * waterfall's own mist is already drawn in.
+ */
+export const MIST_BANDS = {
+  spacing: 140,
+  width: 56,
+  height: 3,
+  colour: WATERFALL_COLOURS.mist,
+  /** Slowest and fastest drift along the stretch, in world units per tick. */
+  drift: { min: 0.05, max: 0.1 },
+  /** How far apart the bands stand above the line they lie on. */
+  lift: 5,
+  alpha: 0.12,
+} as const;

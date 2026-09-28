@@ -7,7 +7,7 @@
 
 import { Application, Container, Graphics, RenderTexture, Sprite, TilingSprite } from 'pixi.js';
 
-import type { Room, WorldState } from '../sim';
+import type { Room, Vec2, WorldState } from '../sim';
 
 import { floorLine, follow, restCamera, wholePixels, type Camera } from './camera';
 import {
@@ -32,6 +32,7 @@ import {
   mix,
   type Layer,
 } from './config';
+import { createParticles } from './particles';
 import { loadArt, loadManifest, type Art, type Manifest } from './sprites';
 import { drawTiles, loadTileset, type Tileset } from './tiles';
 
@@ -60,8 +61,10 @@ export interface Scene {
   /**
    * Move the camera and the layer stack to where the world now is, and draw
    * the room behind it. Behind F1 the tiles join a painted room as well.
+   * `crystal` is where the wand's light stands this frame, which the
+   * atmosphere pass hangs its motes on (game/render/wizard.ts).
    */
-  watch(state: WorldState, debug: boolean): void;
+  watch(state: WorldState, debug: boolean, crystal: Vec2): void;
   /** Draw one frame. */
   render(): void;
 }
@@ -113,7 +116,10 @@ function drawSky(sky: Graphics, horizon: number): void {
 
 /** The stack of the look doc's table, loaded from the asset kit's manifest. */
 interface Background {
-  /** The sky, the mountains, the tall forest and the bushes behind the room. */
+  /**
+   * The sky, the mountains, the tall forest, the fireflies out among its
+   * trunks and the bushes behind the room.
+   */
   readonly behind: Container;
   /** The bushes the wizard runs behind. */
   readonly inFront: Container;
@@ -126,7 +132,13 @@ interface Background {
   report(): string;
 }
 
-async function createBackground(manifest: Manifest): Promise<Background> {
+/**
+ * `amongTrunks` is laid into the stack between the tall forest and the bushes
+ * behind it, which is where the look doc's table puts anything standing out
+ * in the backdrop forest; it is placed by the caller, with the tall forest's
+ * own factors (rendering-and-look.md, "Layer stack, back to front").
+ */
+async function createBackground(manifest: Manifest, amongTrunks: Container): Promise<Background> {
   async function backdrop(layer: Layer): Promise<Backdrop> {
     const art = await loadArt(manifest, layer.asset);
     const sprite = new TilingSprite({ texture: art.texture, width: VIEW_W, height: art.height });
@@ -150,7 +162,7 @@ async function createBackground(manifest: Manifest): Promise<Background> {
   ]);
   const stack = [mountains, trees, bushes, front];
 
-  behind.addChild(sky, mountains.sprite, trees.sprite, bushes.sprite);
+  behind.addChild(sky, mountains.sprite, trees.sprite, amongTrunks, bushes.sprite);
   inFront.addChild(front.sprite);
 
   /** The horizon the sky was last drawn for; it is redrawn only when it moves. */
@@ -314,8 +326,17 @@ function displayScale(windowW: number, windowH: number): number {
  * is the level's length that this scales with, so a level long enough for the
  * boot to feel it is the point at which the painting should follow the
  * waterfall and be built on the way into its own room.
+ *
+ * `atmosphere` is false only for the `?atmosphere=off` boot game/main.ts
+ * reads: the run draws everything but the particle pass, which is how a
+ * browser test measures what the pass costs on a machine whose frame rate
+ * says nothing on its own (tests/smoke/particles.spec.ts).
  */
-export async function createScene(mount: HTMLElement, roomNames: readonly string[]): Promise<Scene> {
+export async function createScene(
+  mount: HTMLElement,
+  roomNames: readonly string[],
+  atmosphere = true,
+): Promise<Scene> {
   const app = new Application();
 
   await app.init({
@@ -345,11 +366,17 @@ export async function createScene(mount: HTMLElement, roomNames: readonly string
   const lights = new Container();
   const ui = new Container();
   const manifest = await loadManifest();
+  // The atmosphere pass (HWP-060), spread across the stack rather than laid
+  // on as one layer: the fireflies in among the tall forest's trunks, moving
+  // with them; the spores and the mist in front of the actors, so the bands
+  // lie over the wizard's feet and over the water; and the motes on the
+  // additive light layer with the wand's own glow.
+  const particles = createParticles(atmosphere);
   // Neither the backdrops nor the rooms need anything of the others, so every
   // chain is in flight at once.
   const tileset = await loadTileset(manifest);
   const [background, built] = await Promise.all([
-    createBackground(manifest),
+    createBackground(manifest, particles.forest),
     Promise.all(
       roomNames.map(async (name) => [name, await createRoomArt(manifest, tileset, name)] as const),
     ),
@@ -361,10 +388,12 @@ export async function createScene(mount: HTMLElement, roomNames: readonly string
 
   roomLayer.addChild(...[...arts.values()].map((art) => art.view));
 
+  lights.addChild(particles.light);
   world.addChild(
     background.behind,
     roomLayer,
     actors,
+    particles.air,
     lights,
     background.inFront,
     createDusk(),
@@ -437,11 +466,12 @@ export async function createScene(mount: HTMLElement, roomNames: readonly string
       return camera ?? ORIGIN;
     },
 
-    watch(state: WorldState, debug: boolean): void {
+    watch(state: WorldState, debug: boolean, crystal: Vec2): void {
       camera = follow(camera ?? restCamera(state.room), state);
       // Everything in world coordinates is drawn by moving its layer under
       // the camera, so a sprite is placed where the world says it is.
       actors.position.set(-camera.x, -camera.y);
+      particles.air.position.set(-camera.x, -camera.y);
       lights.position.set(-camera.x, -camera.y);
       roomLayer.position.set(-camera.x, -camera.y);
 
@@ -461,8 +491,24 @@ export async function createScene(mount: HTMLElement, roomNames: readonly string
 
       art.draw(state.room, debug);
       background.place(camera, state.room);
+      // Every field is drawn again from this tick, so a room the run has
+      // walked into brings its own bushes, water and seed with it and nothing
+      // of the room just left can survive the hand-over. The fireflies stand
+      // among the trunks, so they are carried by the tall forest's own
+      // parallax factors rather than pinned to the view: the layer table
+      // anchors every layer to the floor line and gives it its own share of
+      // the camera's travel, and a firefly that kept still while the forest
+      // slid behind it would be the one thing in the stack that did not.
+      const rest = restCamera(state.room);
+      const trunks = LAYERS.tallForest;
+
+      particles.update(state, crystal, {
+        x: (camera.x - rest.x) * trunks.parallaxX,
+        y: (camera.y - rest.y) * trunks.parallaxY,
+      });
       publish('layers', background.report());
       publish('room', art.report());
+      publish('particles', particles.report());
     },
 
     render(): void {
