@@ -17,6 +17,23 @@
         "[input] axis sign flipped while carrying",
         "[bug] hides in: input handling"
       ]
+    },
+    {
+      "id": "HW-002",
+      "title": "Respawn lands one tile left of the flag",
+      "symptom": "A death puts the wizard down beside his flag, not on it.",
+      "clue": "checkpoint conversion",
+      "module": "game/sim/checkpoint.ts",
+      "test": "bugs/tests/hw-002-checkpoint.test.ts",
+      "rooms": ["ruin-gate"],
+      "creature": { "hides": "log" },
+      "steps": ["Walk through the log; the creature jumps on.", "Raise the flag past the gate, fall into the pit."],
+      "expected": "The wizard respawns at the flag.",
+      "logs": [
+        "[checkpoint] tile -> world: x off by one tile",
+        "[checkpoint] respawn tile shifted while carrying",
+        "[bug] hides in: checkpoint conversion"
+      ]
     }
   ]
 }

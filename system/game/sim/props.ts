@@ -105,8 +105,8 @@ function killing(state: WorldState, box: Box): boolean {
   );
 }
 
-/** One tick of the props and the hazards, after the wizard has moved. */
-export function stepProps(state: WorldState): void {
+/** One tick of the props and the hazards, after the wizard has moved; `carried` is this tick's creature. */
+export function stepProps(state: WorldState, carried: boolean): void {
   const player = state.player;
 
   if (state.victoryTick >= 0) {
@@ -146,6 +146,6 @@ export function stepProps(state: WorldState): void {
   // that rule living here. The hazard is still under him when the wand lets go:
   // the tick he dismounts on is the one that kills him.
   if (player.invuln === 0 && !charging(player) && killing(state, box)) {
-    respawn(state);
+    respawn(state, carried);
   }
 }

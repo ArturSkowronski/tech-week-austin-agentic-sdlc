@@ -71,7 +71,7 @@ export function tick(state: WorldState, input: InputFrame): void {
   // weigh what he touched: a charge the water ended is over by the time the
   // hazards ask whether the wand still carries him.
   stepWater(state);
-  stepProps(state);
+  stepProps(state, carried);
 
   // The hand-over before the creature, so nothing else in this tick runs
   // against a room the wizard has already left.

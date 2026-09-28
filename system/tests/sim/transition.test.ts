@@ -8,33 +8,10 @@
 // the beacons do.
 
 import { describe, expect, it } from 'vitest';
-import { LEVEL } from '../../game/content/order';
 import forestGlade from '../../game/content/rooms/forest-glade';
-import { createWorld, tick, type InputFrame, type WorldState } from '../../game/sim/index';
-import { GLADE, hop, LOW, RUIN_GATE, RUN } from './forest-scripts';
+import { createWorld, type InputFrame } from '../../game/sim/index';
+import { chainedRun, GLADE, hop, LOW, runToHandover, RUN } from './forest-scripts';
 import { hold, run } from './helpers';
-
-/** The run the game boots: the first room of the order table, played on into the rest. */
-function chainedRun(): WorldState {
-  return createWorld(forestGlade, { roomName: 'forest-glade', level: LEVEL });
-}
-
-/**
- * Replay frames until the room hands over, and stop on that tick: the frames
- * after it belong to the room the wizard has left, and playing them on into
- * the next room would walk him off its spawn.
- */
-function runToHandover(state: WorldState, frames: readonly InputFrame[]): void {
-  for (const frame of frames) {
-    tick(state, frame);
-
-    if (state.events.includes('room:next')) {
-      return;
-    }
-  }
-
-  throw new Error(`the route ended in ${state.roomName} without reaching its beacon`);
-}
 
 /**
  * Off the three low ledges into the first pit, which is a death. It leaves the
@@ -69,17 +46,6 @@ describe('the forest played as one run', () => {
     expect(world.deaths).toBe(1);
     expect(world.tick).toBeGreaterThan(died);
     expect(world.victoryTick).toBe(-1);
-  });
-
-  it('ends the run at the beacon of the last room in the table', () => {
-    const world = chainedRun();
-
-    runToHandover(world, GLADE);
-    run(world, RUIN_GATE);
-
-    expect(world.roomName).toBe('ruin-gate');
-    expect(world.victoryTick).toBeGreaterThan(0);
-    expect(world.player.state).toBe('victory');
   });
 
   // A level of the one room is what game/main.ts builds for `?room=`, so this
