@@ -33,7 +33,7 @@ import {
   type Layer,
 } from './config';
 import { loadArt, loadManifest, type Art, type Manifest } from './sprites';
-import { drawTiles, loadTileset } from './tiles';
+import { drawTiles, loadTileset, type Tileset } from './tiles';
 
 export interface Scene {
   /**
@@ -203,17 +203,18 @@ interface RoomArt {
   /** Painting and tiles together, in world units, moved by the camera. */
   readonly view: Container;
   /** Draw this room, and show or hide the tiles for this debug state. */
-  draw(room: Room, drawing: string, debug: boolean): void;
+  draw(room: Room, debug: boolean): void;
   /** What it drew, measured off the objects the way the fit is. */
   report(): string;
 }
 
-async function createRoomArt(manifest: Manifest, roomName: string): Promise<RoomArt> {
+async function createRoomArt(
+  manifest: Manifest,
+  tileset: Tileset,
+  roomName: string,
+): Promise<RoomArt> {
   const name = `paintings/${roomName}`;
-  const [painting, tileset] = await Promise.all([
-    manifest[name] === undefined ? undefined : loadArt(manifest, name),
-    loadTileset(manifest),
-  ]);
+  const painting = manifest[name] === undefined ? undefined : await loadArt(manifest, name);
   const view = new Container();
 
   if (painting !== undefined) {
@@ -232,17 +233,7 @@ async function createRoomArt(manifest: Manifest, roomName: string): Promise<Room
   return {
     view,
 
-    draw(room: Room, drawing: string, debug: boolean): void {
-      // The painting was chosen once, by name, when the scene was built; the
-      // grid arrives every frame with whatever world the loop hands over. They
-      // are one fact today only because game/main.ts passes one variable into
-      // both. Should a second call site or a room switch ever part them, a
-      // room would wear another room's painting over its own collision and
-      // nothing on the screen would say so — so it is said here instead.
-      if (drawing !== roomName) {
-        throw new Error(`the room layer was built for ${roomName} and asked to draw ${drawing}`);
-      }
-
+    draw(room: Room, debug: boolean): void {
       const show = painting === undefined || debug;
 
       // A painted room's tiles are thousands of sprites nobody may ever ask
@@ -310,11 +301,21 @@ function displayScale(windowW: number, windowH: number): number {
 }
 
 /**
- * Start Pixi in `mount` and give back the surfaces to draw on. The room is
- * named here rather than read off the first frame because its painting, if it
- * has one, is loaded with the backdrops.
+ * Start Pixi in `mount` and give back the surfaces to draw on. The rooms the
+ * run can reach are named here rather than read off the first frame because
+ * their paintings, the ones that have them, are loaded with the backdrops: a
+ * chained run walks into its next room on one tick and draws it on the next
+ * (docs/plan/02-design/level-design.md).
+ *
+ * Loading them all before the first frame is the deliberate trade: the level
+ * is three rooms of one painting each, and one wait on the way in costs the
+ * boot a moment where a load on the hand-over would stall the run mid-play,
+ * with the wizard already standing in a room that has nothing behind him. It
+ * is the level's length that this scales with, so a level long enough for the
+ * boot to feel it is the point at which the painting should follow the
+ * waterfall and be built on the way into its own room.
  */
-export async function createScene(mount: HTMLElement, roomName: string): Promise<Scene> {
+export async function createScene(mount: HTMLElement, roomNames: readonly string[]): Promise<Scene> {
   const app = new Application();
 
   await app.init({
@@ -344,16 +345,25 @@ export async function createScene(mount: HTMLElement, roomName: string): Promise
   const lights = new Container();
   const ui = new Container();
   const manifest = await loadManifest();
-  // Neither the backdrops nor the room needs anything of the other, so both
-  // chains are in flight at once.
-  const [background, roomArt] = await Promise.all([
+  // Neither the backdrops nor the rooms need anything of the others, so every
+  // chain is in flight at once.
+  const tileset = await loadTileset(manifest);
+  const [background, built] = await Promise.all([
     createBackground(manifest),
-    createRoomArt(manifest, roomName),
+    Promise.all(
+      roomNames.map(async (name) => [name, await createRoomArt(manifest, tileset, name)] as const),
+    ),
   ]);
+  const arts = new Map(built);
+  // One layer for the room, holding the art of every room the run can reach;
+  // the one the world is in is the one that is visible.
+  const roomLayer = new Container();
+
+  roomLayer.addChild(...[...arts.values()].map((art) => art.view));
 
   world.addChild(
     background.behind,
-    roomArt.view,
+    roomLayer,
     actors,
     lights,
     background.inFront,
@@ -433,11 +443,26 @@ export async function createScene(mount: HTMLElement, roomName: string): Promise
       // the camera, so a sprite is placed where the world says it is.
       actors.position.set(-camera.x, -camera.y);
       lights.position.set(-camera.x, -camera.y);
-      roomArt.view.position.set(-camera.x, -camera.y);
-      roomArt.draw(state.room, state.roomName, debug);
+      roomLayer.position.set(-camera.x, -camera.y);
+
+      const art = arts.get(state.roomName);
+
+      // A room would otherwise wear another room's painting over its own
+      // collision and nothing on the screen would say so.
+      if (art === undefined) {
+        throw new Error(
+          `the room layer was built for ${[...arts.keys()].join(', ')} and asked to draw ${state.roomName}`,
+        );
+      }
+
+      for (const [name, other] of arts) {
+        other.view.visible = name === state.roomName;
+      }
+
+      art.draw(state.room, debug);
       background.place(camera, state.room);
       publish('layers', background.report());
-      publish('room', roomArt.report());
+      publish('room', art.report());
     },
 
     render(): void {

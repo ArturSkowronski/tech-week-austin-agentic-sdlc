@@ -51,9 +51,14 @@ function drawn(page: Page): Promise<void> {
   );
 }
 
-/** Open the glade on a paused clock, past the title, with one frame drawn. */
+/**
+ * Open the glade on a paused clock, past the title, with one frame drawn. It
+ * is asked for by name so it is played on its own: in the chained run of
+ * game/content/order.ts its beacon hands the wizard to the next room instead
+ * of lighting and burning where he left it (level-design.md).
+ */
 async function open(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto('/?room=forest-glade');
   await page.waitForFunction(() => window.wizard !== undefined);
   await page.evaluate(() => {
     window.wizard.paused = true;

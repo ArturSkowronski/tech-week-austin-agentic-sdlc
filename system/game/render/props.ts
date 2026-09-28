@@ -191,7 +191,21 @@ export interface PropsView {
   readonly eyes: Container;
   /** Draw every prop of this world, and the eyes wherever they belong. */
   update(state: WorldState, wizard: WizardFrame, camera: Camera): void;
-  /** What was drawn: each prop's cell and shake, and where the eyes stand. */
+  /**
+   * Drop every sprite held for the room just left, so the next `update` draws
+   * the new room's props from nothing. The cache below is keyed by prop id and
+   * rooms number their props from zero, so id 1 is the glade's bush in one
+   * room and the ruin gate's waterfall in the next; without this the bush is
+   * never written again and hangs at its glade position in the new room.
+   */
+  clear(): void;
+  /**
+   * What was drawn: each prop's cell and shake, where the eyes stand, and
+   * `held`, how many sprites the layer is carrying. `held` is there because the
+   * fields above name the props the world has, so a sprite left behind by a
+   * room the run has walked out of would be drawn and named by none of them; a
+   * `held` above the number of fields is exactly that stale draw.
+   */
   report(): string;
 }
 
@@ -213,7 +227,11 @@ export async function createProps(): Promise<PropsView> {
   const view = new Container();
   const eyes = createEyes();
 
-  /** One sprite per prop, by its id. A room's props stand still for the run. */
+  /**
+   * One sprite per prop, by its id. A room's props stand still while the run
+   * is in it; a run that walks into the next room drops the lot through
+   * `clear`, because the ids start again there.
+   */
   const sprites = new Map<number, Sprite>();
 
   function spriteFor(prop: Prop, strip: Strip): Sprite {
@@ -280,7 +298,19 @@ export async function createProps(): Promise<PropsView> {
         eyes.position.set(wholePixels(at.x), wholePixels(at.y));
       }
 
-      shown = `${fields.join(' ')} eyes=${eyeReport(at, open, camera)}`;
+      shown = `${fields.join(' ')} eyes=${eyeReport(at, open, camera)} held=${view.children.length}`;
+    },
+
+    clear(): void {
+      for (const sprite of view.removeChildren()) {
+        // The strip's textures are shared by every room, so only the sprite
+        // itself goes; `destroy()` with no options leaves the texture alone.
+        sprite.destroy();
+      }
+
+      sprites.clear();
+      eyes.visible = false;
+      shown = '';
     },
 
     report(): string {

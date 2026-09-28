@@ -35,6 +35,12 @@ export const Tile = {
 /** One of the {@link Tile} ids. */
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
+/** One room of a level: the name it is known by and the text map it is built from. */
+export interface LevelRoom {
+  name: string;
+  text: string;
+}
+
 /** The tile grid of one room, row-major, plus where the wizard starts. */
 export interface Room {
   width: number;
@@ -134,6 +140,12 @@ export interface Creature {
 export interface WorldState {
   /** The room's file name. */
   roomName: string;
+  /**
+   * The rooms this run plays, in the order they are chained, as
+   * game/content/order.ts lists them (docs/plan/02-design/level-design.md).
+   * A run of one room ends at that room's beacon.
+   */
+  level: readonly LevelRoom[];
   /** Ticks since the run started. */
   tick: number;
   /** The seed the run was created with. */
@@ -162,6 +174,8 @@ export interface CreateWorldOptions {
   creature?: boolean;
   /** The room's file name, for `WorldState.roomName`. */
   roomName?: string;
+  /** The rooms to chain this run through; see {@link WorldState.level}. */
+  level?: readonly LevelRoom[];
 }
 
 /**
@@ -185,6 +199,17 @@ export function tileAt(room: Room, tx: number, ty: number): Tile {
   }
 
   return (room.tiles[ty * room.width + tx] ?? Tile.Empty) as Tile;
+}
+
+/**
+ * The room the run walks into when it lights this room's beacon, or undefined
+ * when the beacon ends the run: the last room of a level, and a world built
+ * with no level at all, which is what a test that only wants one room builds.
+ */
+export function nextLevelRoom(state: WorldState): LevelRoom | undefined {
+  const at = state.level.findIndex((room) => room.name === state.roomName);
+
+  return at < 0 ? undefined : state.level[at + 1];
 }
 
 /**
@@ -223,6 +248,7 @@ export function createWorld(roomText: string, options: CreateWorldOptions = {}):
 
   return {
     roomName: options.roomName ?? '',
+    level: options.level ?? [],
     tick: 0,
     seed,
     rng: seed === 0 ? ZERO_SEED_WORD : seed,

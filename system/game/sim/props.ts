@@ -10,7 +10,7 @@ import { checkpointAt, respawn } from './checkpoint';
 import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
 import type { Box } from './physics';
 import { charging } from './player';
-import { Tile, tileAt, type Prop, type Room, type WorldState } from './state';
+import { nextLevelRoom, Tile, tileAt, type Prop, type Room, type WorldState } from './state';
 import { inWater } from './water';
 
 // `overlaps` and `covers` below are one of four copies of predicates
@@ -55,15 +55,24 @@ function raiseFlag(state: WorldState, flag: Prop): void {
 }
 
 /**
- * Light the beacon and end the run. HWP-046 makes this the hand-over to the
- * next room for every room but the last; until the order table exists, every
- * beacon is the end.
+ * Light the beacon. Every beacon of a level but its last hands over to the
+ * next room, and game/sim/tick.ts loads that room on the `room:next` this
+ * pushes. The last beacon, and the beacon of a room played on its own, ends
+ * the run (docs/plan/02-design/level-design.md).
  */
 function lightBeacon(state: WorldState, beacon: Prop): void {
   beacon.active = true;
   beacon.hitTick = state.tick;
+
+  if (nextLevelRoom(state) !== undefined) {
+    state.events.push('room:next');
+
+    return;
+  }
+
   state.victoryTick = state.tick;
   state.events.push('victory');
+  holdVictory(state);
 }
 
 /**
@@ -74,8 +83,7 @@ function lightBeacon(state: WorldState, beacon: Prop): void {
  * The speed he arrived with goes too, so a held `right` does not keep him
  * running past the beacon. It cannot be a full stop from here: game/sim/player.ts
  * still steps him on foot every tick, so he creeps a quarter of a unit a tick
- * while the button is down. Making `victory` a state that moves him not at all
- * belongs with the hand-over to the next room, HWP-046.
+ * while the button is down.
  */
 function holdVictory(state: WorldState): void {
   state.player.state = 'victory';
@@ -125,7 +133,6 @@ export function stepProps(state: WorldState): void {
         break;
       case 'beacon':
         lightBeacon(state, prop);
-        holdVictory(state);
 
         return;
     }
