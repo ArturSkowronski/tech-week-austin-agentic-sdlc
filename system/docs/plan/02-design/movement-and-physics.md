@@ -105,7 +105,7 @@ One file per rule group under `tests/sim/`, using a helper that builds a world f
 | `physics.test.ts` | swept X then Y; one-way from above only; half-height surface; ceiling bump |
 | `jump.test.ts` | jump height about three and a third tiles held, shorter when cut; coyote within 6 ticks; buffer lands and jumps |
 | `fall.test.ts` | long-fall threshold; landing pose selection value |
-| `charge.test.ts` | wind-up, distance, gravity off, wall recoil, cooldown, hitbox hits props; a charge into a wall three tiles thick recoils (the one-tile wall is asserted only by the paired test of HW-003) |
+| `charge.test.ts` | wind-up, distance, gravity off, wall recoil, cooldown, hitbox hits props; a charge into a wall three tiles thick recoils; the one-tile wall was reserved for the paired test of HW-003, dropped with the cliff ruins (ADR-009), and HWP-084 asserts it here |
 | `oneway-half.test.ts` | the `=` tile |
 | `water.test.ts` | pull, drag, no jump, charge ended, death at the bottom, reveal stamp |
 | `creature.test.ts` | hiding, riding, fleeing, ten-second release |

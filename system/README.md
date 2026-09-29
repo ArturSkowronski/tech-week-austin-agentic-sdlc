@@ -45,7 +45,7 @@ Enter never restarts a run. Gamepad and touch come later.
 - Deployed as a static site on Cloudflare Workers from GitHub Actions, one preview per branch.
 - Levels are painted images traced to collision; art is drawn at two pixels per world unit.
 - Planted bugs live in a manifest, each paired with a test that fails while the bug exists and passes when it is fixed. Fixing one is exactly one pull request.
-- Tickets are GitHub issues in this repository. Season 1 ships three bugs, one per beat of the forest.
+- Tickets are GitHub issues in this repository. Season 1 ships its bugs in one room, the glade, one creature at a time.
 - Every decision is a short record under `docs/plan/01-decisions/`; the newest record wins on a conflict.
 
 ## How the game works
@@ -54,7 +54,7 @@ The simulation is deterministic: sixty ticks a second, no clocks, no randomness 
 
 ## How Visdom builds it
 
-The plan under `docs/plan/` is complete: the vision, eight decision records, the design, the art briefs and 53 tickets in nine milestones. Visdom takes the tickets in dependency order and opens one pull request per ticket, with a preview to play; a human reviews each one and supplies art where a ticket asks for it. Once the bug quest is in, Visdom moves to the other side of the loop and fixes the planted bugs from the game's own tickets.
+The plan under `docs/plan/` is complete: the vision, nine decision records, the design, the art briefs and 55 tickets in nine milestones. Visdom takes the tickets in dependency order and opens one pull request per ticket, with a preview to play; a human reviews each one and supplies art where a ticket asks for it. Once the bug quest is in, Visdom moves to the other side of the loop and fixes the planted bugs from the game's own tickets.
 
 | Milestone | Done when |
 |---|---|
@@ -62,8 +62,8 @@ The plan under `docs/plan/` is complete: the vision, eight decision records, the
 | M1 Deterministic simulation | every tuning rule has a replay test; the glade playthrough reaches the beacon |
 | M2 Renderer | the settled look at 640 by 360; nothing reads wall time |
 | M3 Asset kit and trace tool | `pnpm assets` is idempotent; a room round-trips through the trace tool |
-| M4 Season 1 content | three painted rooms chained, playable in under eight minutes |
-| M5 Bug Quest | three planted bugs proven both ways; the world heals per branch |
+| M4 Season 1 content | one room, the glade, tile-drawn and complete; the run reaches its beacon |
+| M5 Bug Quest | the planted bugs proven both ways; the world heals per branch |
 | M6 Atmosphere and audio | 60 fps; sounds follow simulation events |
 | M7 Visdom integration | each planted bug goes from issue to merged PR through Visdom alone |
 | M8 Launch hygiene | ten trial visitors complete the loop unassisted |

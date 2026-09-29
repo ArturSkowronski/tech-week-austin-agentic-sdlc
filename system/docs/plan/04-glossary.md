@@ -8,7 +8,7 @@ kind: reference
 
 | Term | Meaning |
 |---|---|
-| beat | one of the three rooms of the Forest level, each with its own planted bug |
+| beat | a section of a level with its own planted bugs; Season 1 has one, the glade ([ADR-009](01-decisions/ADR-009-one-room.md)) |
 | beacon | the stone tower that ends the run; touching it is `victory` |
 | creature | the in-world form of a planted bug: red eyes at a hiding place, a passenger on the hat while the symptom is active |
 | density | pixels per world unit of a texture; 1 or 2, recorded in the asset manifest |

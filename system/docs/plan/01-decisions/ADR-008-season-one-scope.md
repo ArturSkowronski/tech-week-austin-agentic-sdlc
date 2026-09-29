@@ -1,12 +1,14 @@
 ---
 title: "ADR-008: Season 1 ships three planted bugs, one per beat"
 date: 2026-09-09
-status: accepted
+status: superseded
 kind: decision
 supersedes: "the ten-bug seed catalogue as the launch set"
 ---
 
 # ADR-008: Season 1 ships three planted bugs, one per beat
+
+Superseded in part by [ADR-009](ADR-009-one-room.md) on 2026-09-29: Season 1 is one room, the glade, and its bugs live there one creature at a time. The selection rule and the backlog below stand.
 
 ## Decision
 

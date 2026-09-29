@@ -6,6 +6,8 @@ kind: asset-brief
 
 # Prompts, level paintings
 
+Season 1 has one room, the glade, which stays tiled ([ADR-009](../../01-decisions/ADR-009-one-room.md)); no panel is planned. The skeleton and the table are kept for a later season's room.
+
 A room is up to three 3:1 panels joined by the kit and fitted to 22 tiles tall at 32 px per tile ([ADR-004](../../01-decisions/ADR-004-painted-levels-traced-to-collision.md)). A 4K 3:1 render fits about 66 tiles. Use the previous panel as the reference image for the next.
 
 **Panel prompt skeleton, proven on the ruin gate**
@@ -15,9 +17,6 @@ A room is up to three 3:1 panels joined by the kit and fitted to 22 tiles tall a
 
 | Room | Panel | Subject |
 |---|---|---|
-| forest-glade | 1 | forest floor with roots and moss, three low mossy ledges rising left to right, a flat plateau with room for a bush and a log, ending at a cliff edge over an open drop |
-| forest-glade | 2 | the far cliff of the drop, a climb of stone ledges over a spike pit, a boulder-sized gap in a root wall, steps up to a stone beacon plinth at the right edge |
-| ruin-gate | 1 and 2 | exist: the broken gate tower, the parapet, the pit, the road, the second gate, the collapsed courtyard with the hall and a well pit; the kit cuts the bridge open |
-| cliff-ruins | 1 | floating ruin ledges under a giant carved stone face, hanging lanterns, a summit plinth for the beacon at the right; the face is generated separately as a landmark image and placed as a mid-layer |
+| ruin-gate | 1 and 2 | existed, retired with the room by HWP-084: the broken gate tower, the parapet, the pit, the road, the second gate, the collapsed courtyard with the hall and a well pit; the kit cut the bridge open |
 
 Paintings must obey the geometry rules in [level design](../../02-design/level-design.md). When a generator draws something intact that must be open (a bridge, a wall), declare the edit in the kit; do not repaint the raw.

@@ -28,7 +28,7 @@ The reference implementation is the prototype at `visdom-sandbox` (VirtusLab/vis
 2. Every milestone becomes an epic issue and every ticket an issue, as described in [tickets/README.md](tickets/README.md).
 3. Visdom takes tickets in dependency order. For each: read the `docs`, refine into a task plan, implement as one PR that touches the listed `files`, prove the acceptance lines, pass `pnpm typecheck && pnpm lint && pnpm test && pnpm bugs:check`, carry the preview URL.
 4. A human reviews each PR, supplies art where a ticket says `human`, approves the tuning table before M1 starts, and merges anything that touches `game/sim/` outside a planted-bug ticket.
-5. When M5 is merged, the three planted bugs are live and M7 puts Visdom on the other side of the loop: fixing them from the game's own tickets.
+5. When M5 is merged, the planted bugs are live and M7 puts Visdom on the other side of the loop: fixing them from the game's own tickets.
 
 ## Milestones
 
@@ -38,8 +38,8 @@ The reference implementation is the prototype at `visdom-sandbox` (VirtusLab/vis
 | M1 Deterministic simulation | HWP-010 to 016 | every tuning rule has a replay test; the glade playthrough reaches the beacon |
 | M2 Renderer | HWP-020 to 027 | the settled look at 640 by 360; nothing reads wall time |
 | M3 Asset kit and trace tool | HWP-030 to 036 | `pnpm assets` idempotent; unreferenced outputs fail the build; a room round-trips through the trace tool |
-| M4 Season 1 content | HWP-040 to 046 | three painted rooms chained, playable in under eight minutes |
-| M5 Bug Quest | HWP-050 to 057 | three planted bugs proven both ways by `bugs:check`; the world heals per branch |
+| M4 Season 1 content | HWP-040 to 046, 083, 084 | one room, the glade, tile-drawn and complete; the other rooms retired |
+| M5 Bug Quest | HWP-050 to 057 | the planted bugs proven both ways by `bugs:check`; the world heals per branch |
 | M6 Atmosphere and audio | HWP-060 to 064 | 60 fps; sounds follow simulation events |
 | M7 Visdom integration | HWP-070 to 073 | each seed bug goes from issue to merged PR through Visdom alone |
 | M8 Launch hygiene | HWP-080 to 082 | ten trial visitors complete the loop unassisted |

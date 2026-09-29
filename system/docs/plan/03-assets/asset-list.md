@@ -39,8 +39,8 @@ Cell sizes are the simulation's prop table. All static or looped.
 | beacon | 32 by 64 | 5: unlit 1, lighting 2, lit loop 2 | 1x done |
 | torch | 16 by 32 | 1, static | 1x built; no room places one yet |
 | charge sparks | 24 by 8 | 5: 3 trail, 2 speed-line | 1x built; not drawn yet |
-| lantern | 16 by 32 | 4-frame loop | to generate, cliff ruins |
-| glowing mushrooms | 16 by 16 | 2-frame loop | to generate, atmosphere pass |
+| lantern | 16 by 32 | 4-frame loop | not planned; no room places one (HWP-062 closed) |
+| glowing mushrooms | 16 by 16 | 2-frame loop | not planned; no room places one |
 | waterfall | 96 wide, down to the room bottom | drawn in code | none |
 | creature eyes and wisp | 8 by 4, 16 by 16 | drawn in code in Season 1 | none |
 
@@ -67,9 +67,9 @@ The layer stack is settled; reuse at density 1, regenerate at 2 px later only if
 
 | Room | Panels | Status |
 |---|---|---|
-| ruin-gate | 2, 3:1 at 3840 by 1280; the kit cuts the bridge open before keying | done, `painting-ruin-gate-1.png`, `-2.png` |
-| forest-glade | 2 | to generate: forest floor, roots, the waterfall pit as an open drop |
-| cliff-ruins | 1 plus the stone face as a separate landmark image | to generate |
+| forest-glade | none | the glade stays tiled ([ADR-009](../01-decisions/ADR-009-one-room.md)) |
+| ruin-gate | 2, 3:1 at 3840 by 1280; the kit cut the bridge open before keying | retired with the room by HWP-084 |
+| cliff-ruins | 1 plus the stone face as a landmark | not planned (HWP-042 closed) |
 
 ## Interface
 

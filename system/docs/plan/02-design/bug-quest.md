@@ -45,11 +45,11 @@ Planted, real defects show up in the game as a creature. The player feels the sy
 | `module` | the file that holds the real defect; the fix touches this file |
 | `test` | the paired test that fails while the entry exists |
 | `rooms` | the rooms whose creature carries the bug; each room's waterfall shows its logs |
-| `creature.hides` | `bush`, `log` or `rock`; one creature per room |
+| `creature.hides` | `bush`, `log` or `rock`; one creature at a time |
 | `steps`, `expected` | the reproduction the ticket carries, after "start a run in <room>" |
 | `logs` | the lines the waterfall shows |
 
-The simulation reads the manifest through `game/sim/bugs.ts`: `bugsForRoom(room)` and `bugForRoom(room)`. When the list is empty the world is clean.
+The simulation reads the manifest through `game/sim/bugs.ts`: `bugsForRoom(room)` and `bugForRoom(room)`. When the list is empty the world is clean. `bugForRoom` returns the first entry for the room, so a room with several planted bugs shows one creature at a time: fixing the first on `main` deletes its entry and the next creature appears. Season 1 has one room and up to three bugs, one per hiding place ([ADR-009](../01-decisions/ADR-009-one-room.md)).
 
 ## The creature
 
@@ -64,7 +64,7 @@ The symptom is the defect itself: the creature does nothing but set a flag the b
 
 ## Evidence
 
-Each beat's waterfall carries that beat's bug's log lines, drawn behind the water and readable only while the water is parted: disturbed by touch or a charge hit, it stays parted 150 ticks. Fictional flavour lines and real evidence are visibly distinct; only the manifest's lines are real.
+The waterfall carries the live bug's log lines, drawn behind the water and readable only while the water is parted: disturbed by touch or a charge hit, it stays parted 150 ticks. Fictional flavour lines and real evidence are visibly distinct; only the manifest's lines are real.
 
 ## The ticket card
 
@@ -85,13 +85,13 @@ Opened in the repository named by `VITE_GITHUB_REPO`, inside the key or pointer 
 
 ## Season 1 planted bugs
 
-| Id | Beat | Hides in | Symptom | Real defect, hidden from the player | Paired test asserts |
+| Id | Room | Hides in | Symptom | Real defect, hidden from the player | Paired test asserts |
 |---|---|---|---|---|---|
 | HW-001 | glade | bush | left and right swap while the creature rides | the input axis is read in the creature's backward-facing orientation in `game/sim/input-map.ts` | holding right while carried moves right |
-| HW-002 | ruin gate | log | respawn lands one tile left of the flag | off-by-one in tile-to-world conversion in `game/sim/checkpoint.ts` | respawn position equals the flag's |
-| HW-003 | cliff ruins | rock | the charge passes through a thin wall | swept collision skipped for the charge hitbox in `game/sim/charge-hit.ts` | a charge at full speed stops at a one-tile wall |
+| HW-002 | glade, moved from the ruin gate by HWP-084 | log | respawn lands one tile left of the flag | off-by-one in tile-to-world conversion in `game/sim/checkpoint.ts` | respawn position equals the flag's |
+| HW-004 | glade, planted by HWP-073 once HW-002 is fixed | rock | the second death after a flag respawns at the room spawn | the checkpoint is cleared when a respawn consumes it in `game/sim/checkpoint.ts` | two deaths after one flag both respawn at the flag |
 
-Each defect is written as a plausible mistake with a comment stating the intended behaviour, in its own small module, so the fix is one file. HW-002 shares its module family with a later flag-adjacent bug in Season 2, which is the scripted engineering-memory demonstration.
+Each defect is written as a plausible mistake with a comment stating the intended behaviour, in its own small module, so the fix is one file. HW-003, the charge through a thin wall in the cliff ruins, was dropped with that room. HW-002 shares its module with HW-004, the scripted engineering-memory demonstration of [HWP-073](../tickets/HWP-073.md).
 
 ## Backlog from the original catalogue
 

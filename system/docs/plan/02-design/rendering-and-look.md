@@ -40,7 +40,7 @@ Early dusk, "magic and mysterious" without being dark; the wizard is the light.
 
 - Sky: three stops, amber at the horizon, mauve, indigo at the top, in bands of 6 units.
 - Depth-haze tints on the far layers; cool stone on the ruins.
-- The wand's crystal carries an additive light; placed light props (lantern, glowing mushrooms) add to the same light layer.
+- The wand's crystal carries an additive light. Placed light props were planned for the cliff ruins and are not built (HWP-062 closed).
 
 ## Tiles
 
