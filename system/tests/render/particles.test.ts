@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { LEVEL } from '../../game/content/order';
+import { rooms } from '../../game/content/rooms/index';
 import { floorLine } from '../../game/render/camera';
 import { FIREFLIES, MIST_BANDS, MOTES, SPORES, VIEW_W } from '../../game/render/config';
 import {
@@ -23,9 +23,9 @@ import { hold, run } from '../sim/helpers';
 
 /** One of the shipped rooms, at the tick it starts on. */
 function room(name: string): WorldState {
-  const text = LEVEL.find((entry) => entry.name === name)?.text;
+  const text = rooms[name];
 
-  if (text === undefined) throw new Error(`game/content/order.ts lists no ${name}`);
+  if (text === undefined) throw new Error(`the rooms glob has no ${name}`);
 
   return createWorld(text, { roomName: name });
 }
@@ -141,8 +141,8 @@ describe('the atmosphere pass', () => {
   });
 
   it('keeps every shipped room inside the budget the frame rate was measured at', () => {
-    for (const { name } of LEVEL) {
-      expect(every(room(name)).length).toBeLessThanOrEqual(BUDGET);
+    for (const name of Object.keys(rooms)) {
+      expect(every(room(name)).length, name).toBeLessThanOrEqual(BUDGET);
     }
   });
 });

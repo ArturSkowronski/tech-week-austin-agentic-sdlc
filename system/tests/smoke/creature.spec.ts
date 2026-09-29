@@ -54,11 +54,7 @@ function drawn(page: Page): Promise<void> {
   );
 }
 
-/**
- * Open the glade on a paused clock, past the title, with one frame drawn. It
- * is asked for by name so it is played on its own, the way props.spec.ts asks
- * for it.
- */
+/** Open the glade on a paused clock, past the title, with one frame drawn. */
 async function open(page: Page): Promise<void> {
   await page.goto('/?room=forest-glade');
   await page.waitForFunction(() => window.wizard !== undefined);

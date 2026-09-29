@@ -313,19 +313,9 @@ function displayScale(windowW: number, windowH: number): number {
 }
 
 /**
- * Start Pixi in `mount` and give back the surfaces to draw on. The rooms the
- * run can reach are named here rather than read off the first frame because
- * their paintings, the ones that have them, are loaded with the backdrops: a
- * chained run walks into its next room on one tick and draws it on the next
- * (docs/plan/02-design/level-design.md).
- *
- * Loading them all before the first frame is the deliberate trade: the level
- * is three rooms of one painting each, and one wait on the way in costs the
- * boot a moment where a load on the hand-over would stall the run mid-play,
- * with the wizard already standing in a room that has nothing behind him. It
- * is the level's length that this scales with, so a level long enough for the
- * boot to feel it is the point at which the painting should follow the
- * waterfall and be built on the way into its own room.
+ * Start Pixi in `mount` and give back the surfaces to draw on. The room is
+ * named here rather than read off the first frame because its painting, if it
+ * has one, is loaded with the backdrops.
  *
  * `atmosphere` is false only for the `?atmosphere=off` boot game/main.ts
  * reads: the run draws everything but the particle pass, which is how a
@@ -334,7 +324,7 @@ function displayScale(windowW: number, windowH: number): number {
  */
 export async function createScene(
   mount: HTMLElement,
-  roomNames: readonly string[],
+  roomName: string,
   atmosphere = true,
 ): Promise<Scene> {
   const app = new Application();
@@ -372,26 +362,18 @@ export async function createScene(
   // lie over the wizard's feet and over the water; and the motes on the
   // additive light layer with the wand's own glow.
   const particles = createParticles(atmosphere);
-  // Neither the backdrops nor the rooms need anything of the others, so every
-  // chain is in flight at once.
+  // Neither the backdrops nor the room needs anything of the other, so both
+  // chains are in flight at once.
   const tileset = await loadTileset(manifest);
-  const [background, built] = await Promise.all([
+  const [background, roomArt] = await Promise.all([
     createBackground(manifest, particles.forest),
-    Promise.all(
-      roomNames.map(async (name) => [name, await createRoomArt(manifest, tileset, name)] as const),
-    ),
+    createRoomArt(manifest, tileset, roomName),
   ]);
-  const arts = new Map(built);
-  // One layer for the room, holding the art of every room the run can reach;
-  // the one the world is in is the one that is visible.
-  const roomLayer = new Container();
-
-  roomLayer.addChild(...[...arts.values()].map((art) => art.view));
 
   lights.addChild(particles.light);
   world.addChild(
     background.behind,
-    roomLayer,
+    roomArt.view,
     actors,
     particles.air,
     lights,
@@ -473,28 +455,22 @@ export async function createScene(
       actors.position.set(-camera.x, -camera.y);
       particles.air.position.set(-camera.x, -camera.y);
       lights.position.set(-camera.x, -camera.y);
-      roomLayer.position.set(-camera.x, -camera.y);
+      roomArt.view.position.set(-camera.x, -camera.y);
 
-      const art = arts.get(state.roomName);
-
-      // A room would otherwise wear another room's painting over its own
-      // collision and nothing on the screen would say so.
-      if (art === undefined) {
-        throw new Error(
-          `the room layer was built for ${[...arts.keys()].join(', ')} and asked to draw ${state.roomName}`,
-        );
+      // The painting was chosen once, by name, when the scene was built; the
+      // grid arrives every frame with whatever world the loop hands over. They
+      // are one fact today only because game/main.ts passes one variable into
+      // both. Should a second call site ever part them, a room would wear
+      // another room's painting over its own collision and nothing on the
+      // screen would say so — so it is said here instead.
+      if (state.roomName !== roomName) {
+        throw new Error(`the room art was built for ${roomName} and asked to draw ${state.roomName}`);
       }
 
-      for (const [name, other] of arts) {
-        other.view.visible = name === state.roomName;
-      }
-
-      art.draw(state.room, debug);
+      roomArt.draw(state.room, debug);
       background.place(camera, state.room);
-      // Every field is drawn again from this tick, so a room the run has
-      // walked into brings its own bushes, water and seed with it and nothing
-      // of the room just left can survive the hand-over. The fireflies stand
-      // among the trunks, so they are carried by the tall forest's own
+      // The fireflies stand among the trunks, so they are carried by the tall
+      // forest's own
       // parallax factors rather than pinned to the view: the layer table
       // anchors every layer to the floor line and gives it its own share of
       // the camera's travel, and a firefly that kept still while the forest
@@ -507,7 +483,7 @@ export async function createScene(
         y: (camera.y - rest.y) * trunks.parallaxY,
       });
       publish('layers', background.report());
-      publish('room', art.report());
+      publish('room', roomArt.report());
       publish('particles', particles.report());
     },
 

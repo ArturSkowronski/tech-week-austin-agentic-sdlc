@@ -7,7 +7,7 @@ kind: design
 
 # Level design, Season 1
 
-One level, the Forest, in three beats, each its own room, chained left to right. About 280 tiles in total, four to six minutes of play. Rooms are text maps with an optional painting ([ADR-004](../01-decisions/ADR-004-painted-levels-traced-to-collision.md)). The two rooms that exist are in [rooms/](rooms/) as reference maps.
+One level, the Forest, designed in three beats, each its own room. About 280 tiles in total. The demo plays the first beat only: the glade's beacon ends the run, and the other rooms are played on their own with `?room=<name>`. Rooms are text maps with an optional painting ([ADR-004](../01-decisions/ADR-004-painted-levels-traced-to-collision.md)). The two rooms that exist are in [rooms/](rooms/) as reference maps.
 
 ## Text map legend
 
@@ -55,7 +55,7 @@ Derived from the tuning table in [movement and physics](movement-and-physics.md)
 - A six-tile gap is crossed by a jump and a wand charge above the surface; a plain jump falls a tile short and a short jump lands in the water. Gaps of four tiles or fewer are plain jumps; five-tile gaps are not used, they are too close to call.
 - Every climb is at most three tiles; nothing needs a pixel-perfect landing.
 - At least one checkpoint flag per beat, near the start; another before any hazard that would send the player far back.
-- Every beat ends at a beacon at its right end. The last beat's beacon ends the run; an earlier beat's beacon hands over to the next room.
+- Every beat ends at a beacon at its right end, and that beacon ends the run: a room is played on its own.
 - Hiding places sit on flat ground away from pits so the creature encounter is never a death.
 - Nothing above the middle of a painting except named landmarks; the camera's vertical range is small.
 
@@ -67,11 +67,11 @@ Derived from the tuning table in [movement and physics](movement-and-physics.md)
 | `ruin-gate` | 132 | the broken gate tower climbed on its ledges or walked under at ground level, with the cracked rock at its foot; the flag before the pit and the two-tile parapet; the waterfall pit, six tiles wide and level with the parapet, crossed by a jump and a charge to the road beyond; the road with the bush where the creature waits, the log and the second flag; the second gate climbed over the banner beam and descended by the stair; the well, a dry six-tile drop, and the spike hole; the bastion with the beacon | rock, bush by the road, log | the pit, the well, spikes, water | two panels, exist |
 | `cliff-ruins` | about 66 | floating ruin ledges under a giant stone face, lanterns, the beacon on the summit | rock on a ledge | drops between islands | one panel to generate |
 
-Rooms are chained by the order module `game/content/order.ts`, one list of room names kept outside the rooms glob. Touching the beacon of a room that is not last loads the next room at its spawn, keeping deaths and the run clock and resetting the checkpoint to the new spawn. Room edges are walls, never exits. Each room has one waterfall, which carries the log lines of that beat's planted bug.
+Rooms are not chained: a run plays one room and ends at its beacon. The boot with no `?room=` plays the glade, the first beat; every other room is reached by name. [HWP-046](../tickets/HWP-046.md) chained the rooms through an order module `game/content/order.ts` and a `room:next` event; HWP-083 rolled that back so the demo sticks to the first beat, and the module is gone. Room edges are walls, never exits. Each room has one waterfall, which carries the log lines of that beat's planted bug.
 
 ## The beacon ends the run
 
-The last room's beacon is the level's end. Touching it puts the wizard in `victory`, stops the run clock and shows the banner with time and deaths. A beacon in an earlier room lights as the wizard passes and hands over to the next room. Neither depends on the planted bugs: the healed world shows itself through the missing creature and the ticket card's "the logs are clean" state ([bug quest](bug-quest.md)). This supersedes the concept's beacon that lit only when the region was healed; a run must always be completable.
+Every room's beacon is the end of its run. Touching it puts the wizard in `victory`, stops the run clock and shows the banner with time and deaths. This does not depend on the planted bugs: the healed world shows itself through the missing creature and the ticket card's "the logs are clean" state ([bug quest](bug-quest.md)). This supersedes the concept's beacon that lit only when the region was healed; a run must always be completable.
 
 ## Painting a room
 

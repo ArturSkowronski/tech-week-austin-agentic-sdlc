@@ -15,13 +15,15 @@ game/
                    ?room=<name> selection; window.wizard for automation
   sim/             pure, deterministic; the only place WorldState changes
   render/          PixiJS; reads WorldState, never writes it
-  content/         tile-order.ts (the atlas order) and order.ts (the room order), outside the glob
+  content/         tile-order.ts (the atlas order), outside the glob
   content/rooms/   one text map per room, indexed by glob
 ```
 
 `game/sim/` has no timers, no `Math.random`, no `Date`, no DOM, no import from `render/`. Randomness comes from `nextRandom(state)` over a seed held in state. `tick(state, input)` is the only function that mutates `WorldState`.
 
 `game/render/` selects animations from the player's state and `stateTimer`, never from wall time, so a replay always shows the same frames.
+
+A run plays one room and ends at its beacon; nothing in `sim/` loads a room after the first. [HWP-046](../tickets/HWP-046.md) chained the rooms through a `game/content/order.ts` order module and a `room:next` event `tick` acted on, and HWP-083 rolled that back so the demo plays the first beat only ([level design](level-design.md)).
 
 ## WorldState
 

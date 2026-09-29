@@ -59,8 +59,7 @@ Transitions are a table in `game/sim/player.ts` so a reviewer can read them:
 | fall | touches ground | land |
 | land | 4 ticks, or any movement input | idle or run |
 | any except victory | spikes, water bottom, or falls out of the room | hurt, then respawn at the checkpoint |
-| any | touches the beacon of the last room in the order | victory |
-| any | touches the beacon of an earlier room | the room ends: `room:next` is emitted and the next room loads at its spawn ([level design](level-design.md)) |
+| any | touches the room's beacon | victory ([level design](level-design.md)) |
 
 The state timer counts ticks in the current state and drives every animation; the renderer never keeps a timer of its own.
 
@@ -77,7 +76,7 @@ Any overlap with a waterfall prop's water column pulls the wizard down at 160 or
 
 ## Death and respawn
 
-Deaths return the wizard to the checkpoint: the last raised flag, or the room's spawn before any flag. The death counter increments. The respawn position is computed first, while a carried creature still rides, and only then is the creature dropped at its nearest hiding place; this order is what lets a planted checkpoint bug be felt on the respawn that follows. The run clock stops at the final beacon.
+Deaths return the wizard to the checkpoint: the last raised flag, or the room's spawn before any flag. The death counter increments. The respawn position is computed first, while a carried creature still rides, and only then is the creature dropped at its nearest hiding place; this order is what lets a planted checkpoint bug be felt on the respawn that follows. The run clock stops at the beacon.
 
 ## Input
 

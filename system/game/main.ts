@@ -2,17 +2,16 @@
 // is drawn once per frame with no interpolation, and `window.wizard` exposes
 // the run to browser tests (docs/plan/02-design/simulation-architecture.md).
 
-import { LEVEL } from './content/order';
 import { rooms } from './content/rooms';
 import { createHud } from './render/hud';
-import { issueBug, issueUrl, type IssueBug } from './render/issue';
+import { issueBug, issueUrl } from './render/issue';
 import { createScene } from './render/scene';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
 import { createProps } from './render/props';
-import { cardBug, createTicketCard, type CardBug, type CardFacts } from './render/ticket';
+import { cardBug, createTicketCard, type CardFacts } from './render/ticket';
 import { createTitle, startsRun } from './render/title';
-import { createWaterfall, logsRead, type WaterfallView } from './render/waterfall';
+import { createWaterfall, logsRead } from './render/waterfall';
 import { createWizard, type WizardFrame } from './render/wizard';
 import {
   bugForRoom,
@@ -24,18 +23,8 @@ import {
   type WorldState,
 } from './sim';
 
-/**
- * The room `?room=` falls back to: the first room of the level, taken from the
- * order table rather than spelled again here, so a table whose first entry
- * changes moves the boot with it (AGENTS.md rule 9).
- */
-const firstRoom = LEVEL[0];
-
-if (firstRoom === undefined) {
-  throw new Error('game/content/order.ts lists no rooms for the run to start in');
-}
-
-const DEFAULT_ROOM = firstRoom.name;
+/** The room `?room=` falls back to: the first beat, which is the demo. */
+const DEFAULT_ROOM = 'forest-glade';
 
 /**
  * The longest stretch of real time one frame may spend. A tab that was in the
@@ -47,7 +36,7 @@ const MAX_CATCH_UP_SECONDS = 0.25;
 export interface Wizard {
   /** Leave the title screen. */
   start(): void;
-  /** Restart the run, from the first room of its level. */
+  /** Restart the current room. */
   reset(): void;
   /** Stops the loop from ticking; `step` still runs. */
   paused: boolean;
@@ -87,22 +76,19 @@ if (roomText === undefined) {
   throw new Error(`game/content/rooms/ has no ${DEFAULT_ROOM}.ts to fall back to`);
 }
 
-// The boot with no `?room=` plays the level of game/content/order.ts, so its
-// beacons hand the run on from room to room; a room asked for by name is a
-// level of that room alone, whose beacon ends the run
-// (docs/plan/02-design/level-design.md).
-const level = wanted === null ? LEVEL : [{ name: roomName, text: roomText }];
-
-/** Every room this run can walk into, the first one first. */
-const reachable = level.map((room) => room.name);
+// The room's planted bug, or undefined in a clean room. The manifest of the
+// branch being built is the one source (ADR-005): it decides whether the room
+// has a creature to carry the bug, which lines the waterfall hides, and what
+// the ticket card is able to say.
+const roomBug = bugForRoom(roomName);
 
 const freshWorld = (): WorldState =>
-  createWorld(roomText, { roomName, level, creature: bugForRoom(roomName) !== undefined });
+  createWorld(roomText, { roomName, creature: roomBug !== undefined });
 
 // No load needs anything of the others, so all three chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
 const [scene, wizardView, propsView] = await Promise.all([
-  createScene(mount, reachable, atmosphere),
+  createScene(mount, roomName, atmosphere),
   createWizard(),
   createProps(),
 ]);
@@ -110,48 +96,23 @@ const [scene, wizardView, propsView] = await Promise.all([
 // The props behind the wizard, and the creature in front of him
 // (rendering-and-look.md, layer stack): carried, it rides on the hat, which is
 // inside the wizard's own cell, so a creature behind him would be painted over.
-// A room's waterfall goes behind all of them as the room is entered.
+// The room's waterfall goes behind all of them.
 scene.actors.addChild(propsView.view, wizardView.view, propsView.creature);
 scene.lights.addChild(wizardView.light);
 
-/** What one room's planted bug gives the screen (ADR-005, bug-quest.md). */
-interface Stage {
-  /** The room this was built for. */
-  room: string;
-  /** The manifest's entry as the card takes it, or null in a clean room. */
-  card: CardBug | null;
-  /** The entry as the prefilled issue takes it, with the defect's file dropped. */
-  issue: IssueBug | null;
-  /** The water that hides this beat's log lines. */
-  waterfall: WaterfallView;
-}
+/** The manifest's entry as the card takes it, settled once with the room. */
+const CARD_BUG = cardBug(roomBug);
 
-/**
- * Take the stage of the room the run has walked into. The manifest of the
- * branch being built is the one source: it decides which lines the waterfall
- * hides and what the ticket card is able to say, and a chained run asks it
- * again of every room.
- *
- * The waterfall is drawn in code and loads nothing, so a room's own is built
- * on the way in rather than awaited with the art. It goes behind everything
- * else on the actor layer — its water is near opaque, and a wizard swept into
- * the column has to stay in sight.
- */
-function enterStage(room: string): Stage {
-  const bug = bugForRoom(room);
-  const entered: Stage = {
-    room,
-    card: cardBug(bug),
-    issue: issueBug(bug),
-    waterfall: createWaterfall(bug?.logs ?? []),
-  };
+/** The entry as the prefilled issue takes it, with the defect's file dropped. */
+const ISSUE_BUG = issueBug(roomBug);
 
-  scene.actors.addChildAt(entered.waterfall.view, 0);
+// The water that hides this beat's log lines. It is drawn in code and loads
+// nothing, so it is built here rather than awaited with the art, and it goes
+// behind everything else on the actor layer: its water is near opaque, and a
+// wizard swept into the column has to stay in sight.
+const waterfallView = createWaterfall(roomBug?.logs ?? []);
 
-  return entered;
-}
-
-let stage = enterStage(roomName);
+scene.actors.addChildAt(waterfallView.view, 0);
 
 const title = createTitle();
 const hud = createHud();
@@ -161,10 +122,8 @@ const banner = createBanner();
 // A clean room never reaches the face that offers it; the null is what tells
 // the compiler so.
 const card = createTicketCard(() => {
-  const bug = stage.issue;
-
-  if (bug !== null) {
-    window.open(issueUrl(bug, world), '_blank', 'noopener');
+  if (ISSUE_BUG !== null) {
+    window.open(issueUrl(ISSUE_BUG, world), '_blank', 'noopener');
   }
 });
 
@@ -210,7 +169,7 @@ function publishUi(): void {
 /** What the player knows on this frame (bug-quest.md, the ticket card). */
 function cardFacts(): CardFacts {
   return {
-    bug: stage.card,
+    bug: CARD_BUG,
     felt: world.creature?.firstCarried ?? false,
     logsRead: logsRead(world),
   };
@@ -309,31 +268,6 @@ function frame(now: number): void {
     }
   }
 
-  // A run that has walked into another room leaves behind everything the
-  // render layer was holding for the room it left — its water, the sprites of
-  // its props and its ticket card — and takes the new room's, before anything
-  // this frame is drawn or said.
-  if (stage.room !== world.roomName) {
-    scene.actors.removeChild(stage.waterfall.view);
-    // Nothing else holds the water of the room just left, so it goes for
-    // good rather than being orphaned for the rest of the run.
-    stage.waterfall.view.destroy({ children: true });
-    // The prop sprites are cached by prop id and the new room numbers its own
-    // from zero, so the cache is dropped rather than drawn over: the glade's
-    // bush and the ruin gate's waterfall are both id 1, and a kind with no
-    // strip is skipped, which would leave the bush hanging at its glade
-    // position inside the ruin gate.
-    propsView.clear();
-    // The card speaks for the room it was raised in: its faces are chosen
-    // from that room's manifest entry, that room's parted water and that
-    // room's creature (ticket-card.md). In a room just entered the player has
-    // felt nothing and read nothing, so the `card.update` below says nothing
-    // and would leave the previous room's words up, with its Raise ticket
-    // button now wired to the new room's issue.
-    card.hide();
-    stage = enterStage(world.roomName);
-  }
-
   // The card is read after the ticks of this frame, so what it says is what
   // the world says now: it comes up by itself as soon as the player has felt
   // the bug or read the logs (bug-quest.md, the ticket card). T is the other
@@ -353,12 +287,12 @@ function frame(now: number): void {
   // point the glow hangs on rather than working out a second one
   // (AGENTS.md rule 9).
   scene.watch(world, debugHud, wizardView.read(world.player).light);
-  stage.waterfall.update(world, scene.camera);
+  waterfallView.update(world, scene.camera);
   propsView.update(world, wizardView.update(world.player, scene.camera), scene.camera);
   scene.render();
   publish('wizard', wizardView.report());
   publish('props', propsView.report());
-  publish('waterfall', stage.waterfall.report());
+  publish('waterfall', waterfallView.report());
   publishUi();
 }
 

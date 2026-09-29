@@ -6,20 +6,15 @@
 // Their numbers are ticks of held buttons, hand-tuned against the frozen tuning
 // table; every one of them sits several ticks inside the window that works.
 //
-// They live beside the tests rather than in one of them because three replay
-// tests walk them: tests/sim/forest-room.test.ts plays each room on its own,
-// and tests/sim/transition.test.ts and tests/sim/transition-last-beacon.test.ts
-// play them as the one chained run. The scaffolding those two share — the run
-// the game boots and the replay that stops on a hand-over — is at the foot of
-// this file, for the same reason.
+// They live beside tests/sim/forest-room.test.ts rather than in it because
+// they are content, not assertions: a room retraced by the trace tool changes
+// its route, and the route of a room that does not exist yet joins by being
+// written here.
 
-import forestGlade from '../../game/content/rooms/forest-glade';
-import { LEVEL } from '../../game/content/order';
-import { createWorld, tick } from '../../game/sim/index';
-import type { InputFrame, WorldState } from '../../game/sim/index';
+import type { InputFrame } from '../../game/sim/index';
 import { hold } from './helpers';
 
-export const RUN = { right: true };
+const RUN = { right: true };
 const RUN_JUMP = { right: true, jump: true };
 
 /**
@@ -35,13 +30,13 @@ function chargeGap(carry: number): InputFrame[] {
 const STRIDE = 26;
 
 /** Ticks of jump held to clear a one-tile ledge. */
-export const LOW = 6;
+const LOW = 6;
 
 /** Ticks of jump held to clear a two-tile ledge. */
 const HIGH = 9;
 
 /** A hop onto the next ledge of the glade: `rise` ticks of jump held, then a stride. */
-export function hop(rise: number): InputFrame[] {
+function hop(rise: number): InputFrame[] {
   return [...hold(RUN_JUMP, rise), ...hold(RUN, STRIDE)];
 }
 
@@ -212,25 +207,3 @@ export const RUIN_GATE_UPPER: InputFrame[] = [
   ...hold(RUN_JUMP, 14),
   ...hold(RUN, 15),
 ];
-
-/** The run the game boots: the first room of the order table, played on into the rest. */
-export function chainedRun(): WorldState {
-  return createWorld(forestGlade, { roomName: 'forest-glade', level: LEVEL });
-}
-
-/**
- * Replay frames until the room hands over, and stop on that tick: the frames
- * after it belong to the room the wizard has left, and playing them on into
- * the next room would walk him off its spawn.
- */
-export function runToHandover(state: WorldState, frames: readonly InputFrame[]): void {
-  for (const frame of frames) {
-    tick(state, frame);
-
-    if (state.events.includes('room:next')) {
-      return;
-    }
-  }
-
-  throw new Error(`the route ended in ${state.roomName} without reaching its beacon`);
-}

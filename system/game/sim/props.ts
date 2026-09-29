@@ -10,7 +10,7 @@ import { checkpointAt, respawn } from './checkpoint';
 import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
 import type { Box } from './physics';
 import { charging } from './player';
-import { nextLevelRoom, Tile, tileAt, type Prop, type Room, type WorldState } from './state';
+import { Tile, tileAt, type Prop, type Room, type WorldState } from './state';
 import { inWater } from './water';
 
 // `overlaps` and `covers` below are one of four copies of predicates
@@ -55,21 +55,13 @@ function raiseFlag(state: WorldState, flag: Prop): void {
 }
 
 /**
- * Light the beacon. Every beacon of a level but its last hands over to the
- * next room, and game/sim/tick.ts loads that room on the `room:next` this
- * pushes. The last beacon, and the beacon of a room played on its own, ends
- * the run (docs/plan/02-design/level-design.md).
+ * Light the beacon and end the run. Every room ends at its own beacon: the
+ * demo plays the first beat and a room asked for by name is played on its own
+ * (docs/plan/02-design/level-design.md).
  */
 function lightBeacon(state: WorldState, beacon: Prop): void {
   beacon.active = true;
   beacon.hitTick = state.tick;
-
-  if (nextLevelRoom(state) !== undefined) {
-    state.events.push('room:next');
-
-    return;
-  }
-
   state.victoryTick = state.tick;
   state.events.push('victory');
   holdVictory(state);

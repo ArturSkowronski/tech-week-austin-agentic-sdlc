@@ -5,9 +5,8 @@
 // The last suite is that empty list for real: the world heals per branch, so
 // the manifest is emptied the way a branch that has just fixed the last bug
 // empties it, and the simulation is read again under it. The mock is asked
-// for inside the test rather than hoisted over the file the way
-// tests/sim/transition-last-beacon.test.ts asks for the same empty list,
-// because the suites above it read the manifest the branch really ships.
+// for inside the test rather than hoisted over the file, because the suites
+// above it read the manifest the branch really ships.
 
 import { describe, expect, it, vi } from 'vitest';
 
