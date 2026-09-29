@@ -1,9 +1,12 @@
-// The props on screen, and the creature's two eyes
+// The props on screen, and the creature among them
 // (docs/plan/02-design/rendering-and-look.md, Sprites;
-// docs/plan/02-design/bug-quest.md, the creature). Which cell of a prop's
-// strip is shown is a pure function of the prop's own `hitTick`, its `active`
-// flag and the tick the world stands on — never of wall time — so a replay
-// draws the same frames twice, the way the wizard does.
+// docs/plan/02-design/bug-quest.md, the creature). What the creature itself
+// looks like — its eyes, its wisp and the glitch aura that throws its hiding
+// place about — is game/render/creature.ts's; this layer only says where it
+// stands. Which cell of a prop's strip is shown is a pure function of the
+// prop's own `hitTick`, its `active` flag and the tick the world stands on —
+// never of wall time — so a replay draws the same frames twice, the way the
+// wizard does.
 //
 // Every strip opens with the prop at rest and holds the frames asset-list.md
 // gives it: the bush and the log rustle on their last two, the rock cracks
@@ -12,19 +15,19 @@
 // strip for is simply not drawn — the waterfall, which HWP-025 draws in code,
 // and the lantern and mushrooms nobody has generated yet.
 
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container, Sprite } from 'pixi.js';
 
 import { PROP_SIZE, type Prop, type PropKind, type Vec2, type WorldState } from '../sim';
 
 import { wholePixels, type Camera } from './camera';
 import {
-  CREATURE_BLINK,
   CREATURE_EYES,
   PROP_FPS,
   PROP_RUSTLE_TICKS,
   PROP_SHAKE,
   SPRITE_FOOT_OFFSET,
 } from './config';
+import { auraAt, CALM, createCreatureMark } from './creature';
 import { cycle, framesIn, loadManifest, loadStrip, type Strip } from './sprites';
 import type { WizardFrame } from './wizard';
 
@@ -111,10 +114,15 @@ export function propShake(prop: Prop, tick: number): number {
 }
 
 /**
- * Where the creature's eyes are, in world units, or null when it shows none.
- * It rides the wizard's hat while carried, blinks at the prop it hides in
+ * Where the creature stands, in world units, or null when it shows nothing.
+ * It rides the wizard's hat while carried, sits in the prop it hides in
  * otherwise, and is not drawn at all while it runs between the two
  * (bug-quest.md, the creature).
+ *
+ * The glitch aura is left out of this on purpose: HWP-061 throws the hiding
+ * place's *sprite* about, and a creature that went with it would only be
+ * jittering in place. The prop tears around it; the creature is what it tears
+ * around.
  */
 export function eyesAt(state: WorldState, wizard: WizardFrame): Vec2 | null {
   const creature = state.creature;
@@ -143,37 +151,13 @@ export function eyesAt(state: WorldState, wizard: WizardFrame): Vec2 | null {
   };
 }
 
-/** Where the eyes were drawn, in view units, or why they were not drawn. */
-function eyeReport(at: Vec2 | null, open: boolean, camera: Camera): string {
-  if (at === null) {
-    return 'none';
-  }
-
-  return open ? `${at.x - camera.x},${at.y - camera.y}` : 'shut';
-}
-
 /**
- * Are the eyes open on this tick? They shut briefly, on the run's own clock.
- * The blink is phased to the end of each period rather than the start, so tick
- * 0 is an open one: the acceptance asks for a screenshot of the eyes at the
- * bush at the start of a run, and an unphased blink would make that the one
- * frame of the whole period with no eyes in it.
+ * Where the creature was drawn, in view units, or `none` when it showed
+ * nothing. Which of its two forms stood there, and how hard its aura pulled,
+ * are game/render/creature.ts's own to report.
  */
-export function eyesOpen(tick: number): boolean {
-  return (tick + CREATURE_BLINK.shut) % CREATURE_BLINK.period >= CREATURE_BLINK.shut;
-}
-
-/** The two red eyes, drawn in code: squares at the ends of their patch. */
-function createEyes(): Graphics {
-  const { patch, eye, colour } = CREATURE_EYES;
-  const eyes = new Graphics();
-
-  // Drawn around their own middle, so the point they are put at is the middle
-  // of the hiding place or of the hat.
-  eyes.rect(-patch / 2, -eye / 2, eye, eye).fill(colour);
-  eyes.rect(patch / 2 - eye, -eye / 2, eye, eye).fill(colour);
-
-  return eyes;
+function eyeReport(at: Vec2 | null, camera: Camera): string {
+  return at === null ? 'none' : `${at.x - camera.x},${at.y - camera.y}`;
 }
 
 /** The props of a room, and the creature hiding among them. */
@@ -181,15 +165,15 @@ export interface PropsView {
   /** One node for the props of the room, drawn behind the wizard. */
   readonly view: Container;
   /**
-   * The creature's two eyes, on a node of their own so the caller can hang
-   * them in front of the wizard. rendering-and-look.md's layer stack puts the
-   * props, the eyes and the player on one layer and says nothing of their
-   * order inside it, but bug-quest.md has the eyes ride on the hat while the
-   * creature is carried — and the hat is inside the wizard's own cell, so eyes
-   * drawn with the props would be painted over by it and never seen.
+   * The creature, on a node of its own so the caller can hang it in front of
+   * the wizard. rendering-and-look.md's layer stack puts the props, the
+   * creature and the player on one layer and says nothing of their order
+   * inside it, but bug-quest.md has the creature ride on the hat while it is
+   * carried — and the hat is inside the wizard's own cell, so a creature drawn
+   * with the props would be painted over by it and never seen.
    */
-  readonly eyes: Container;
-  /** Draw every prop of this world, and the eyes wherever they belong. */
+  readonly creature: Container;
+  /** Draw every prop of this world, and the creature wherever it belongs. */
   update(state: WorldState, wizard: WizardFrame, camera: Camera): void;
   /**
    * Drop every sprite held for the room just left, so the next `update` draws
@@ -200,8 +184,9 @@ export interface PropsView {
    */
   clear(): void;
   /**
-   * What was drawn: each prop's cell and shake, where the eyes stand, and
-   * `held`, how many sprites the layer is carrying. `held` is there because the
+   * What was drawn: each prop's cell and shake, where the creature stands and
+   * what game/render/creature.ts made of it, and `held`, how many sprites the
+   * layer is carrying. `held` is there because the
    * fields above name the props the world has, so a sprite left behind by a
    * room the run has walked out of would be drawn and named by none of them; a
    * `held` above the number of fields is exactly that stale draw.
@@ -225,7 +210,7 @@ export async function createProps(): Promise<PropsView> {
   );
 
   const view = new Container();
-  const eyes = createEyes();
+  const creature = createCreatureMark();
 
   /**
    * One sprite per prop, by its id. A room's props stand still while the run
@@ -254,10 +239,12 @@ export async function createProps(): Promise<PropsView> {
 
   return {
     view,
-    eyes,
+    creature: creature.view,
 
     update(state: WorldState, wizard: WizardFrame, camera: Camera): void {
       const fields: string[] = [];
+      /** The aura of the hiding place, kept for the creature's own report. */
+      let glitch = CALM;
 
       for (const prop of state.props) {
         const strip = strips.get(prop.kind);
@@ -279,26 +266,37 @@ export async function createProps(): Promise<PropsView> {
         }
 
         const shake = propShake(prop, state.tick);
+        // The glitch aura throws the hiding place's own sprite off its place
+        // as the wizard closes on it (HWP-061). Every other prop is handed the
+        // one calm back, so the prop that is not is the creature's own.
+        const aura = auraAt(state, prop);
         const sprite = spriteFor(prop, strip);
+
+        if (aura !== CALM) {
+          glitch = aura;
+        }
 
         sprite.texture = texture;
         // Props stand on the render texture's whole pixels, the way the camera
         // and the wizard do, two units below their collision line.
-        sprite.position.set(wholePixels(prop.x + shake), wholePixels(prop.y + SPRITE_FOOT_OFFSET));
+        sprite.position.set(
+          wholePixels(prop.x + shake + aura.x),
+          wholePixels(prop.y + SPRITE_FOOT_OFFSET + aura.y),
+        );
 
         fields.push(`${prop.kind}:${prop.id}=${frame},${shake}`);
       }
 
       const at = eyesAt(state, wizard);
-      const open = at !== null && eyesOpen(state.tick);
 
-      eyes.visible = open;
+      creature.update(state, glitch);
+      creature.view.visible = at !== null;
 
       if (at !== null) {
-        eyes.position.set(wholePixels(at.x), wholePixels(at.y));
+        creature.view.position.set(wholePixels(at.x), wholePixels(at.y));
       }
 
-      shown = `${fields.join(' ')} eyes=${eyeReport(at, open, camera)} held=${view.children.length}`;
+      shown = `${fields.join(' ')} eyes=${eyeReport(at, camera)} ${creature.report()} held=${view.children.length}`;
     },
 
     clear(): void {
@@ -309,7 +307,7 @@ export async function createProps(): Promise<PropsView> {
       }
 
       sprites.clear();
-      eyes.visible = false;
+      creature.view.visible = false;
       shown = '';
     },
 

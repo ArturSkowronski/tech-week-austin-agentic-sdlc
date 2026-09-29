@@ -107,11 +107,11 @@ const [scene, wizardView, propsView] = await Promise.all([
   createProps(),
 ]);
 
-// The props behind the wizard, and the creature's eyes in front of him
-// (rendering-and-look.md, layer stack): carried, they ride on the hat, which
-// is inside the wizard's own cell, so eyes behind him would be painted over.
+// The props behind the wizard, and the creature in front of him
+// (rendering-and-look.md, layer stack): carried, it rides on the hat, which is
+// inside the wizard's own cell, so a creature behind him would be painted over.
 // A room's waterfall goes behind all of them as the room is entered.
-scene.actors.addChild(propsView.view, wizardView.view, propsView.eyes);
+scene.actors.addChild(propsView.view, wizardView.view, propsView.creature);
 scene.lights.addChild(wizardView.light);
 
 /** What one room's planted bug gives the screen (ADR-005, bug-quest.md). */

@@ -1,29 +1,15 @@
 // What a prop draws is a pure function of its `hitTick`, its `active` flag and
-// the tick the world stands on (rendering-and-look.md, Sprites), and so is
-// where the creature's eyes are (bug-quest.md, the creature). Both are
+// the tick the world stands on (rendering-and-look.md, Sprites). It is
 // asserted here frame by frame; putting the frames on the screen needs a
-// browser and is covered in tests/smoke/props.spec.ts.
+// browser and is covered in tests/smoke/props.spec.ts. Where the creature
+// stands among them, and what it is drawn as once it is there, went to
+// tests/render/creature.test.ts with HWP-061.
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  CREATURE_BLINK,
-  CREATURE_EYES,
-  PROP_FPS,
-  PROP_RUSTLE_TICKS,
-  PROP_SHAKE,
-} from '../../game/render/config';
-import { eyesAt, eyesOpen, propFrame, propShake } from '../../game/render/props';
-import type { WizardFrame } from '../../game/render/wizard';
-import {
-  PROP_SIZE,
-  TICK_RATE,
-  type Creature,
-  type Prop,
-  type PropKind,
-  type WorldState,
-} from '../../game/sim';
-import { worldFrom } from '../sim/helpers';
+import { PROP_FPS, PROP_RUSTLE_TICKS } from '../../game/render/config';
+import { propFrame, propShake } from '../../game/render/props';
+import { PROP_SIZE, TICK_RATE, type Prop, type PropKind } from '../../game/sim';
 
 /**
  * Frames each strip holds, as asset-list.md's props table gives them —
@@ -149,93 +135,5 @@ describe('the shake a hit gives a prop', () => {
 
   it('leaves a prop nothing has touched where it stands', () => {
     expect(propShake(propOf('rock'), 0)).toBe(0);
-  });
-});
-
-/** A glade of one bush, with the wizard standing beside it. */
-const GLADE = `
-   B
-  P
- ###
-`;
-
-/** A creature hiding in the world's first prop, which the map makes the bush. */
-function hidingIn(at: Partial<Creature> = {}): WorldState {
-  const state = worldFrom(GLADE, { creature: true });
-
-  state.creature = {
-    at: 0,
-    travelTo: -1,
-    travelUntil: -1,
-    carriedSince: -1,
-    firstCarried: false,
-    ...at,
-  };
-
-  return state;
-}
-
-/** The wizard's cell, as game/render/wizard.ts measures it, at a known spot. */
-const WIZARD: WizardFrame = {
-  sheet: 'idle',
-  frame: 0,
-  cell: { x: 100, y: 50, w: 32, h: 32 },
-  light: { x: 0, y: 0 },
-};
-
-describe('where the creature shows its eyes', () => {
-  it('blinks them in the middle of the prop it hides in', () => {
-    const state = hidingIn();
-    const bush = state.props[0];
-
-    expect(bush?.kind).toBe('bush');
-    expect(eyesAt(state, WIZARD)).toEqual({
-      x: (bush?.x ?? 0) + PROP_SIZE.bush.w / 2,
-      y: (bush?.y ?? 0) + (PROP_SIZE.bush.h ?? 0) / 2,
-    });
-  });
-
-  it('rides them on the hat while it is carried', () => {
-    expect(eyesAt(hidingIn({ at: -1, carriedSince: 3 }), WIZARD)).toEqual({
-      x: WIZARD.cell.x + WIZARD.cell.w / 2,
-      y: WIZARD.cell.y + CREATURE_EYES.hat,
-    });
-  });
-
-  it('draws nothing while it travels, and nothing in a world without one', () => {
-    expect(eyesAt(hidingIn({ at: -1, travelTo: 0, travelUntil: 30 }), WIZARD)).toBeNull();
-    expect(eyesAt(worldFrom(GLADE), WIZARD)).toBeNull();
-  });
-
-  it('shakes the eyes with the prop they hide in, so they keep looking out of it', () => {
-    const state = hidingIn();
-    const bush = state.props[0];
-
-    if (bush === undefined) {
-      throw new Error('the glade map must carry a bush for the creature to hide in');
-    }
-
-    const middle = bush.x + bush.w / 2;
-
-    bush.hitTick = 0;
-    state.tick = 0;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle + PROP_SHAKE.units);
-    state.tick = 1;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle - PROP_SHAKE.units);
-    // And back in the untouched middle once the four ticks are over.
-    state.tick = PROP_SHAKE.ticks;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle);
-  });
-
-  it('opens a run with its eyes open, and shuts them once a blink after that', () => {
-    const open = Array.from({ length: CREATURE_BLINK.period }, (_, tick) => eyesOpen(tick));
-
-    // The acceptance wants a screenshot of the eyes at the bush at the start,
-    // so tick 0 has to be a frame with eyes in it.
-    expect(open[0]).toBe(true);
-    expect(open.filter((shown) => !shown)).toHaveLength(CREATURE_BLINK.shut);
-    // The blink is the last few ticks of each period, and the next one opens.
-    expect(eyesOpen(CREATURE_BLINK.period - 1)).toBe(false);
-    expect(eyesOpen(CREATURE_BLINK.period)).toBe(true);
   });
 });

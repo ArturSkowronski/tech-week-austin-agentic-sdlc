@@ -274,6 +274,33 @@ export const CREATURE_EYES = { patch: 8, eye: 2, colour: 0xff3b2f, hat: 6 } as c
 /** Ticks from one blink to the next, and how many of them the eyes are shut. */
 export const CREATURE_BLINK = { period: 96, shut: 6 } as const;
 
+/**
+ * The glitch aura at the creature's hiding place (bug-quest.md, the creature):
+ * the prop's sprite is thrown up to `units` world units off its place, a fresh
+ * throw every tick, and the throw grows from nothing `reach` units away to the
+ * whole of it when the wizard stands on the prop. `reach` is the 96 units
+ * HWP-061 asks for, and `units` its few pixels, at the two pixels a unit of
+ * ADR-003.
+ */
+export const CREATURE_AURA = { reach: 96, units: 2 } as const;
+
+/**
+ * The wisp the creature shows on the hat in place of its eyes while it rides
+ * (asset-list.md, which draws it in code in Season 1): a square of `size`
+ * units turning on a circle of `radius` around the point the eyes stood at,
+ * once every `turnTicks`, with `trail` fainter frames of that circle behind
+ * it, each keeping `fade` of the one in front. Its red is the eyes' own,
+ * because it is the same creature.
+ */
+export const CREATURE_WISP = {
+  size: 3,
+  colour: CREATURE_EYES.colour,
+  radius: 4,
+  turnTicks: 24,
+  trail: 2,
+  fade: 0.45,
+} as const;
+
 /** Ticks the ticket card must be up before it can be waved away. */
 export const TICKET_DISMISS_TICKS = 3 * TICK_RATE;
 

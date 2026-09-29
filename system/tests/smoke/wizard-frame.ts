@@ -56,7 +56,7 @@ export async function hatOf(page: Page): Promise<Vec2> {
 }
 
 /** The numbers of one comma-separated field. */
-function numbers(field: string | undefined): number[] {
+export function numbers(field: string | undefined): number[] {
   return (field ?? '').split(',').map(Number);
 }
 

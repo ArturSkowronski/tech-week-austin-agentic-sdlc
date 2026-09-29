@@ -47,8 +47,11 @@ export interface Speck {
  * This mixes the index, the room's seed and a salt instead — the shape
  * game/render/tiles.ts already scatters its detail with — so `own(i, s, 1)`,
  * `own(i, s, 2)` and `spread(i, s)` have nothing to do with one another.
+ *
+ * Exported because game/render/creature.ts scatters the glitch aura's throw
+ * with it too, and one scatter deserves one source (AGENTS.md rule 9).
  */
-function own(index: number, seed: number, salt: number): number {
+export function own(index: number, seed: number, salt: number): number {
   // The seed is a fraction, and a field that salts it per prop hands one in
   // past 1, so the whole part goes before the rest is taken up to an integer.
   let hash = Math.imul(index + 1, 0x27d4_eb2d) ^ Math.imul(salt + 1, 0x1656_67b1);
