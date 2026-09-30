@@ -65,7 +65,7 @@ Derived from the tuning table in [movement and physics](movement-and-physics.md)
 |---|---|---|---|---|---|
 | `forest-glade` | 80 | learn to jump on three low ledges, a plateau with a bush and a log, the waterfall of logs in the charge gap, a ledge climb on one-way platforms over spikes, the cracked rock on the path, steps up to the beacon | bush, log, rock | two pits, spikes, water | none, tiles by decision |
 
-A run plays the glade and ends at its beacon. The boot with no `?room=` plays the glade; `?room=<name>` selects any other room that exists in `game/content/rooms/`. Room edges are walls, never exits. The waterfall carries the log lines of the room's live planted bug ([bug quest](bug-quest.md)).
+A run plays the glade and ends at its beacon. The boot with no `?room=` plays the glade; `?room=<name>` selects any other room that exists in `game/content/rooms/`. Room edges are walls, never exits: the simulation stops the wizard at the sides of every room, so a map does not draw them and cannot forget to. The sides only — a room is not a closed box. Above it is air, and falling out of the bottom is still the water death. The waterfall carries the log lines of the room's live planted bug ([bug quest](bug-quest.md)).
 
 **Retired rooms.** The level was designed as three beats. The ruin gate, 132 tiles wide with two painted panels, was built as the second beat and is removed by [HWP-084](../tickets/HWP-084.md); its map stays in [rooms/ruin-gate.txt](rooms/ruin-gate.txt). The cliff ruins, the third beat under a carved stone face, was never built (HWP-042 closed). [HWP-046](../tickets/HWP-046.md) chained the rooms through an order module and a `room:next` event; [HWP-083](../tickets/HWP-083.md) rolled that back.
 

@@ -186,9 +186,9 @@ export function beaconOf(state: WorldState): Prop | undefined {
 }
 
 /**
- * The tile at a tile coordinate. Coordinates outside the room read as empty:
- * a room's walls are tiles it draws itself, and leaving the room is a death the
- * caller handles, not a collision.
+ * The tile at a tile coordinate, which is what the room's map draws there.
+ * Coordinates outside the room draw nothing and read as empty; whether they
+ * stop a box is a different question, and {@link blocksSideways} answers it.
  */
 export function tileAt(room: Room, tx: number, ty: number): Tile {
   if (tx < 0 || ty < 0 || tx >= room.width || ty >= room.height) {
@@ -196,6 +196,28 @@ export function tileAt(room: Room, tx: number, ty: number): Tile {
   }
 
   return (room.tiles[ty * room.width + tx] ?? Tile.Empty) as Tile;
+}
+
+/**
+ * Does this coordinate stop a box moving sideways? Solid tiles do, and so do
+ * the columns outside the room: room edges are walls and never exits
+ * (docs/plan/02-design/level-design.md), so the sides hold in every room
+ * rather than in each map that remembers to draw them. This is the one
+ * statement of that rule (AGENTS.md rule 9), read by the horizontal sweeps in
+ * game/sim/physics.ts and game/sim/charge-hit.ts.
+ *
+ * Only this axis is closed. The vertical sweep reads `tileAt` instead, because
+ * above the room is air and a fall out of the bottom is the water death.
+ *
+ * An outside column is a wall like any other, so it carries the same
+ * precondition a solid tile does: a box may never *start* on one. A box that
+ * already overlaps column -1 is pushed further out rather than back in, the
+ * same way one that starts inside a solid is. `moveBox` in game/sim/physics.ts
+ * states that contract; anything that places a box directly, rather than
+ * moving it through `moveBox`, owes it a position inside the room.
+ */
+export function blocksSideways(room: Room, tx: number, ty: number): boolean {
+  return tx < 0 || tx >= room.width || tileAt(room, tx, ty) === Tile.Solid;
 }
 
 /**

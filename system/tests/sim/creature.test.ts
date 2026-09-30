@@ -63,11 +63,16 @@ const ROOM = `
   ############
 `;
 
-/** The same room with a spike between the bush and the wall. */
+/**
+ * The same room with a spike on each side of the spawn, so the walk ends on a
+ * spike whichever way it goes: the room's sides are walls now, and which way
+ * a held button takes him is the input map's business, not this suite's
+ * (AGENTS.md rule 5).
+ */
 const SPIKED = `
 
-  P  B  ^   #L
-  ############
+  ^P  B  ^   #L
+  #############
 `;
 
 /**

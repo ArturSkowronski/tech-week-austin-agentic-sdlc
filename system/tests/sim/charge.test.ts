@@ -57,13 +57,17 @@ const GAP = `
 /** The x of the far ledge's near face in GAP. */
 const GAP_FACE = 9 * TILE;
 
-/** Ground that simply stops, so a run off the lip leaves him falling. */
+/**
+ * Ground that simply stops, so a run off the lip leaves him falling. The far
+ * side of the pit is a whole charge away, because ground that ran to the edge
+ * of the room would have no lip (docs/plan/02-design/level-design.md).
+ */
 const LIP = `
 
 
  P
-######
-######
+######        #
+######        #
 `;
 
 /** The x of the near face of the wall in WALL and in THIN_WALL. */
@@ -274,5 +278,23 @@ describe('the jump windows during a charge', () => {
 
     expect(world.player.vy).not.toBe(JUMP_VELOCITY);
     expect(world.player.state).toBe('idle');
+  });
+});
+
+describe('a charge at the side of the room', () => {
+  it('recoils off the edge instead of carrying him out of the room', () => {
+    const world = standing(FLAT);
+
+    // Face the edge, then charge into it: the sides are walls, so the crystal
+    // tip meets one (docs/plan/02-design/level-design.md).
+    run(world, hold({ left: true }, 30));
+    expect(world.player.x).toBe(0);
+
+    tick(world, ATTACK);
+    stepWhile(world, 'charge');
+
+    expect(world.player.x).toBe(0);
+    expect(world.events).toContain('charge:wall');
+    expect(world.deaths).toBe(0);
   });
 });

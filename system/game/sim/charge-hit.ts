@@ -24,7 +24,7 @@ import {
   TILE,
 } from './constants';
 import type { Box } from './physics';
-import { Tile, tileAt, type Room, type WorldState } from './state';
+import { blocksSideways, type Room, type WorldState } from './state';
 
 /** How far one sweep step carries the tip and the body, in world units. */
 const STEP = 1;
@@ -56,14 +56,14 @@ function overlaps(a: Box, b: Box): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-/** Does the box cover a solid tile? */
-function coversSolid(room: Room, box: Box): boolean {
+/** Does the box cover anything that stops it sideways? */
+function blockedSideways(room: Room, box: Box): boolean {
   const lastX = Math.ceil((box.x + box.w) / TILE) - 1;
   const lastY = Math.ceil((box.y + box.h) / TILE) - 1;
 
   for (let ty = Math.floor(box.y / TILE); ty <= lastY; ty += 1) {
     for (let tx = Math.floor(box.x / TILE); tx <= lastX; tx += 1) {
-      if (tileAt(room, tx, ty) === Tile.Solid) {
+      if (blocksSideways(room, tx, ty)) {
         return true;
       }
     }
@@ -97,7 +97,7 @@ export function sweepCharge(state: WorldState, dx: number): ChargeSweep {
     const next = x + dir * Math.min(STEP, left);
     const tip = chargeHitbox(next, player.y, player.facing);
 
-    if (coversSolid(state.room, tip) || coversSolid(state.room, playerBox(next, player.y))) {
+    if (blockedSideways(state.room, tip) || blockedSideways(state.room, playerBox(next, player.y))) {
       return { x, hitWall: true };
     }
 

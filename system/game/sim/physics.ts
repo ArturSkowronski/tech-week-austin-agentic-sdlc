@@ -7,7 +7,7 @@
 // belongs to game/sim/player.ts; here a contact is a flag on the result.
 
 import { TILE } from './constants';
-import { Tile, tileAt, type Room } from './state';
+import { blocksSideways, Tile, tileAt, type Room } from './state';
 
 /** An axis-aligned box in world units; `x` and `y` are its top-left corner. */
 export interface Box {
@@ -61,10 +61,14 @@ function oneWaySurface(tile: Tile, ty: number): number | null {
   return null;
 }
 
-/** The x the box must stop at to clear the solid tiles it covers, or null. */
+/**
+ * The x the box must stop at to clear what blocks it sideways, or null. The
+ * columns outside the room block, so the sides of every room are walls; see
+ * `blocksSideways` in game/sim/state.ts for why.
+ */
 function wallFace(room: Room, box: Box, dir: number): number | null {
   for (const { tx, ty } of coveredTiles(box)) {
-    if (tileAt(room, tx, ty) === Tile.Solid) {
+    if (blocksSideways(room, tx, ty)) {
       return dir > 0 ? tx * TILE - box.w : (tx + 1) * TILE;
     }
   }
@@ -135,8 +139,9 @@ function sweep(
 
 /**
  * Move a box through the room by `dx` then `dy`, sliding along whatever stops
- * it. The box is expected to start clear of every solid tile, which is what a
- * box moved only through this function always is.
+ * it. The box is expected to start clear of every solid tile and inside the
+ * room's columns, which is what a box moved only through this function always
+ * is. A box that starts on a wall is pushed further into it, not back out.
  */
 export function moveBox(room: Room, box: Box, dx: number, dy: number): MoveResult {
   const swept = sweep(box.x, dx, (at, _before, dir) => wallFace(room, { ...box, x: at }, dir));
