@@ -13,7 +13,13 @@ import sharp from 'sharp';
 
 import forestGlade from '../../game/content/rooms/forest-glade';
 import { CREATURE_EYES, PROP_SHAKE, VIEW_H, VIEW_W } from '../../game/render/config';
-import { parseRoom, PLAYER_HEIGHT, type InputFrame, type Vec2 } from '../../game/sim/index';
+import {
+  parseRoom,
+  PLAYER_HEIGHT,
+  VICTORY_CAST_HIT_TICKS,
+  type InputFrame,
+  type Vec2,
+} from '../../game/sim/index';
 
 import { fieldsOf, hatOf } from './wizard-frame';
 
@@ -28,8 +34,13 @@ const SCALE = VIEWPORT.width / VIEW_W;
 /** How far left of a prop the wizard is stood before he goes at it. */
 const CLEAR = 28;
 
-/** Ticks he is given to reach the prop from there; he needs a third of them. */
-const PATIENCE = 40;
+/**
+ * Ticks he is given to reach the prop from there; he needs a third of them to
+ * walk it. The beacon takes the longest: it is stamped when the victory cast's
+ * beam lands on it rather than when he touches it (level-design.md, the beacon
+ * ends the run), so the whole cast has to fit inside this as well.
+ */
+const PATIENCE = 40 + VICTORY_CAST_HIT_TICKS;
 
 /**
  * Ticks that outlast both the rustle and the dash that starts it: the charge

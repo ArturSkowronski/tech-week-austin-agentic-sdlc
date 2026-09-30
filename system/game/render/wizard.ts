@@ -16,6 +16,7 @@ import {
   LONG_FALL_TICKS,
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
+  VICTORY_CAST_FRAME_TICKS,
   type Player,
   type Vec2,
 } from '../sim';
@@ -25,7 +26,7 @@ import { SPRITE_FOOT_OFFSET, TAKE_OFF_TICKS, WAND_LIGHT, WIZARD_FPS } from './co
 import { cycle, loadManifest, loadStrip, type Strip } from './sprites';
 
 /** The strips the kit writes, and the states that borrow each of them. */
-const SHEETS = ['idle', 'run', 'jump', 'fall', 'charge'] as const;
+const SHEETS = ['idle', 'run', 'jump', 'fall', 'charge', 'victory'] as const;
 
 /** One of {@link SHEETS}. */
 export type Sheet = (typeof SHEETS)[number];
@@ -78,10 +79,10 @@ export interface WizardFrame extends Pose {
 }
 
 /**
- * The frame one player state shows. Three states have no sheet of their own
- * yet (asset-list.md marks chargeRecoil, hurt and victory "to draw"), so each
- * borrows a pose that is at least true of the moment: the recoil keeps him
- * astride the wand, and hurt holds still rather than inventing a flash.
+ * The frame one player state shows. Two states have no sheet of their own yet
+ * (asset-list.md marks chargeRecoil and hurt "to draw"), so each borrows a
+ * pose that is at least true of the moment: the recoil keeps him astride the
+ * wand, and hurt holds still rather than inventing a flash.
  *
  * `land` and the flail read `fellFor` rather than `stateTimer` because they
  * are about the drop that just ended, not about the state that follows it.
@@ -129,8 +130,20 @@ export function poseFor(player: Player, cells: Cells): Pose {
     case 'hurt':
       return { sheet: 'idle', frame: 0 };
 
-    case 'idle':
     case 'victory':
+      // The cast plays its eight poses once and holds the last, and it holds
+      // each for the same ticks the simulation counts the beam's landing in,
+      // so the beam frame is the frame the beacon lights on (level-design.md,
+      // the beacon ends the run).
+      return {
+        sheet: 'victory',
+        frame: Math.min(
+          Math.floor(stateTimer / VICTORY_CAST_FRAME_TICKS),
+          cells.victory - 1,
+        ),
+      };
+
+    case 'idle':
       return { sheet: 'idle', frame: cycle(stateTimer, WIZARD_FPS.idle, cells.idle) };
   }
 }
@@ -206,11 +219,17 @@ export async function createWizard(): Promise<WizardView> {
   function read(player: Player): WizardFrame {
     const pose = poseFor(player, cells);
     const strip = strips[pose.sheet];
+    // Which column of the cell goes on him: the strip's reference column,
+    // mirrored about the cell when he faces left, exactly as the sprite and
+    // the crystal are mirrored. A centred strip's column is its own middle, so
+    // this is the cell's half for every sheet but the cast's, which hangs 32
+    // more units off to the right of a 32-unit cell for its beam.
+    const stands = player.facing === 1 ? strip.anchor : strip.cellW - strip.anchor;
     // The cell is put on the render texture's whole pixels, the way the
     // camera is, so the art never lands half a pixel over (ADR-003). The feet
     // go two units below the collision line, so they meet the drawn ground.
     const cell = {
-      x: wholePixels(player.x + PLAYER_WIDTH / 2 - strip.cellW / 2),
+      x: wholePixels(player.x + PLAYER_WIDTH / 2 - stands),
       y: wholePixels(player.y + PLAYER_HEIGHT + SPRITE_FOOT_OFFSET - strip.cellH),
       w: strip.cellW,
       h: strip.cellH,

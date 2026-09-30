@@ -112,6 +112,24 @@ const WIZARD: readonly Sheet[] = [
   // The fall poses flail wide enough to need a cell wider than it is tall.
   { state: 'fall', raw: 'wizard-fall.png', pitch: 7, frames: 4, cellW: 40 },
   { state: 'charge', raw: 'wizard-charge.png', pitch: 8, frames: 5 },
+  // The cast is drawn four poses across and two down, and reaches out to the
+  // right with its burst and its beam. So its cell is a 32-unit cell with
+  // another 32 units of room added on the right, and its reference column is
+  // that first cell's middle: the wizard lands where the other sheets put him
+  // and the effects have the added half to grow into. Those effects outshine
+  // the crystal they spring from, so their two poses say where the wand's tip
+  // is instead — points of the cells this builds, at `RENDER_DENSITY` pixels
+  // to the unit, so read them off public/assets/sprites/wizard-victory.png,
+  // which refuses a point that is not pale blue.
+  {
+    state: 'victory',
+    raw: 'wizard-victory.png',
+    pitch: 7,
+    frames: 8,
+    cellW: 64,
+    anchor: 16,
+    crystal: { 6: [64, 42], 7: [66, 40] },
+  },
 ];
 
 async function main(): Promise<void> {

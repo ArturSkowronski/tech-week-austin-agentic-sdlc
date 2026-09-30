@@ -13,13 +13,16 @@ import {
   LAND_TICKS,
   LONG_FALL_TICKS,
   TICK_RATE,
+  VICTORY_CAST_BEAM_FRAME,
+  VICTORY_CAST_FRAME_TICKS,
+  VICTORY_CAST_HIT_TICKS,
   createWorld,
   type Player,
   type PlayerState,
 } from '../../game/sim';
 
 /** The strips the kit writes today (asset-list.md, wizard table). */
-const CELLS: Cells = { idle: 4, run: 8, jump: 7, fall: 4, charge: 5 };
+const CELLS: Cells = { idle: 4, run: 8, jump: 7, fall: 4, charge: 5, victory: 8 };
 
 /** A player standing in one state, with everything else at its fresh value. */
 function standing(state: PlayerState, at: Partial<Player> = {}): Player {
@@ -103,6 +106,24 @@ describe('the frame a state shows', () => {
     // recoil at least keeps him astride the wand (ADR-002).
     expect(new Set(over(30, 'chargeRecoil'))).toEqual(new Set(['charge:0']));
     expect(new Set(over(30, 'hurt'))).toEqual(new Set(['idle:0']));
+  });
+
+  it('plays the eight poses of the cast once and then holds the last', () => {
+    const last = `victory:${CELLS.victory - 1}`;
+    const cast = over(VICTORY_CAST_FRAME_TICKS * CELLS.victory + 30, 'victory');
+    const once = Array.from({ length: CELLS.victory }, (_, frame) =>
+      Array<string>(VICTORY_CAST_FRAME_TICKS).fill(`victory:${frame}`),
+    ).flat();
+
+    expect(cast).toEqual([...once, ...Array<string>(30).fill(last)]);
+  });
+
+  it('shows the beam on the very tick the simulation lights the beacon', () => {
+    // The one claim that holds the two clocks together: the beacon lights
+    // VICTORY_CAST_HIT_TICKS after the touch, and this is the pose drawn then.
+    expect(shown(standing('victory', { stateTimer: VICTORY_CAST_HIT_TICKS }))).toBe(
+      `victory:${VICTORY_CAST_BEAM_FRAME}`,
+    );
   });
 });
 

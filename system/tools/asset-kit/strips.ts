@@ -1,14 +1,15 @@
 // Cutting the wizard's pose sheets into strips (docs/plan/03-assets/
-// pipeline.md, wizard strips). Each raw draws one state's poses side by side
-// on a magenta page, at the block size PROVENANCE.md records for it, with a
-// generated label under every pose. What comes out is a strip of cells, each
-// pose standing on the floor of its own, and the point the crystal's light
-// sits at in every frame: the crystal is the wizard's light
-// (art-direction.md), so the renderer hangs its glow and its sparks there.
+// pipeline.md, wizard strips). Each raw draws one state's poses on a magenta
+// page, at the block size PROVENANCE.md records for it, with a generated
+// label under every pose. What comes out is a strip of cells, each pose
+// standing on the floor of its own, and the point the crystal's light sits at
+// in every frame: the crystal is the wizard's light (art-direction.md), so
+// the renderer hangs its glow and its sparks there.
 
 import { RENDER_DENSITY } from '../../game/render/config';
 
 import {
+  alphaAt,
   boundingBox,
   connectedComponents,
   createRaster,
@@ -16,9 +17,9 @@ import {
   hstack,
   keyMagenta,
   pixelAt,
-  placeInCell,
   resampleBlocks,
   runs,
+  type Box,
   type Raster,
 } from './lib';
 
@@ -42,6 +43,19 @@ export interface Sheet {
   frames: number;
   /** Its cell's width, when the poses need more room than a cell is tall. */
   cellW?: number;
+  /**
+   * The cell's reference column, for a sheet whose art is not centred on the
+   * wizard: the column the renderer puts on the player, where a centred cell's
+   * own middle would go. See {@link standUp}.
+   */
+  anchor?: number;
+  /**
+   * The crystal of a frame {@link crystalOf} cannot find, as a point of the
+   * output cell, keyed by the pose's number as the sheet labels it, from one.
+   * The burst and the beam of the cast are pale blue and larger than the
+   * crystal they spring from, so those two poses say where the tip is instead.
+   */
+  crystal?: Readonly<Record<number, Point>>;
 }
 
 /** Bytes per pixel, as `lib.ts` lays a raster out. */
@@ -57,6 +71,13 @@ const LEAST_POSE_ROWS = CELL / 2;
 const CRYSTAL_BLUE = 24;
 
 /**
+ * Rows at the bottom of a pose that hold his feet and nothing else, in world
+ * units. A cell holds `RENDER_DENSITY` pixels to the unit, so the rows read
+ * are these scaled by it (ADR-003).
+ */
+const FEET_ROWS = 3;
+
+/**
  * One sheet cut into the strip its state is written as, and its entry. The
  * cell stays 32 world units; the sheet is read at half the pitch it was drawn
  * at, so a cell comes out `RENDER_DENSITY` pixels to the unit and the outlines
@@ -66,12 +87,11 @@ const CRYSTAL_BLUE = 24;
 export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: PoseStripEntry } {
   const cellW = sheet.cellW ?? CELL;
   const pixels = { width: cellW * RENDER_DENSITY, height: CELL * RENDER_DENSITY };
-  const poses = dropLabels(keyMagenta(resampleBlocks(raster, sheet.pitch / RENDER_DENSITY)));
-  const columns = runs(poses);
+  const columns = readPoses(dropLabels(keyMagenta(resampleBlocks(raster, sheet.pitch / RENDER_DENSITY))));
   if (columns.length !== sheet.frames) {
-    throw new Error(`${sheet.raw} splits into ${columns.length} columns, not the ${sheet.frames} poses asset-list.md gives the ${sheet.state} sheet`);
+    throw new Error(`${sheet.raw} splits into ${columns.length} poses, not the ${sheet.frames} asset-list.md gives the ${sheet.state} sheet`);
   }
-  const cells = columns.map((column) => toCell(sheet, crop(poses, column), pixels));
+  const cells = standUp(sheet, columns.map((column) => drawnPart(sheet, column, pixels)), pixels);
   const image = hstack(cells);
   return {
     image,
@@ -80,6 +100,9 @@ export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: 
       height: image.height,
       cell: CELL,
       cellW,
+      // Only a sheet that names one records one; the renderer reads a strip
+      // without it as centred, which every other sheet is.
+      ...(sheet.anchor === undefined ? {} : { anchor: sheet.anchor }),
       frames: cells.length,
       crystal: cells.map((cell, frame) => crystalOf(sheet, cell, frame)),
     },
@@ -109,18 +132,107 @@ function dropLabels(raster: Raster): Raster {
 }
 
 /**
- * One column of the sheet as a cell: the drawn pixels cut out of it and stood
- * bottom-centre, which is the alignment every frame of every state shares, so
- * the renderer draws a strip by its cell and never by its art.
+ * The runs of neighbouring rows that hold art, as full-width boxes ready to
+ * crop, the way `runs` answers columns.
  */
-function toCell(sheet: Sheet, column: Raster, cell: { width: number; height: number }): Raster {
+function bands(raster: Raster): Box[] {
+  const found: Box[] = [];
+  let start = -1;
+  for (let y = 0; y < raster.height; y += 1) {
+    let used = false;
+    for (let x = 0; x < raster.width && !used; x += 1) {
+      used = alphaAt(raster, x, y) > 0;
+    }
+    if (used && start < 0) start = y;
+    if (!used && start >= 0) {
+      found.push({ x: 0, y: start, width: raster.width, height: y - start });
+      start = -1;
+    }
+  }
+  if (start >= 0) found.push({ x: 0, y: start, width: raster.width, height: raster.height - start });
+  return found;
+}
+
+/**
+ * The sheet's poses in the order they are read in, each as the full-height
+ * column it was drawn in. A sheet with more poses than fit across a page is
+ * drawn as a grid instead — the cast is four across and two down — so the
+ * rows are taken in turn and each is split into its own columns. A sheet
+ * drawn in one row is the one-band case of the same reading.
+ */
+function readPoses(sheeted: Raster): Raster[] {
+  return bands(sheeted).flatMap((band) => {
+    const row = crop(sheeted, band);
+    return runs(row).map((column) => crop(row, column));
+  });
+}
+
+/** The drawn pixels of one column, cut out of it and measured against its cell. */
+function drawnPart(sheet: Sheet, column: Raster, cell: { width: number; height: number }): Raster {
   const drawn = boundingBox(column);
   // `runs` hands back only columns that hold art, so there is always a box.
   const pose = drawn === null ? column : crop(column, drawn);
   if (pose.width > cell.width || pose.height > cell.height) {
     throw new Error(`${sheet.raw} draws a pose ${pose.width}x${pose.height} at ${sheet.pitch} px blocks, too big for its ${cell.width}x${cell.height} cell`);
   }
-  return placeInCell(pose, cell.width, cell.height);
+  return pose;
+}
+
+/**
+ * The poses stood in their cells, which are measured in the cell's own pixels:
+ * `RENDER_DENSITY` of them to the world unit (ADR-003).
+ *
+ * A pose stands bottom-centre by default, which is the alignment every frame
+ * of every state shares, so the renderer draws a strip by its cell and never
+ * by its art. A sheet that draws something out to one side of him cannot:
+ * the cast's burst and beam stretch those poses' boxes to the right, and
+ * centring each box would slide the wizard left as they grow. Such a sheet
+ * gives its cell a reference column instead, in world units, the way the
+ * manifest records it. Its first pose is then placed as a 32-unit cell hung on
+ * that column would have placed it — so the figure lands where the other
+ * sheets put him and does not shift as the cast starts — and every later pose
+ * is slid until its feet sit under the first pose's.
+ */
+function standUp(sheet: Sheet, poses: readonly Raster[], cell: { width: number; height: number }): Raster[] {
+  const first = poses[0];
+  if (sheet.anchor === undefined || first === undefined) {
+    return poses.map((pose) => standIn(sheet, pose, Math.floor((cell.width - pose.width) / 2), cell));
+  }
+  // The anchor is world units and everything else here is the cell's pixels,
+  // so the reference column crosses over once, here.
+  const anchor = sheet.anchor * RENDER_DENSITY;
+  const centred = CELL * RENDER_DENSITY;
+  const firstLeft = anchor - centred / 2 + Math.floor((centred - first.width) / 2);
+  const standing = firstLeft + feetCentre(first);
+  return poses.map((pose) =>
+    standIn(sheet, pose, Math.round(standing - feetCentre(pose)), cell),
+  );
+}
+
+/**
+ * The middle of a pose's bottom rows: where he stands in it. His feet are the
+ * one part of him nothing is ever drawn over — the cast is thrown out at
+ * chest height — so they are what lines a sheet's poses up with each other.
+ */
+function feetCentre(pose: Raster): number {
+  const rows = Math.min(FEET_ROWS * RENDER_DENSITY, pose.height);
+  const feet = boundingBox(crop(pose, { x: 0, y: pose.height - rows, width: pose.width, height: rows }));
+  // A pose is cut to its own drawn box, so its bottom row always holds art.
+  return feet === null ? pose.width / 2 : feet.x + feet.width / 2;
+}
+
+/** One pose in a transparent cell, on its floor, its left edge at `left`. */
+function standIn(sheet: Sheet, pose: Raster, left: number, cell: { width: number; height: number }): Raster {
+  if (left < 0 || left + pose.width > cell.width) {
+    throw new Error(`${sheet.raw} stands a ${pose.width}-wide pose at ${left} of its ${cell.width}-wide cell, which hangs over the edge; move the ${sheet.state} sheet's anchor`);
+  }
+  const out = createRaster(cell.width, cell.height);
+  for (let y = 0; y < pose.height; y += 1) {
+    const from = y * pose.width * CHANNELS;
+    const to = ((cell.height - pose.height + y) * cell.width + left) * CHANNELS;
+    out.data.set(pose.data.subarray(from, from + pose.width * CHANNELS), to);
+  }
+  return out;
 }
 
 /**
@@ -138,8 +250,26 @@ function toCell(sheet: Sheet, column: Raster, cell: { width: number; height: num
  * always sits on drawn crystal. A centre alone does not: frame 4 of the charge
  * sheet is four pixels around the corners of a 2x3 box, and the centre of that
  * box falls in the hole between them.
+ *
+ * A frame may pin its own point instead, for the two the cast hides its
+ * crystal in: a burst and a beam are pale blue too, and larger, so the patch
+ * holding the most of them is the effect rather than the tip it springs from.
+ * A pin has to land on pale blue, which is the same test a found point passes
+ * — not merely on a drawn pixel, because the robe and the hat are drawn too
+ * and a pin that slid onto either is as wrong as one pointing at nothing. It
+ * is measured in a cell this file placed, so a change to the pitch, the cell,
+ * the density or the anchor moves it off the crystal — and that would slide
+ * the glow off the wand with every gate still green, so the build stops.
  */
 function crystalOf(sheet: Sheet, cell: Raster, frame: number): Point {
+  const pinned = sheet.crystal?.[frame + 1];
+  if (pinned !== undefined) {
+    const [x, y] = pinned;
+    if (!paleBlue(cell, x, y)) {
+      throw new Error(`${sheet.raw} pins frame ${frame + 1}'s crystal at ${x},${y}, where its cell draws no pale blue; re-read the tip off public/assets/sprites/wizard-${sheet.state}.png`);
+    }
+    return pinned;
+  }
   const patches = bluePatches(cell);
   if (patches.length === 0) {
     throw new Error(`${sheet.raw} frame ${frame + 1} shows no pale blue crystal, and every frame has to show one`);
@@ -223,14 +353,24 @@ function nearestIn(patch: Point[], [toX, toY]: Point): Point {
   return best;
 }
 
+/**
+ * Is a pixel of a cell the wizard's pale blue? The one home for that question
+ * (AGENTS.md rule 9): both the finder that reads a crystal out of a cell and
+ * the guard on a hand-pinned one ask it, so a pin is held to the same test the
+ * frames beside it passed.
+ */
+function paleBlue(cell: Raster, x: number, y: number): boolean {
+  const [red, green, blue, alpha] = pixelAt(cell, x, y);
+  return alpha > 0 && blue - Math.max(red, green) >= CRYSTAL_BLUE;
+}
+
 /** The shape a cell's pale blue pixels make, which is all a patch needs. */
 function blueOf(cell: Raster): Raster {
   const out = createRaster(cell.width, cell.height);
   for (let y = 0; y < cell.height; y += 1) {
     for (let x = 0; x < cell.width; x += 1) {
-      const [red, green, blue, alpha] = pixelAt(cell, x, y);
-      if (alpha > 0 && blue - Math.max(red, green) >= CRYSTAL_BLUE) {
-        out.data[(y * cell.width + x) * CHANNELS + 3] = alpha;
+      if (paleBlue(cell, x, y)) {
+        out.data[(y * cell.width + x) * CHANNELS + 3] = alphaAt(cell, x, y);
       }
     }
   }

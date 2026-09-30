@@ -7,10 +7,10 @@
 // is what the player box touches, and what touching it costs him.
 
 import { checkpointAt, respawn } from './checkpoint';
-import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
+import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE, VICTORY_CAST_HIT_TICKS } from './constants';
 import type { Box } from './physics';
 import { charging } from './player';
-import { Tile, tileAt, type Prop, type Room, type WorldState } from './state';
+import { beaconOf, Tile, tileAt, type Player, type Prop, type Room, type WorldState } from './state';
 import { inWater } from './water';
 
 // `overlaps` and `covers` below are one of four copies of predicates
@@ -55,16 +55,48 @@ function raiseFlag(state: WorldState, flag: Prop): void {
 }
 
 /**
- * Light the beacon and end the run. Every room ends at its own beacon: the
+ * Reach the beacon and end the run. Every room ends at its own beacon: the
  * demo plays the first beat and a room asked for by name is played on its own
- * (docs/plan/02-design/level-design.md).
+ * (docs/plan/02-design/level-design.md). The run clock stops on this tick;
+ * the beacon itself lights later, when the cast's beam reaches it.
  */
-function lightBeacon(state: WorldState, beacon: Prop): void {
-  beacon.active = true;
-  beacon.hitTick = state.tick;
+function reachBeacon(state: WorldState, beacon: Prop): void {
   state.victoryTick = state.tick;
+  state.player.facing = facingTowards(state.player, beacon);
   state.events.push('victory');
   holdVictory(state);
+}
+
+/**
+ * Which way he turns to cast: towards the middle of what he touched. He is
+ * inside the beacon's box on this tick, so the two middles are what separates
+ * them; a dead heat keeps the facing he arrived with.
+ */
+function facingTowards(player: Player, prop: Prop): 1 | -1 {
+  const towards = prop.x + prop.w / 2 - (player.x + PLAYER_WIDTH / 2);
+
+  return towards === 0 ? player.facing : ((towards > 0 ? 1 : -1) as 1 | -1);
+}
+
+/**
+ * The beam landing: the room's beacon lights, once, on the tick the wizard's
+ * cast reaches it (docs/plan/02-design/level-design.md, the beacon ends the
+ * run). It is the beacon he touched, because a room places only the one.
+ */
+function lightBeacon(state: WorldState): void {
+  const beacon = beaconOf(state);
+
+  if (
+    beacon === undefined ||
+    beacon.active ||
+    state.tick < state.victoryTick + VICTORY_CAST_HIT_TICKS
+  ) {
+    return;
+  }
+
+  beacon.active = true;
+  beacon.hitTick = state.tick;
+  state.events.push('beacon:lit');
 }
 
 /**
@@ -72,10 +104,10 @@ function lightBeacon(state: WorldState, beacon: Prop): void {
  * game/sim/player.ts puts him in, and the state table's "any except victory"
  * means nothing can kill him any more.
  *
- * The speed he arrived with goes too, so a held `right` does not keep him
- * running past the beacon. It cannot be a full stop from here: game/sim/player.ts
- * still steps him on foot every tick, so he creeps a quarter of a unit a tick
- * while the button is down.
+ * The speed he arrived with goes too, and it is a full stop: game/sim/player.ts
+ * returns without a step of its own once `victoryTick` is set, so no input
+ * moves him or turns him for the rest of the cast. His position and his facing
+ * are the touch tick's, which is what puts the beam on the beacon.
  */
 function holdVictory(state: WorldState): void {
   state.player.state = 'victory';
@@ -103,6 +135,7 @@ export function stepProps(state: WorldState, carried: boolean): void {
 
   if (state.victoryTick >= 0) {
     holdVictory(state);
+    lightBeacon(state);
 
     return;
   }
@@ -124,7 +157,7 @@ export function stepProps(state: WorldState, carried: boolean): void {
         raiseFlag(state, prop);
         break;
       case 'beacon':
-        lightBeacon(state, prop);
+        reachBeacon(state, prop);
 
         return;
     }

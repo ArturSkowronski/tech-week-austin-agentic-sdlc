@@ -23,7 +23,7 @@ Cell 32 by 32 units (64 px at 2x), drawn roughly 24 by 30. All frames face right
 | chargeRecoil | 1 | bounced back off a wall, hat over the eyes | not drawn; borrows the first charge frame, which passes for its 3 ticks |
 | land | 2 + 1 | landing and recovery from the jump sheet; hard landing with dust from the fall sheet | density 2 from the 1x raw |
 | hurt | 2 | flash, knocked back | not drawn; borrows the first idle frame for the moment before the respawn |
-| victory | 8, played once | the cast: idle, a spin over four, the burst, the beam, idle; the beacon lights on the beam frame | raw generated 2026-09-10, `wizard-victory.png` on PR #106; built by HWP-044 with a 64-unit cell |
+| victory | 8 at 10 fps, played once, the last held | the cast: idle, a spin over four, the burst, the beam, idle; the beacon lights on the beam frame. Drawn four poses across and two down, so the kit reads the sheet row by row | density 2 from the 1x raw, `wizard-victory.png`, 64-unit cells: the burst and the beam reach out to the right of him, so the cell records the column he stands on and the crystal is pinned by hand on those two poses |
 | all of the above at density 2 | | 64 px cells from the existing raws, which hold finer outlines than their 6 to 10 px blocks | done by HWP-043, read at half the recorded pitch; finer drawing would need new sheets and is not planned |
 
 ## Props

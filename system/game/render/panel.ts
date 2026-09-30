@@ -10,7 +10,7 @@
 
 import { Container, Graphics } from 'pixi.js';
 
-import { TICK_RATE, type WorldState } from '../sim';
+import { beaconOf, TICK_RATE, type WorldState } from '../sim';
 import {
   TEXTURE_H,
   UI_ANCHORS,
@@ -542,7 +542,7 @@ export function bannerLines(state: WorldState): readonly string[] {
   return ['The beacon is lit', `Time ${clock(state.victoryTick)}`, `Deaths ${state.deaths}`];
 }
 
-/** The completion banner, up from the tick the beacon is reached. */
+/** The completion banner, up from the tick the beacon lights. */
 export interface Banner {
   readonly view: Container;
   layout(windowW: number, windowH: number): void;
@@ -563,7 +563,10 @@ export function createBanner(): Banner {
     },
 
     update(state: WorldState): void {
-      const lit = state.victoryTick >= 0;
+      // The beacon itself, not the touch that started the cast: the wizard
+      // spins, gathers and fires first, and the banner waits for the beam to
+      // land (docs/plan/02-design/level-design.md, the beacon ends the run).
+      const lit = beaconOf(state)?.active === true;
 
       // Only on the tick it changes: the run is over, and redrawing the same
       // three lines every frame would be work for nothing.

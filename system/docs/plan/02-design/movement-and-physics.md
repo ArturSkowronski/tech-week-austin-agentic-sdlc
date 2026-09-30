@@ -37,6 +37,7 @@ These values are frozen. They live in one module, `game/sim/constants.ts`, and e
 | Water pull | at least 160 downward while overlapping water |
 | Water drag | horizontal speed times 0.85 per tick |
 | Water reveal | disturbed water stays parted 150 ticks |
+| Victory cast | 6 ticks a pose, so its eight poses run 48 ticks; the beam is the seventh, so the beacon lights 36 ticks after the touch ([level design](level-design.md)) |
 | Creature travel | 30 ticks between hiding places |
 | Creature carry | 600 ticks on the wizard before it lets go |
 

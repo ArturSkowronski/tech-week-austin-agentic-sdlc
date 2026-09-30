@@ -87,6 +87,24 @@ export const WATER_PULL = 160;
 /** What one tick in water leaves of his horizontal speed. */
 export const WATER_DRAG = 0.85;
 
+/** Ticks each pose of the victory cast holds, ten of them a second. */
+export const VICTORY_CAST_FRAME_TICKS = 6;
+
+/**
+ * The cast's pose the beam is drawn on, counting from the first: an idle, the
+ * spin's four, the burst, then the beam (asset-list.md, the wizard's victory
+ * row). It is a fact about the sheet, and it lives here because the tick
+ * below is what the simulation ends the run by and is derived from it.
+ */
+export const VICTORY_CAST_BEAM_FRAME = 6;
+
+/**
+ * Ticks from touching the beacon to the beam reaching it, which is the tick
+ * it lights on. Derived rather than tuned, so the cast the renderer plays and
+ * the beacon the simulation lights cannot drift apart.
+ */
+export const VICTORY_CAST_HIT_TICKS = VICTORY_CAST_BEAM_FRAME * VICTORY_CAST_FRAME_TICKS;
+
 /** Ticks the creature takes to run from one hiding place to the next. */
 export const CREATURE_TRAVEL_TICKS = 30;
 

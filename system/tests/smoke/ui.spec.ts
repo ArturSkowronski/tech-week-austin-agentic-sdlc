@@ -4,6 +4,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { TICKET_DISMISS_TICKS, UI_SIZES } from '../../game/render/config';
+import { VICTORY_CAST_HIT_TICKS } from '../../game/sim/index';
 
 /**
  * The two windows the plan names, and the size UI text comes out at in each:
@@ -147,9 +148,17 @@ test('the banner goes up at the beacon and comes down on a restart', async ({ pa
 
   await expect(canvas).toHaveAttribute('data-ui', '');
 
+  // The beacon's own lighting raises it, and that is the victory cast's beam
+  // landing rather than the touch that starts the cast: the wizard spins,
+  // gathers and fires first (level-design.md, the beacon ends the run).
   await page.evaluate(() => {
     window.wizard.state().victoryTick = window.wizard.state().tick;
   });
+  await expect(canvas).toHaveAttribute('data-ui', '');
+
+  await page.evaluate((cast) => {
+    window.wizard.step(cast);
+  }, VICTORY_CAST_HIT_TICKS);
   await expect(canvas).toHaveAttribute('data-ui', 'banner');
 
   await page.keyboard.press('KeyR');

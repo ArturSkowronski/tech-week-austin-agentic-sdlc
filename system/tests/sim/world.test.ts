@@ -266,12 +266,12 @@ describe('props, deaths and respawn', () => {
     const reached = world.victoryTick;
 
     expect(reached).toBeGreaterThan(0);
-    expect(propOfKind(world.props, 'beacon').active).toBe(true);
 
     run(world, hold({ right: true }, 30));
 
     expect(world.victoryTick).toBe(reached);
     expect(world.player.state).toBe('victory');
+    // When the beacon itself lights is the cast's, in tests/sim/victory.test.ts.
   });
 
   it('counts a fall out of the room as a death and puts him back on his flag', () => {

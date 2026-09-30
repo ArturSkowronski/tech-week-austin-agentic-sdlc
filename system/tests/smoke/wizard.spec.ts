@@ -201,8 +201,12 @@ const STATES: readonly { state: PlayerState; stateTimer: number; fellFor: number
   { state: 'chargeRecoil', stateTimer: 1, fellFor: 0 },
   { state: 'land', stateTimer: 0, fellFor: 2 },
   { state: 'land', stateTimer: 0, fellFor: LONG_FALL_TICKS },
-  { state: 'hurt', stateTimer: 4, fellFor: 0 },
+  // The cast ahead of `hurt` so that the parity below shoots it facing right,
+  // which is the way it is cast: the wizard faces the beacon, and the cast's
+  // cell is twice as wide as the others, so mirrored at the room's start it
+  // hangs off the left of the view and a clip of it cannot be read back.
   { state: 'victory', stateTimer: 18, fellFor: 0 },
+  { state: 'hurt', stateTimer: 4, fellFor: 0 },
 ];
 
 /**

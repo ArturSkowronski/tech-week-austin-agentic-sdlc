@@ -283,9 +283,22 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
  * What surrounds that choice belongs to the tick rather than to either kind of
  * movement: the jump button is read and the two jump windows are aged here, so
  * a charge suspends neither.
+ *
+ * The one tick that belongs to neither is a tick after the beacon: the run is
+ * over, the cast holds him where he touched it and facing it
+ * (level-design.md, "The beacon ends the run"), and a held button steers
+ * nothing. Returning here is what makes that true — zeroing his speed after
+ * the move, as game/sim/props.ts once did alone, still let this function
+ * accelerate him a quarter of a unit and re-read his facing every tick of the
+ * cast, so the beam could be drawn firing away from the beacon it lights.
+ * game/sim/props.ts owns `state` and `stateTimer` from the touch on.
  */
 export function stepPlayer(state: WorldState, input: InputFrame): void {
   const player = state.player;
+
+  if (state.victoryTick >= 0) {
+    return;
+  }
 
   if (mounting(player, input)) {
     mount(state);

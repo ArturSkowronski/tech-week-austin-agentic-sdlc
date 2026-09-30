@@ -39,6 +39,7 @@ export const CONSUMERS: readonly string[] = [
   'sprites/wizard-jump',
   'sprites/wizard-fall',
   'sprites/wizard-charge',
+  'sprites/wizard-victory',
   'props/bush',
   'props/log',
   'props/rock',
@@ -87,6 +88,14 @@ export interface StripEntry extends Entry {
   cell: number;
   /** The cell's width in world units, which the strip is this many frames of. */
   cellW: number;
+  /**
+   * The cell's reference column, in world units: the column the renderer puts
+   * on the player. A strip whose art is not centred on the figure records one
+   * — the cast's cell is a 32-unit cell with another 32 units of room added on
+   * the right for its beam, so its column is that first cell's middle. A strip
+   * that records none is centred, and its own middle is the column.
+   */
+  anchor?: number;
   frames: number;
   /**
    * Where the crystal sits in each frame, in its cell's pixels. The wizard's
@@ -222,6 +231,8 @@ export interface Strip {
   readonly cellW: number;
   /** The cell's height in world units. Every pose stands on the cell's floor. */
   readonly cellH: number;
+  /** {@link StripEntry.anchor}, with a centred strip's own middle filled in. */
+  readonly anchor: number;
   /** One texture per cell, in the sheet's order. */
   readonly frames: readonly Texture[];
   /**
@@ -261,6 +272,7 @@ export async function loadStrip(manifest: Manifest, name: string): Promise<Strip
     density,
     cellW: entry.cellW,
     cellH: entry.cell,
+    anchor: entry.anchor ?? entry.cellW / 2,
     frames: Array.from(
       { length: entry.frames },
       (_, frame) =>

@@ -175,6 +175,17 @@ const ZERO_SEED_WORD = 0x9e37_79b9;
 const WORD_RANGE = 0x1_0000_0000;
 
 /**
+ * The room's beacon, the one prop every room ends at
+ * (docs/plan/02-design/level-design.md). A room places exactly one, so which
+ * prop that is has one home here rather than a copy in every reader of it
+ * (AGENTS.md rule 9): the simulation lights it when the victory cast's beam
+ * lands on it, and the completion banner is up for as long as it is lit.
+ */
+export function beaconOf(state: WorldState): Prop | undefined {
+  return state.props.find((prop) => prop.kind === 'beacon');
+}
+
+/**
  * The tile at a tile coordinate. Coordinates outside the room read as empty:
  * a room's walls are tiles it draws itself, and leaving the room is a death the
  * caller handles, not a collision.

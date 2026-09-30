@@ -17,7 +17,7 @@ Raw generated images live in `assets/` with `PROVENANCE.md`. `pnpm assets` runs 
 | keying | reads the alpha channel when the sheet has one; otherwise keys magenta and its purple fringe, or a solid page colour, with despill |
 | palette | reduces backgrounds to 32 colours and sprites to the palette file; saves indexed PNGs |
 | backgrounds | mirror-tiles the mountains for a seamless loop, extends each layer's base by 120 rows in its own bottom colour, records art rows in the manifest |
-| wizard strips | splits a labelled pose sheet into columns, places each frame bottom-centre in its cell, detects the crystal's centre per frame and records it |
+| wizard strips | splits a labelled pose sheet row by row and then into columns, places each frame bottom-centre in its cell, detects the crystal's centre per frame and records it. A sheet that draws an effect out to one side of the wizard names the cell column he stands on instead: its poses line up by their feet on that column, the manifest records it as `anchor` in world units, and the renderer puts it on the player rather than the cell's middle. Such a sheet may also pin the crystal of a frame whose effect outshines it, as a pixel of the cell, which the build checks is pale blue |
 | tile atlas | slices the tileset by its known grid, in the order of the shared tile-order module |
 | props | finds objects as connected regions of non-page pixels (by alpha when the sheet has it, else by distance from the page colour, bridging gaps of up to 6 px), groups them into bands by top edge, and cuts strips through a hand-written mapping in `tools/asset-kit/props.ts` that names each strip by band and position and splits touching objects into a stated number of columns; keys the page with a flood fill from outside; fits each frame into the simulation's prop cell, bottom-centre; fails loudly when a band holds fewer objects than the mapping needs |
 | paintings | applies declared edits to a raw (for example a magenta rectangle that cuts a bridge open), keys it, fits it to 704 px tall, posterises, joins numbered panels left to right, writes a manifest entry with density 2 and tile extent |
@@ -29,7 +29,8 @@ Hand edits to raws are code: declared in `tools/asset-kit/paintings.ts`, never m
 
 ```json
 "bg/mountains-big": { "width": 640, "height": 223, "artRows": 103, "colours": 3064 },
-"sprites/wizard-idle": { "cell": 32, "cellW": 32, "frames": 4, "crystal": [[26, 8], [25, 8], [24, 7], [25, 8]] },
+"sprites/wizard-idle": { "cell": 32, "cellW": 32, "frames": 4, "crystal": [[51, 18], [48, 17], [51, 18], [49, 18]] },
+"sprites/wizard-victory": { "cell": 32, "cellW": 64, "anchor": 16, "frames": 8, "crystal": [[49, 24], "..."] },
 "paintings/ruin-gate": { "width": 4224, "height": 704, "density": 2, "tiles": 132 }
 ```
 

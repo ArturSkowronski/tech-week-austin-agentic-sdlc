@@ -174,7 +174,7 @@ describe('cutStrip', () => {
   });
 
   it('fails naming the file when the sheet holds the wrong number of poses', () => {
-    expect(() => cutStrip(idle(4), sheet(3))).toThrow(/wizard-idle\.png splits into 3 columns, not the 4 poses/);
+    expect(() => cutStrip(idle(4), sheet(3))).toThrow(/wizard-idle\.png splits into 3 poses, not the 4/);
   });
 
   it('fails naming the file and the frame when a pose shows no crystal', () => {
