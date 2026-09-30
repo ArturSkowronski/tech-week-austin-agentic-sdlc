@@ -26,6 +26,29 @@ export const SCALE_STEP = 2;
 export const LETTERBOX_COLOUR = 0x000000;
 
 /**
+ * Where a picture of the whole view stands in a window, in window pixels: as
+ * many of them to the world unit as fit at a whole multiple of `SCALE_STEP`,
+ * never below one step so the render texture's pixels stay whole (ADR-003),
+ * and the picture centred on whole pixels with the letterbox bars filling the
+ * rest. game/render/scene.ts fits the world's render texture by this and
+ * game/render/title.ts fits the splash by it, so the title art stands exactly
+ * where the world does (AGENTS.md rule 9).
+ */
+export function viewBox(
+  windowW: number,
+  windowH: number,
+): { readonly scale: number; readonly x: number; readonly y: number } {
+  const steps = Math.floor(Math.min(windowW / VIEW_W, windowH / VIEW_H) / SCALE_STEP);
+  const scale = Math.max(steps, 1) * SCALE_STEP;
+
+  return {
+    scale,
+    x: Math.floor((windowW - VIEW_W * scale) / 2),
+    y: Math.floor((windowH - VIEW_H * scale) / 2),
+  };
+}
+
+/**
  * The box at the middle of the view the wizard moves inside without the camera
  * following him. A whole jump rises about 53 units, so only a climb lifts it.
  */
@@ -356,6 +379,15 @@ export const UI_COLOURS = {
 
 /** How much of the world a panel keeps out; the dusk shows through the rest. */
 export const UI_PANEL_ALPHA = 0.92;
+
+/**
+ * The band of that charcoal laid behind each line of the title screen, and how
+ * far out around the line it reaches, in UI pixels. The splash behind them is
+ * art rather than chrome — a bright sky over a lit mountain — and the gold the
+ * lines are written in cannot be read straight off it, so each line carries
+ * this much of the panel's own dark and the rest of the art stays uncovered.
+ */
+export const UI_TITLE_BAND = { alpha: 0.72, pad: 4 } as const;
 
 // The UI's typeface is not here: only its cell is, in UI_GLYPH above. The
 // glyphs are drawn pixel by pixel in game/render/panel.ts.

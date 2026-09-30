@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { TICK_RATE } from '../../game/sim/index';
 import { hudLine } from '../../game/render/hud';
 import type { InputEdges } from '../../game/render/input';
-import { UI_GLYPH, UI_SIZES } from '../../game/render/config';
+import { SCALE_STEP, UI_GLYPH, UI_SIZES, viewBox } from '../../game/render/config';
 import { bannerLines, glyphOf, motifOrigins } from '../../game/render/panel';
 import { canDismiss, cardFace, type CardBug } from '../../game/render/ticket';
 import { startsRun } from '../../game/render/title';
@@ -128,6 +128,19 @@ describe('the title screen', () => {
 
   it('is not left by R, which is the key that starts a run over', () => {
     expect(startsRun(edges({ restart: true }), false)).toBe(false);
+  });
+});
+
+// The box the world's render texture and the title's splash are both shown in.
+// That the title actually draws the file in it is measured in a browser.
+describe('the box the view is shown in', () => {
+  it('fits the view at a whole even scale, centred, never below one step', () => {
+    // The two windows the plan names fill exactly; a window with anything left
+    // over spends it on the letterbox bars, and no window shrinks the view.
+    expect(viewBox(1280, 720)).toEqual({ scale: 4, x: 0, y: 0 });
+    expect(viewBox(1920, 1080)).toEqual({ scale: 6, x: 0, y: 0 });
+    expect(viewBox(1300, 740)).toEqual({ scale: 4, x: 10, y: 10 });
+    expect(viewBox(200, 100).scale).toBe(SCALE_STEP);
   });
 });
 

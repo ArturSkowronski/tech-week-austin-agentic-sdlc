@@ -60,7 +60,7 @@ Drawn in code, not from a sprite: a dark rock face with a rounded right edge, a 
 
 - **Ticket card**: panel chrome shared with the completion banner; text states from [bug quest](bug-quest.md); the button "Raise ticket on GitHub" and the T key. It can be waved away after three seconds.
 - **Completion banner**: time and deaths, shown at the beacon.
-- **Title screen**: the textless splash with a wordmark drawn in code; Enter, Space or Z starts.
+- **Title screen**: the textless splash, fitted the way the world's view is, with the wordmark, tagline and prompt drawn in code over it, each on a thin band of the panel's charcoal so the gold reads against the art; Enter, Space or Z starts.
 - **HUD line**: room name, discoveries, and the debug state label behind F1.
 
 ## Acceptance

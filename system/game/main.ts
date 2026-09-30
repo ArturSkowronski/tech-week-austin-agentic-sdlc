@@ -85,12 +85,13 @@ const roomBug = bugForRoom(roomName);
 const freshWorld = (): WorldState =>
   createWorld(roomText, { roomName, creature: roomBug !== undefined });
 
-// No load needs anything of the others, so all three chains are in flight at
+// No load needs anything of the others, so all four chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
-const [scene, wizardView, propsView] = await Promise.all([
+const [scene, wizardView, propsView, title] = await Promise.all([
   createScene(mount, roomName, atmosphere),
   createWizard(),
   createProps(),
+  createTitle(),
 ]);
 
 // The props behind the wizard, and the creature in front of him
@@ -114,7 +115,6 @@ const waterfallView = createWaterfall(roomBug?.logs ?? []);
 
 scene.actors.addChildAt(waterfallView.view, 0);
 
-const title = createTitle();
 const hud = createHud();
 const banner = createBanner();
 // The way out of the card: the prefilled issue, opened from the pointer press

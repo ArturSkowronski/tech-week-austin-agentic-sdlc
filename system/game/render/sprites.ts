@@ -22,8 +22,8 @@ import { TICK_RATE, type Vec2 } from '../sim';
  * Paintings are not on it. A room consumes its own painting, so the build
  * takes those names from the rooms instead of from here.
  *
- * `splash`, `props/torch` and `props/sparks` are on it although nothing draws
- * them yet: they are built, so something has to claim them.
+ * `props/torch` and `props/sparks` are on it although nothing draws them yet:
+ * they are built, so something has to claim them.
  */
 export const CONSUMERS: readonly string[] = [
   'bg/mountains-big',

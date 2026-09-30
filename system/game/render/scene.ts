@@ -19,7 +19,6 @@ import {
   LETTERBOX_COLOUR,
   PAINTING_TINT,
   RENDER_DENSITY,
-  SCALE_STEP,
   SKY_BAND_H,
   SKY_STOPS,
   TEXTURE_H,
@@ -30,6 +29,7 @@ import {
   VIGNETTE_DEPTH,
   duskAlpha,
   mix,
+  viewBox,
   type Layer,
 } from './config';
 import { createParticles } from './particles';
@@ -303,16 +303,6 @@ function createDusk(): Graphics {
 }
 
 /**
- * Window pixels per world unit: the largest multiple of two whose view fits,
- * never below two, so the render texture's pixels stay whole (ADR-003).
- */
-function displayScale(windowW: number, windowH: number): number {
-  const steps = Math.floor(Math.min(windowW / VIEW_W, windowH / VIEW_H) / SCALE_STEP);
-
-  return Math.max(steps, 1) * SCALE_STEP;
-}
-
-/**
  * Start Pixi in `mount` and give back the surfaces to draw on. The room is
  * named here rather than read off the first frame because its painting, if it
  * has one, is loaded with the backdrops.
@@ -405,14 +395,11 @@ export async function createScene(
 
   function fit(): void {
     const { innerWidth, innerHeight } = window;
-    const scale = displayScale(innerWidth, innerHeight);
+    const { scale, x, y } = viewBox(innerWidth, innerHeight);
 
     app.renderer.resize(innerWidth, innerHeight);
     view.scale.set(scale / RENDER_DENSITY);
-    view.position.set(
-      Math.floor((innerWidth - VIEW_W * scale) / 2),
-      Math.floor((innerHeight - VIEW_H * scale) / 2),
-    );
+    view.position.set(x, y);
     // What the fit produced, measured off the objects themselves so a browser
     // test reads the result and not the rule: the box the view sprite occupies
     // on screen, and the world units that box shows across. The second divides

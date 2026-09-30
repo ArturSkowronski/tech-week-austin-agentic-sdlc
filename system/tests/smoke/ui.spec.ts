@@ -1,9 +1,13 @@
-// The UI in a real browser: text rasterised at the size the window asks for,
-// the card's three seconds, and an Enter that leaves a running world alone.
+// The UI in a real browser: the splash under the title screen's own lettering,
+// text rasterised at the size the window asks for, the card's three seconds,
+// and an Enter that leaves a running world alone.
+
+import { readFile } from 'node:fs/promises';
 
 import { expect, test, type Page } from '@playwright/test';
+import sharp from 'sharp';
 
-import { TICKET_DISMISS_TICKS, UI_SIZES } from '../../game/render/config';
+import { TICKET_DISMISS_TICKS, UI_SIZES, VIEW_H, VIEW_W } from '../../game/render/config';
 import { VICTORY_CAST_HIT_TICKS } from '../../game/sim/index';
 
 /**
@@ -163,6 +167,77 @@ test('the banner goes up at the beacon and comes down on a restart', async ({ pa
 
   await page.keyboard.press('KeyR');
   await expect(canvas).toHaveAttribute('data-ui', '');
+});
+
+/** Scale 4, the smaller of the two windows above: 1280 by 720 of the view. */
+const SPLASH_SCALE = 4;
+
+/** How far off the art's own colour a pixel may be, per channel, and still be it. */
+const SPLASH_TOLERANCE = 8;
+
+/**
+ * The share of the frame the title's three lines and their legibility bands
+ * cover: a tenth of it at most, so nine tenths of it has to be the splash
+ * itself. The charcoal wash this screen drew before HWP-086 matches none of it.
+ */
+const SPLASH_SHARE = 0.9;
+
+// The splash is one frame of the whole view (asset-pipeline.md), shown in the
+// box config.ts fits the world into, so at a whole scale every window pixel is
+// one pixel of the file the kit wrote. The claim is made against that file
+// blown up the same way rather than against a second copy of its palette
+// (AGENTS.md rule 9), and it holds the fit as well as the drawing: art shown at
+// the wrong scale, or off the box, would match nothing.
+test('the title screen draws the splash the asset kit built', async ({ page }) => {
+  await page.setViewportSize({ width: VIEW_W * SPLASH_SCALE, height: VIEW_H * SPLASH_SCALE });
+  await open(page);
+
+  const canvas = page.locator('#game canvas');
+
+  await expect(canvas).toHaveAttribute('data-ui', 'title');
+  await settle(page);
+
+  const frame = await sharp(await page.screenshot())
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  expect(`${frame.info.width}x${frame.info.height}`).toBe(
+    `${VIEW_W * SPLASH_SCALE}x${VIEW_H * SPLASH_SCALE}`,
+  );
+
+  const art = await sharp(await readFile('public/assets/splash.png'))
+    .removeAlpha()
+    .resize({ width: frame.info.width, height: frame.info.height, kernel: 'nearest' })
+    .raw()
+    .toBuffer();
+  let shown = 0;
+
+  for (let at = 0; at < art.length; at += frame.info.channels) {
+    const off = Math.max(
+      Math.abs((frame.data[at] ?? 0) - (art[at] ?? 0)),
+      Math.abs((frame.data[at + 1] ?? 0) - (art[at + 1] ?? 0)),
+      Math.abs((frame.data[at + 2] ?? 0) - (art[at + 2] ?? 0)),
+    );
+
+    if (off <= SPLASH_TOLERANCE) shown += 1;
+  }
+
+  expect(shown / (VIEW_W * SPLASH_SCALE * VIEW_H * SPLASH_SCALE)).toBeGreaterThan(SPLASH_SHARE);
+});
+
+// Enter is pressed all over this file; the other two keys the title answers to
+// are pressed only here (rendering-and-look.md, UI).
+test('Space and Z leave the title screen, the way Enter does', async ({ page }) => {
+  const canvas = page.locator('#game canvas');
+
+  for (const key of ['Space', 'KeyZ']) {
+    await open(page);
+    await expect(canvas).toHaveAttribute('data-ui', 'title');
+
+    await page.keyboard.press(key);
+    await expect(canvas).toHaveAttribute('data-ui', '');
+  }
 });
 
 test('Enter during a run does nothing to the run', async ({ page }) => {
