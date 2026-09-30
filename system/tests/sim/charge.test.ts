@@ -2,10 +2,6 @@
 // the cooldown, the hitbox over props, and the two things a charge tick must
 // not suspend — the body's own collision and the jump windows
 // (docs/plan/02-design/movement-and-physics.md, ADR-002).
-//
-// The wall here is three tiles thick on purpose. A charge into a one-tile wall
-// is what the paired test of HW-003 asserts, and the main suite never asserts
-// planted behaviour.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -38,6 +34,13 @@ const WALL = `
   #############
 `;
 
+/** The same wall, one tile thick. */
+const THIN_WALL = `
+
+  P        #
+  #############
+`;
+
 /**
  * Two ledges of the same height with a three-tile gap. A run off the near lip
  * sinks him a few units, which puts the far ledge's top row across the lower
@@ -63,7 +66,7 @@ const LIP = `
 ######
 `;
 
-/** The x of the near face of WALL's wall. */
+/** The x of the near face of the wall in WALL and in THIN_WALL. */
 const WALL_FACE = 9 * TILE;
 
 /** Where he starts the charge: at full run speed, three tiles short of the wall. */
@@ -156,13 +159,25 @@ describe('the wand charge', () => {
   });
 });
 
-describe('a charge into a wall', () => {
-  it('recoils with the wizard on the near side, the crystal tip against it', () => {
-    const world = standing(WALL);
+/** A world run up to full speed, three tiles short of the wall of `map`. */
+function runUpToWall(map: string): WorldState {
+  const world = standing(map);
 
-    while (world.player.x < RUN_UP_TO) {
-      tick(world, RIGHT);
-    }
+  while (world.player.x < RUN_UP_TO) {
+    tick(world, RIGHT);
+  }
+
+  return world;
+}
+
+// Thickness makes no difference: the charge is stopped by the near face, so a
+// wall one tile thick holds it as a wall three tiles thick does.
+describe.each([
+  { thickness: 'three tiles', map: WALL },
+  { thickness: 'one tile', map: THIN_WALL },
+])('a charge into a wall $thickness thick', ({ map }) => {
+  it('recoils with the wizard on the near side, the crystal tip against it', () => {
+    const world = runUpToWall(map);
 
     expect(world.player.vx).toBe(RUN_SPEED);
 

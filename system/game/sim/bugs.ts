@@ -4,6 +4,10 @@
 // built decides which creatures the world has: a branch whose manifest no
 // longer lists a bug previews the fixed world. tools/bugs/check.ts holds the
 // other side of the pairing, the tests under bugs/tests/.
+//
+// A room shows one creature at a time: {@link bugForRoom} returns the first
+// entry the manifest lists for the room, so the glade hides the bug at the
+// top of that list and fixing it on main reveals the next (ADR-009).
 
 import manifest from '../../bugs/manifest.json' with { type: 'json' };
 import type { PropKind } from './state';

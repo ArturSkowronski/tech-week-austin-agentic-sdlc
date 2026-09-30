@@ -32,14 +32,14 @@ function room(name: string): WorldState {
 
 const GLADE = room('forest-glade');
 
-/** The other shipped room; the same tick has to come out different in it. */
-const GATE = room('ruin-gate');
+/** A second name to lay a field out from; Season 1 ships one room (ADR-009). */
+const OTHER_NAME = 'a-different-name';
 
 const SEED = roomSeed(GLADE.roomName);
 
 /** The bushes the spores come off, and the water the mist lies over. */
 const bushes = GLADE.props.filter((prop) => prop.kind === 'bush');
-const water = GATE.props.filter((prop) => prop.kind === 'waterfall');
+const water = GLADE.props.filter((prop) => prop.kind === 'waterfall');
 
 /**
  * Specks the whole pass may draw in one frame of a shipped room. The frame
@@ -107,8 +107,8 @@ describe('the seed a room lays its fields out from', () => {
     expect(roomSeed('forest-glade')).toBe(SEED);
   });
 
-  it('is a different one for a different room', () => {
-    expect(roomSeed('ruin-gate')).not.toBe(SEED);
+  it('is a different one for a different name', () => {
+    expect(roomSeed(OTHER_NAME)).not.toBe(SEED);
   });
 });
 
@@ -124,7 +124,7 @@ describe('the atmosphere pass', () => {
     expect(spores(0, SEED, bushes)).toHaveLength(bushes.length * SPORES.count);
     expect(water.length).toBeGreaterThan(0);
     // The run along the room's floor line, and bands over each water column.
-    expect(mist(0, SEED, GATE.room, water).length).toBeGreaterThan(2);
+    expect(mist(0, SEED, GLADE.room, water).length).toBeGreaterThan(2);
   });
 
   it('moves every field on as the tick does', () => {
@@ -134,10 +134,10 @@ describe('the atmosphere pass', () => {
     expect(mist(90, SEED, GLADE.room, [])).not.toEqual(mist(0, SEED, GLADE.room, []));
   });
 
-  it('lays the same tick out differently in another room', () => {
+  it('lays the same tick out differently under another room name', () => {
     const glade = walked(120);
 
-    expect(every({ ...glade, roomName: GATE.roomName })).not.toEqual(every(glade));
+    expect(every({ ...glade, roomName: OTHER_NAME })).not.toEqual(every(glade));
   });
 
   it('keeps every shipped room inside the budget the frame rate was measured at', () => {
@@ -156,7 +156,7 @@ describe('the fractions a speck owns', () => {
   // the claims that say the fields are scatters.
 
   it('scatters the fireflies across their band instead of laying them along a line', () => {
-    for (const seed of [SEED, roomSeed(GATE.roomName)]) {
+    for (const seed of [SEED, roomSeed(OTHER_NAME)]) {
       for (const tick of [0, 45, 300, 900, 5400]) {
         // A sixth of the band. Twenty-two specks laid along a line sit a
         // twenty-second of it apart; a scatter is an order above that.
@@ -292,8 +292,8 @@ describe('the fields of the pass', () => {
 
   it('lays the mist along the floor line and over the lip of the water', () => {
     const column = first(water, 'waterfall');
-    const floor = floorLine(GATE.room);
-    const drawn = mist(300, SEED, GATE.room, [column]);
+    const floor = floorLine(GLADE.room);
+    const drawn = mist(300, SEED, GLADE.room, [column]);
     const over = drawn.filter((speck) => speck.y < column.y);
     const along = drawn.filter((speck) => speck.y >= column.y);
 

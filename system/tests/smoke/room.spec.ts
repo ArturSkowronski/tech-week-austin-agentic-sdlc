@@ -1,16 +1,16 @@
-// The room layer in a real browser (ADR-004): a room the kit painted shows its
-// painting and none of its tiles, F1 lays the tiles over it at half alpha, and
-// a room with no painting is drawn out of the atlas from the first frame.
+// The room layer in a real browser (ADR-004): a room with no painting is drawn
+// out of the atlas from the first frame, and F1, the painted rooms' debug
+// view, leaves such a room exactly as it was. Season 1 is the glade alone and
+// the glade is drawn in tiles (ADR-009), so there is no painted room to open;
+// `?room=` naming one that is gone falls back to the glade instead.
 //
 // What was drawn is read off the live objects, the way scene.ts publishes the
-// fit and the layer stack, and the frames themselves are compared as bytes so
-// the report cannot claim a change the canvas did not make. Both frames of the
-// ruin gate are attached to the run so the painting can be looked at as well.
+// fit and the layer stack, and the frame itself is attached to the run so the
+// room can be looked at as well.
 
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import forestGlade from '../../game/content/rooms/forest-glade';
-import { DEBUG_TILE_ALPHA } from '../../game/render/config';
 import { parseRoom, Tile, tileAt } from '../../game/sim/index';
 
 import { fieldsOf } from './wizard-frame';
@@ -69,42 +69,6 @@ async function room(page: Page): Promise<{ painting: string; tiles: number; alph
   };
 }
 
-test('the ruin gate shows its painting, and its tiles only behind F1', async ({
-  page,
-}, run: TestInfo) => {
-  test.slow();
-  await open(page, 'ruin-gate');
-
-  // The painting is the room, and not one tile is drawn over it.
-  expect(await room(page)).toEqual({
-    painting: 'ruin-gate',
-    tiles: 0,
-    alpha: DEBUG_TILE_ALPHA,
-  });
-
-  const painted = await page.screenshot();
-
-  await run.attach('ruin-gate.png', { body: painted, contentType: 'image/png' });
-  await pressF1(page);
-
-  const traced = await page.screenshot();
-
-  await run.attach('ruin-gate-with-f1.png', { body: traced, contentType: 'image/png' });
-
-  // F1 brings the collision grid up over the painting, at half alpha.
-  const debug = await room(page);
-
-  expect(debug.tiles).toBeGreaterThan(0);
-  expect(debug.alpha).toBe(DEBUG_TILE_ALPHA);
-  expect(traced.equals(painted)).toBe(false);
-
-  // And F1 again takes them away, down to the very same frame: the room layer
-  // reads nothing but the state it is given.
-  await pressF1(page);
-  expect((await room(page)).tiles).toBe(0);
-  expect((await page.screenshot()).equals(painted)).toBe(true);
-});
-
 test('the glade, which has no painting, is drawn out of the atlas throughout', async ({
   page,
 }, run: TestInfo) => {
@@ -127,4 +91,12 @@ test('the glade, which has no painting, is drawn out of the atlas throughout', a
   // along, so it leaves them exactly as they were.
   await pressF1(page);
   expect(await room(page)).toEqual(drew);
+});
+
+test('a ?room= that names no room falls back to the glade', async ({ page }) => {
+  // The retired ruin gate, which ADR-009 took out of game/content/rooms/: the
+  // fallback in game/main.ts reads the glob, so any absent name does this.
+  await open(page, 'ruin-gate');
+
+  expect(await page.evaluate(() => window.wizard.state().roomName)).toBe('forest-glade');
 });

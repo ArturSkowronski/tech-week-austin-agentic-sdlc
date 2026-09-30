@@ -200,13 +200,6 @@ describe('the room parser', () => {
     expect(bush.x).toBe(23 * TILE);
     expect(bush.y + bush.h).toBe(13 * TILE);
   });
-
-  it('reads the ruin gate as 132 by 22 tiles', () => {
-    const { room } = parseRoom(roomText('ruin-gate'));
-
-    expect(room.width).toBe(132);
-    expect(room.height).toBe(22);
-  });
 });
 
 /** A flag three tiles along the floor and spikes three tiles past it. */
