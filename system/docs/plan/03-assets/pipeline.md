@@ -39,7 +39,7 @@ Hand edits to raws are code: declared in `tools/asset-kit/paintings.ts`, never m
 - `pnpm assets` is idempotent: running it twice changes no bytes.
 - Every output is consumed, or the build fails. An output is consumed when its name is in the renderer's static consumer list exported from `game/render/sprites.ts`, or a room names it as its painting or landmark. The list is the renderer's declaration of what it loads; a ticket that adds an output adds its consumer in the same PR.
 - Every raw in `assets/` produces at least one output, or the build fails. A raw nobody wants leaves the repository; there are no skipped raws.
-- `pnpm assets:report` lists every output with its consumer.
+- `pnpm assets:report` lists every output with its consumer, and names any raw in `assets/` that `PROVENANCE.md` has no row for.
 
 ## Unit tests
 

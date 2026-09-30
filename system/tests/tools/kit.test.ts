@@ -7,7 +7,11 @@
 // of the output, so a strip that is the right size and the right shape but
 // cut from the wrong place is not enough to pass. The real sheets are then
 // run through both slicers, which is what proves the hand-written boxes and
-// the mapping still answer the art in assets/.
+// the mapping still answer the art in assets/. The provenance check at the end
+// of the file is the other half of that: every raw the kit reads is a raw the
+// record accounts for.
+
+import { readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
@@ -16,6 +20,7 @@ import { RENDER_DENSITY } from '../../game/render/config';
 import { TILE } from '../../game/sim';
 import { createRaster, fillRect, loadPng, pixelAt, type Box, type Raster, type Rgba } from '../../tools/asset-kit/lib';
 import { sliceProps } from '../../tools/asset-kit/props';
+import { RAWS, RECORD, rawNames, rawsWithoutProvenance } from '../../tools/asset-kit/provenance';
 import { sliceTiles } from '../../tools/asset-kit/tiles';
 
 /** The tile the atlas is cut to: 16 world units at two pixels each (ADR-003). */
@@ -215,5 +220,46 @@ describe('the prop mapping', () => {
     expect(strips.map((strip) => [strip.name, strip.frames])).toEqual(
       PROP_STRIPS.map((strip) => [strip.name, strip.frames.length]),
     );
+  });
+});
+
+/**
+ * A provenance record shaped like the real one: prose, then a table whose
+ * first column names the raw. The set-aside variants are listed in prose
+ * below it, which is what a row must not be confused with, and a half-written
+ * one-cell line stands for the other way a row can fail to be one.
+ */
+const FIXTURE = `# Asset provenance
+
+Generated art the kit turns into public/assets.
+
+| File | What it is | Becomes |
+|---|---|---|
+| tileset.png | forest tileset | tiles/forest.png |
+| props-sheet.png | bush, log, rock | props/*.png |
+
+| wizard-walk.png |
+
+## Tried and set aside
+
+- bg-hills.png, far hills; never built.
+`;
+
+describe('the provenance check', () => {
+  it('names the raws with no row, and is not answered by prose naming the file', () => {
+    expect(rawsWithoutProvenance(['tileset.png', 'wizard-idle.png', 'bg-hills.png'], FIXTURE)).toEqual([
+      'wizard-idle.png',
+      'bg-hills.png',
+    ]);
+  });
+
+  it('does not take a line that merely begins with a bar for a row', () => {
+    expect(rawsWithoutProvenance(['wizard-walk.png'], FIXTURE)).toEqual(['wizard-walk.png']);
+  });
+
+  it('accounts for every raw in assets/', async () => {
+    const [raws, record] = await Promise.all([rawNames(), readFile(`${RAWS}/${RECORD}`, 'utf8')]);
+
+    expect(rawsWithoutProvenance(raws, record)).toEqual([]);
   });
 });

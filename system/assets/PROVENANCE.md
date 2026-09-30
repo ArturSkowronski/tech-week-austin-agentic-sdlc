@@ -6,7 +6,7 @@ kind: asset-brief
 
 # Asset provenance
 
-Written for the prototype repository, whose `assets/` layout this repository keeps. Extend it for every new raw.
+Written for the prototype repository, whose `assets/` layout this repository keeps. Extend it for every new raw: the table below carries one row per file in this directory, and `pnpm assets:report` names any raw that has none.
 
 Every file here is generated art that the asset kit (`tools/asset-kit`) turns into
 `public/assets`. Backgrounds, the wizard sheets, the tileset, the prop sheet and the

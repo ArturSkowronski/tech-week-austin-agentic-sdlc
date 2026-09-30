@@ -6,11 +6,16 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 ## What happens when you find a bug
 
-1. Play the forest. Something is off.
-2. Meet the creature and feel the symptom. A card names it in plain words, with a clue to where it lives but never a file.
-3. Find the evidence at the waterfall of logs. The card now names the bug and offers to raise a ticket.
-4. Raise it. Visdom refines the ticket, finds the cause, and opens a pull request with a preview you can play.
-5. Play the preview. The symptom is gone, the creature is gone, the beacon burns. On merge the fix lands in the shared world.
+1. Land on the seed world, where every planted bug is still intact. The premise is the whole game: this one has bugs, real ones — find them, hand them to Visdom, watch it fix them.
+2. Play the forest. Something is off.
+3. Meet the creature and feel the symptom. A card names it in plain words, with a clue to where it lives but never a file.
+4. Find the evidence at the waterfall of logs. The card now names the bug and offers to raise a ticket.
+5. Raise it. Within two minutes Visdom has refined the ticket and has a hypothesis about the cause; within twenty it has opened a pull request, reviewed by a second model, with a preview you can play.
+6. Play the preview. The symptom is gone, the creature is gone, the beacon burns. On merge the fix lands in the shared world, and the trace of how it got there stays browsable.
+
+## Play a preview
+
+You never have to check anything out to play a fix. CI builds every push on a branch and deploys it to Cloudflare Workers under an alias made from the branch name, and the pull request carries that URL in a comment. There is one URL per branch and it does not change while the branch lives; each push replaces what it serves.
 
 ## Run it
 
@@ -70,11 +75,11 @@ The plan under `docs/plan/` is complete: the vision, nine decision records, the 
 
 ## Art
 
-The art is generated from written prompts, and every file in `assets/` records how and when it was made in `assets/PROVENANCE.md`. Original character, original places, no borrowed compositions.
+The art is generated from written prompts, kept in `docs/plan/03-assets/prompts/`. Every raw in `assets/` carries a row in [assets/PROVENANCE.md](assets/PROVENANCE.md) saying how and when it was made and what the asset kit turns it into; `pnpm assets:report` names any raw that has no row. Original character, original places, no borrowed compositions.
 
 ## Where things stand
 
-23 September 2026. M0 is under way. The repository and the toolchain are in (HWP-001) and the four gate commands run green from the first commit — there are no simulation tests to run yet, and nothing enforces the gates in CI until HWP-002; the game so far is an empty page that builds green; the repository documents you are reading are HWP-003. Next in M0: the CI workflow with the gates and a preview deploy per branch (HWP-002). The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+30 September 2026. Season 1 is one room — the forest glade, drawn in tiles ([ADR-009](docs/plan/01-decisions/ADR-009-one-room.md)) — and it plays from the title screen to the beacon: the deterministic simulation with a replay test for every movement rule, the dusk look, the asset kit and the trace tool, the waterfall of logs and the ticket card, particles and the creature's glitch aura. Two bugs are planted, HW-001 and HW-002, each paired with a test that fails while it is there. Still to come: sound and music, the rest of M6, the rest of the Visdom loop — the merge policy and the engineering-memory demonstration (M7) — and M8, the `seed`, `main` and `stable` branches on their own domains and ten trial visitors who have to finish the loop unassisted. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 
@@ -88,4 +93,8 @@ The art is generated from written prompts, and every file in `assets/` records h
 
 ## Licence
 
-Code is Apache-2.0. Generated art carries its provenance record in `assets/PROVENANCE.md`.
+Code is Apache-2.0; the terms are in [LICENSE](LICENSE).
+
+The art is original work — original character, original geography, no borrowed compositions — and its clearance is the provenance record above, not the fact that a model drew it. "AI-generated" is not a licence.
+
+No audio ships yet. When the sound effects and the music loop land (HWP-063) they are original too and carry their provenance the same way.
