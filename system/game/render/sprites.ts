@@ -2,8 +2,8 @@
 // manifest is the one source for the size, the density and the art rows of
 // every output, so nothing here carries a second copy of them.
 //
-// Art coexists at two densities (ADR-003): the backgrounds and wizard sheets
-// built at one pixel per world unit, and everything generated since at two.
+// Art coexists at two densities (ADR-003): the backgrounds at one pixel per
+// world unit, everything else at two.
 // A loader hands back world units either way, so the layer stack, the camera
 // and the tuning table never learn which of the two a file was drawn at.
 

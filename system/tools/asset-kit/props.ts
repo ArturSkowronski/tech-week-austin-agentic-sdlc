@@ -11,6 +11,7 @@
 // is written by hand below, against this one sheet: a regenerated sheet
 // either keeps its object counts or changes the mapping in the same PR.
 
+import { RENDER_DENSITY } from '../../game/render/config';
 import { PROP_SIZE, type PropKind } from '../../game/sim';
 
 import {
@@ -171,18 +172,27 @@ function bandsOf(objects: readonly Box[]): Box[][] {
 }
 
 /**
- * One prop's strip. Every frame of a prop is scaled by the one factor that
- * fits the biggest of them into the cell, so a beacon whose flame grows over
- * its five frames does not shrink its own tower to make room.
+ * One prop's strip. The cell keeps the simulation's own size in world units
+ * and is cut at `RENDER_DENSITY` pixels to the unit (ADR-003): the sheet draws
+ * a bush 204 px wide, so a 64 px cell keeps twice the detail a 32 px one does
+ * at the same world size.
+ *
+ * Every frame of a prop is scaled by the one factor that fits the biggest of
+ * them into the cell, so a beacon whose flame grows over its five frames does
+ * not shrink its own tower to make room. That factor is worked out in world
+ * units, where the 1 is the refusal to blow one raw pixel up past a unit, and
+ * taken to the file's pixels once at the end.
  */
 function cut(sheet: Raster, bands: readonly Box[][], strip: Strip): PropStrip {
   const { w, h } = cellOf(strip.name);
   const drawn = framesOf(bands, strip).map((box) => tighten(crop(sheet, box)));
   const widest = Math.max(...drawn.map((frame) => frame.width));
   const tallest = Math.max(...drawn.map((frame) => frame.height));
-  const scale = Math.min(w / widest, h / tallest, 1);
+  const scale = Math.min(w / widest, h / tallest, 1) * RENDER_DENSITY;
   const side = (pixels: number): number => Math.max(1, Math.round(pixels * scale));
-  const cells = drawn.map((frame) => placeInCell(resampleTo(frame, side(frame.width), side(frame.height)), w, h));
+  const cells = drawn.map((frame) =>
+    placeInCell(resampleTo(frame, side(frame.width), side(frame.height)), w * RENDER_DENSITY, h * RENDER_DENSITY),
+  );
   return { name: strip.name, image: hstack(cells), cellW: w, cell: h, frames: cells.length };
 }
 

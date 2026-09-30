@@ -310,9 +310,13 @@ test('the eyes ride on the hat in front of the wizard, not behind him', async ({
 
   const hat = await hatOf(page);
 
-  // Nothing of the eyes' red is on the hat before a creature is carried, so
-  // whatever the reading finds afterwards is the eyes and not the art there.
-  expect(await eyeRedAround(page, hat)).toBe(0);
+  // The hat's own aged gold falls inside the eye-red tolerance in a pixel or
+  // two at any density; which of the sheet's pixels the kit samples is what
+  // moved. So the reading before a creature is carried is the baseline the
+  // eyes have to clear, and it stays under one eye's worth of the patch.
+  const onTheArt = await eyeRedAround(page, hat);
+
+  expect(onTheArt).toBeLessThan(CREATURE_EYES.eye ** 2 * SCALE ** 2);
 
   // HWP-051 is what hands the creature to the wizard; until it lands, the
   // test carries it, the way it hides it in a prop above. HWP-052 owns the
@@ -332,5 +336,5 @@ test('the eyes ride on the hat in front of the wizard, not behind him', async ({
 
   // Two eyes of CREATURE_EYES.eye units square, drawn over the wizard rather
   // than under him: most of their pixels survive to the screen.
-  expect(await eyeRedAround(page, hat)).toBeGreaterThan(CREATURE_EYES.eye ** 2 * SCALE ** 2);
+  expect(await eyeRedAround(page, hat)).toBeGreaterThan(onTheArt + CREATURE_EYES.eye ** 2 * SCALE ** 2);
 });

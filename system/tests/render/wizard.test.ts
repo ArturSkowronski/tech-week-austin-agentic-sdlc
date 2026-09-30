@@ -145,7 +145,7 @@ describe('reading the same state twice', () => {
 });
 
 describe('the scale a strip is drawn at', () => {
-  it('shows the 1x sheets the kit writes today at their own pixels', () => {
+  it('leaves art the manifest records no density for at its own pixels', () => {
     expect(scaleFor(1, 1)).toEqual({ x: 1, y: 1 });
   });
 

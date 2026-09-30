@@ -2,13 +2,19 @@
 // tile atlas). assets/tileset.png draws nine ground tiles on a known grid,
 // five across its top row and four across its second, with the plank and the
 // spike trap below the grid at their own sizes; PROVENANCE.md records the
-// grid. Each is cut out and resampled to one 16 px tile, in the order of the
-// shared tile-order module the renderer reads as well (AGENTS.md rule 9).
+// grid. Each is cut out and resampled to one 32 px tile, in the order of the
+// shared tile-order module the renderer reads as well (AGENTS.md rule 9). The
+// raw draws 205 px cells, so two pixels to the world unit keep twice the
+// detail one does at the same world size (ADR-003).
 
 import { TILE_ORDER, type TileName } from '../../game/content/tile-order';
+import { RENDER_DENSITY } from '../../game/render/config';
 import { TILE } from '../../game/sim';
 
 import { connectedComponents, crop, resampleTo, type Box, type Raster } from './lib';
+
+/** One tile of the atlas in pixels: a 16-unit tile at the drawn density. */
+const TILE_PX = TILE * RENDER_DENSITY;
 
 /** The grid the nine ground tiles are drawn on (assets/PROVENANCE.md). */
 const ORIGIN = 39;
@@ -50,7 +56,7 @@ const PLACES: Readonly<Record<TileName, Box>> = {
 };
 
 /**
- * The tileset cut into the atlas: one 16 px tile per name in `TILE_ORDER`.
+ * The tileset cut into the atlas: one 32 px tile per name in `TILE_ORDER`.
  * What the sheet draws is counted first, so a sheet with a different tile
  * count stops the build here rather than slicing empty boxes out of it
  * (prompts/props.md, tileset).
@@ -60,5 +66,5 @@ export function sliceTiles(raster: Raster): Raster[] {
   if (drawn !== TILE_ORDER.length) {
     throw new Error(`the tileset draws ${drawn} objects, not the ${TILE_ORDER.length} tiles tile-order.ts names`);
   }
-  return TILE_ORDER.map((name) => resampleTo(crop(raster, PLACES[name]), TILE, TILE));
+  return TILE_ORDER.map((name) => resampleTo(crop(raster, PLACES[name]), TILE_PX, TILE_PX));
 }

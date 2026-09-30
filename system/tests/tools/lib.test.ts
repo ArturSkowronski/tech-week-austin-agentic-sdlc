@@ -143,6 +143,38 @@ describe('pitch estimation', () => {
     expect(pixelAt(small, 0, 0)).toEqual(pixelAt(image, 2, 2));
     expect(pixelAt(small, 7, 5)).toEqual(pixelAt(image, 30, 22));
   });
+
+  it('resamples at half a pitch to two pixels per block, for density two', () => {
+    const image = blockImage(7, 5, 4);
+    const twice = resampleBlocks(image, 3.5);
+    expect([twice.width, twice.height]).toEqual([10, 8]);
+    // Both samples across a block sit inside it, so a block image doubles and
+    // a painted one hands back the detail drawn between its block centres.
+    expect(pixelAt(twice, 0, 0)).toEqual(pixelAt(image, 1, 1));
+    expect(pixelAt(twice, 1, 1)).toEqual(pixelAt(image, 5, 5));
+    expect(pixelAt(twice, 9, 7)).toEqual(pixelAt(image, 33, 26));
+  });
+
+  it('keeps detail drawn inside one block, which a whole pitch throws away', () => {
+    // A second colour over the far corner of the first block: drawing finer
+    // than the block grid, which is what the wizard raws actually hold. One
+    // pixel a block samples the block centre and never sees it; two pixels a
+    // block land on either side of that centre and report both colours, so
+    // the second pixel carries drawing and not a copy of the first. A sampler
+    // that merely doubled a whole-pitch result would fail this and still pass
+    // on a flat block image.
+    const detail: Rgba = [10, 240, 240, OPAQUE];
+    const image = fillRect(blockImage(7, 5, 4), { x: 4, y: 4, width: 3, height: 3 }, detail);
+    const isDetail = (pixel: Rgba): boolean => detail.every((channel, i) => pixel[i] === channel);
+
+    const whole = resampleBlocks(image, 7);
+    const half = resampleBlocks(image, 3.5);
+
+    expect(count(whole, isDetail)).toBe(0);
+    expect(count(half, isDetail)).toBe(1);
+    expect(pixelAt(half, 0, 0)).toEqual(pixelAt(image, 0, 0));
+    expect(pixelAt(half, 1, 1)).toEqual(detail);
+  });
 });
 
 describe('keying', () => {

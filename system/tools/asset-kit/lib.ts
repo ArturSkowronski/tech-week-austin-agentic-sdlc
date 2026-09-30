@@ -201,17 +201,19 @@ function changeAt(data: Uint8Array, a: number, b: number): number {
 /**
  * The image resampled at block centres, so one drawn block of `pitch` pixels
  * becomes one pixel. Sampling the centre, not the corner, keeps the block's
- * own colour rather than the seam between two blocks.
+ * own colour rather than the seam between two blocks. The pitch may be
+ * fractional — half a pitch takes two samples across every drawn block, which
+ * is how a raw is read at density 2 (ADR-003) — and a whole pitch samples the
+ * same pixels it always did.
  */
 export function resampleBlocks(raster: Raster, pitch: number): Raster {
   const width = Math.max(1, Math.round(raster.width / pitch));
   const height = Math.max(1, Math.round(raster.height / pitch));
   const out = createRaster(width, height);
-  const centre = Math.floor(pitch / 2);
   for (let y = 0; y < height; y += 1) {
+    const sy = Math.min(Math.floor((y + 0.5) * pitch), raster.height - 1);
     for (let x = 0; x < width; x += 1) {
-      const sx = Math.min(x * pitch + centre, raster.width - 1);
-      const sy = Math.min(y * pitch + centre, raster.height - 1);
+      const sx = Math.min(Math.floor((x + 0.5) * pitch), raster.width - 1);
       out.data.set(pixelAt(raster, sx, sy), (y * width + x) * CHANNELS);
     }
   }

@@ -2,9 +2,14 @@
 // pipeline.md, unit tests). Every sheet here is drawn by the test at a known
 // block size, with a known crystal and the generated label the real raws carry
 // under each pose, so what the cut finds is what the test just drew.
+//
+// A sheet is read at the game's density, so the cells below are written as
+// world units times that density: what the numbers state is that the world
+// sizes did not move (ADR-003).
 
 import { describe, expect, it } from 'vitest';
 
+import { RENDER_DENSITY } from '../../game/render/config';
 import { createRaster, fillRect, pixelAt, type Raster, type Rgba } from '../../tools/asset-kit/lib';
 import { cutStrip, type Sheet } from '../../tools/asset-kit/strips';
 
@@ -16,6 +21,10 @@ const NOTHING: Rgba = [0, 0, 0, 0];
 
 /** The block size the fixture sheets are drawn at. */
 const PITCH = 8;
+
+/** The wizard's cell in world units, and what that is in the file's pixels. */
+const CELL = 32;
+const CELL_PX = CELL * RENDER_DENSITY;
 
 /** A pose in blocks, and the blocks of magenta between one pose and the next. */
 const POSE_COLUMNS = 4;
@@ -74,22 +83,24 @@ function sheet(poses: number, { rows = POSE_ROWS, crystal = 'tip', label = true 
 }
 
 /** The pixel a frame's recorded crystal point names, in the cut strip. */
-function atCrystal(image: Raster, cellW: number, frame: number, [x, y]: readonly [number, number]): Rgba {
-  return pixelAt(image, frame * cellW + x, y);
+function atCrystal(image: Raster, cellPx: number, frame: number, [x, y]: readonly [number, number]): Rgba {
+  return pixelAt(image, frame * cellPx + x, y);
 }
 
 describe('cutStrip', () => {
   it('gives every pose a cell of its own, standing on the cell floor', () => {
     const { image, entry } = cutStrip(idle(4), sheet(4));
 
-    expect(entry).toMatchObject({ width: 128, height: 32, cell: 32, cellW: 32, frames: 4 });
-    expect(image.width).toBe(128);
-    // The pose is 4 of the 32 columns wide and 24 of the rows tall, so it sits
-    // 14 in from the cell's left edge and 8 down from its top.
-    expect(pixelAt(image, 14, 8)).toEqual(ROBE);
-    expect(pixelAt(image, 14, 31)).toEqual(ROBE);
-    expect(pixelAt(image, 14, 7)).toEqual(NOTHING);
-    expect(pixelAt(image, 13, 8)).toEqual(NOTHING);
+    expect(entry).toMatchObject({ width: 4 * CELL_PX, height: CELL_PX, cell: CELL, cellW: CELL, frames: 4 });
+    // The pose is 4 of the cell's 32 columns wide and 24 of the rows tall, so
+    // it sits 14 columns in from the cell's left edge and 8 rows down its top.
+    const left = 14 * RENDER_DENSITY;
+    const top = 8 * RENDER_DENSITY;
+
+    expect(pixelAt(image, left, top)).toEqual(ROBE);
+    expect(pixelAt(image, left, CELL_PX - 1)).toEqual(ROBE);
+    expect(pixelAt(image, left, top - 1)).toEqual(NOTHING);
+    expect(pixelAt(image, left - 1, top)).toEqual(NOTHING);
   });
 
   // Every wizard state and the poses asset-list.md gives its sheet, so the
@@ -103,21 +114,23 @@ describe('cutStrip', () => {
     ['charge', 5, 32],
   ])('cuts the %s sheet into its %i poses', (state, frames, cellW) => {
     const wizard: Sheet = { state, raw: `wizard-${state}.png`, pitch: PITCH, frames, cellW };
-    const { image, entry } = cutStrip(wizard, sheet(frames));
+    const { entry } = cutStrip(wizard, sheet(frames));
 
-    expect(entry).toMatchObject({ frames, cellW, cell: 32, width: frames * cellW, height: 32 });
+    expect(entry).toMatchObject({ frames, cellW, cell: CELL, width: frames * cellW * RENDER_DENSITY, height: CELL_PX });
     expect(entry.crystal).toHaveLength(frames);
-    expect(image.width).toBe(frames * cellW);
   });
 
   it('records where the crystal sits in each frame', () => {
     const { entry } = cutStrip(idle(4), sheet(4));
 
+    // In the cell's own pixels, so the point moves with the density: the one
+    // block of crystal is four pixels here and the centroid lands on the last
+    // of them.
     expect(entry.crystal).toEqual([
-      [17, 10],
-      [17, 10],
-      [17, 10],
-      [17, 10],
+      [35, 21],
+      [35, 21],
+      [35, 21],
+      [35, 21],
     ]);
   });
 
@@ -127,7 +140,7 @@ describe('cutStrip', () => {
     // The box around this tip is 2 by 3 with nothing at its centre, so a point
     // taken from the box rather than the pixels names a transparent pixel.
     entry.crystal.forEach((point, frame) => {
-      expect(atCrystal(image, entry.cellW, frame, point)).toEqual(CRYSTAL);
+      expect(atCrystal(image, CELL_PX, frame, point)).toEqual(CRYSTAL);
     });
   });
 
@@ -135,11 +148,12 @@ describe('cutStrip', () => {
     const { image, entry } = cutStrip(idle(3), sheet(3, { crystal: 'trailed' }));
 
     // The tip is drawn 2 and 3 rows down the pose, which stands 8 down its
-    // cell; the trail runs from 8 rows down the pose to 11.
+    // cell; the trail runs from 8 rows down the pose to 11. Both are read in
+    // the file's pixels, two to the world unit.
     entry.crystal.forEach((point, frame) => {
-      expect(atCrystal(image, entry.cellW, frame, point)).toEqual(CRYSTAL);
-      expect(point[1]).toBeGreaterThanOrEqual(10);
-      expect(point[1]).toBeLessThanOrEqual(11);
+      expect(atCrystal(image, CELL_PX, frame, point)).toEqual(CRYSTAL);
+      expect(point[1]).toBeGreaterThanOrEqual(20);
+      expect(point[1]).toBeLessThanOrEqual(23);
     });
   });
 
@@ -151,11 +165,11 @@ describe('cutStrip', () => {
     const fall: Sheet = { state: 'fall', raw: 'wizard-fall.png', pitch: PITCH, frames: 3, cellW: 40 };
     const { entry } = cutStrip(fall, sheet(3));
 
-    expect(entry).toMatchObject({ width: 120, cellW: 40, frames: 3 });
+    expect(entry).toMatchObject({ width: 3 * 40 * RENDER_DENSITY, cellW: 40, frames: 3 });
     expect(entry.crystal).toEqual([
-      [21, 10],
-      [21, 10],
-      [21, 10],
+      [43, 21],
+      [43, 21],
+      [43, 21],
     ]);
   });
 
@@ -168,6 +182,6 @@ describe('cutStrip', () => {
   });
 
   it('fails naming the file when a pose is too big for its cell', () => {
-    expect(() => cutStrip(idle(2), sheet(2, { rows: 34 }))).toThrow(/wizard-idle\.png draws a pose 4x34/);
+    expect(() => cutStrip(idle(2), sheet(2, { rows: 34 }))).toThrow(/wizard-idle\.png draws a pose 8x68/);
   });
 });

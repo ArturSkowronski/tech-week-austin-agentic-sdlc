@@ -24,7 +24,11 @@ describe('measuring a manifest entry', () => {
   });
 });
 
-/** The fall strip as the kit wrote it: four 40 by 32 cells at one pixel a unit. */
+/**
+ * A hand-written 1x fall strip: four 40 by 32 cells at one pixel a unit. The
+ * kit writes this sheet at density 2 since HWP-043; that reading is the case
+ * below, which doubles these same numbers.
+ */
 const FALL: PoseStripEntry = {
   width: 160,
   height: 32,

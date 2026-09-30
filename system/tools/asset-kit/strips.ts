@@ -6,6 +6,8 @@
 // sits at in every frame: the crystal is the wizard's light
 // (art-direction.md), so the renderer hangs its glow and its sparks there.
 
+import { RENDER_DENSITY } from '../../game/render/config';
+
 import {
   boundingBox,
   connectedComponents,
@@ -54,15 +56,22 @@ const LEAST_POSE_ROWS = CELL / 2;
 /** How much bluer than warm a pixel is before it reads as the crystal. */
 const CRYSTAL_BLUE = 24;
 
-/** One sheet cut into the strip its state is written as, and its entry. */
+/**
+ * One sheet cut into the strip its state is written as, and its entry. The
+ * cell stays 32 world units; the sheet is read at half the pitch it was drawn
+ * at, so a cell comes out `RENDER_DENSITY` pixels to the unit and the outlines
+ * and shading these painted sheets drew finer than their blocks survive
+ * (ADR-003).
+ */
 export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: PoseStripEntry } {
   const cellW = sheet.cellW ?? CELL;
-  const poses = dropLabels(keyMagenta(resampleBlocks(raster, sheet.pitch)));
+  const pixels = { width: cellW * RENDER_DENSITY, height: CELL * RENDER_DENSITY };
+  const poses = dropLabels(keyMagenta(resampleBlocks(raster, sheet.pitch / RENDER_DENSITY)));
   const columns = runs(poses);
   if (columns.length !== sheet.frames) {
     throw new Error(`${sheet.raw} splits into ${columns.length} columns, not the ${sheet.frames} poses asset-list.md gives the ${sheet.state} sheet`);
   }
-  const cells = columns.map((column) => toCell(sheet, crop(poses, column), cellW));
+  const cells = columns.map((column) => toCell(sheet, crop(poses, column), pixels));
   const image = hstack(cells);
   return {
     image,
@@ -90,7 +99,7 @@ export function cutStrip(sheet: Sheet, raster: Raster): { image: Raster; entry: 
 function dropLabels(raster: Raster): Raster {
   const out = createRaster(raster.width, raster.height);
   for (const box of connectedComponents(raster)) {
-    if (box.height < LEAST_POSE_ROWS) continue;
+    if (box.height < LEAST_POSE_ROWS * RENDER_DENSITY) continue;
     for (let y = box.y; y < box.y + box.height; y += 1) {
       const from = (y * raster.width + box.x) * CHANNELS;
       out.data.set(raster.data.subarray(from, from + box.width * CHANNELS), from);
@@ -104,14 +113,14 @@ function dropLabels(raster: Raster): Raster {
  * bottom-centre, which is the alignment every frame of every state shares, so
  * the renderer draws a strip by its cell and never by its art.
  */
-function toCell(sheet: Sheet, column: Raster, cellW: number): Raster {
+function toCell(sheet: Sheet, column: Raster, cell: { width: number; height: number }): Raster {
   const drawn = boundingBox(column);
   // `runs` hands back only columns that hold art, so there is always a box.
   const pose = drawn === null ? column : crop(column, drawn);
-  if (pose.width > cellW || pose.height > CELL) {
-    throw new Error(`${sheet.raw} draws a pose ${pose.width}x${pose.height} at ${sheet.pitch} px blocks, too big for its ${cellW}x${CELL} cell`);
+  if (pose.width > cell.width || pose.height > cell.height) {
+    throw new Error(`${sheet.raw} draws a pose ${pose.width}x${pose.height} at ${sheet.pitch} px blocks, too big for its ${cell.width}x${cell.height} cell`);
   }
-  return placeInCell(pose, cellW, CELL);
+  return placeInCell(pose, cell.width, cell.height);
 }
 
 /**

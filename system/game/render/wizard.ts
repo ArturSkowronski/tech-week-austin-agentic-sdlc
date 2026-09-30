@@ -142,10 +142,11 @@ export function poseFor(player: Player, cells: Cells): Pose {
  * the strip's density (ADR-003: "the renderer scales by the manifest's
  * density"). Facing mirrors the horizontal axis on top of that.
  *
- * Every wizard strip is 1x today, so this is the identity on this branch; it
- * is here because `crystalOf` already divides by the density and the draw
- * did not, and two halves that disagree would put the glow off the wand the
- * day asset-list.md's 64 px cells land, with every gate still green.
+ * The five wizard strips are at density 2 since HWP-043, so this halves both
+ * axes for all of them; art the manifest records no density for still comes
+ * back as the identity. The two halves have to agree: `crystalOf` divides the
+ * crystal point by the same density, and a draw that did not would put the
+ * glow off the wand with every gate still green.
  */
 export function scaleFor(density: number, facing: 1 | -1): Vec2 {
   return { x: facing / density, y: 1 / density };

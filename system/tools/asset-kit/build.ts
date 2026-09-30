@@ -14,8 +14,8 @@ import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 
 import { TILE_ATLAS } from '../../game/content/tile-order';
-import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, VIEW_H, VIEW_W } from '../../game/render/config';
-import { CONSUMERS } from '../../game/render/sprites';
+import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, RENDER_DENSITY, VIEW_H, VIEW_W } from '../../game/render/config';
+import { CONSUMERS, type Entry as ArtEntry } from '../../game/render/sprites';
 
 import { consumerOf, roomNames } from './consumers';
 import {
@@ -76,12 +76,17 @@ interface Output {
   art: Raster;
   /** The colour of the rows added below the art, if the layer has a base. */
   base?: Rgb;
+  /** Pixels per world unit, where that is not the 1x the backgrounds are. */
+  density?: number;
 }
 
-/** What the manifest records about one output (pipeline.md, manifest entries). */
-interface Entry {
-  width: number;
-  height: number;
+/**
+ * What the manifest records about one output (pipeline.md, manifest entries).
+ * The size and the density are the shape the renderer reads back, so they are
+ * taken from its own declaration rather than written again (AGENTS.md rule 9),
+ * the way paintings.ts takes its entry; the rows and the count are the kit's.
+ */
+interface Entry extends ArtEntry {
   /** Drawn rows at the top; the rest of the height is the flat base. */
   artRows: number;
   colours: number;
@@ -94,6 +99,11 @@ interface Entry {
  * structure on them, and the recorded size is the one that resamples a pose to
  * the height its cell expects. The walk, jump and fall sheets take 7 px so
  * their poses come out the height the idle sheet's do at 8.
+ *
+ * All five are cut at the density the game draws at, which reads them at half
+ * their pitch (ADR-003): painted sheets hold outlines and shading finer than
+ * the blocks they were laid out on, and all five come back with new detail
+ * rather than doubled pixels.
  */
 const WIZARD: readonly Sheet[] = [
   { state: 'idle', raw: 'wizard-idle.png', pitch: 8, frames: 4 },
@@ -123,7 +133,7 @@ async function main(): Promise<void> {
     // The forest atlas as one strip, in the order of game/content/tile-order.ts:
     // one file and one manifest entry, cut back into its eleven tiles by
     // game/render/tiles.ts, which draws the rooms that have no painting.
-    { name: TILE_ATLAS, art: hstack(sliceTiles(await loadRaw('tileset.png'))) },
+    { name: TILE_ATLAS, art: hstack(sliceTiles(await loadRaw('tileset.png'))), density: RENDER_DENSITY },
     { name: 'splash', art: await frame('splash-textless.png') },
   ];
 
@@ -282,6 +292,7 @@ async function write(output: Output): Promise<Entry> {
   const entry: Entry = {
     width: image.width,
     height: image.height,
+    ...(output.density === undefined ? {} : { density: output.density }),
     artRows: output.art.height,
     colours: colours(image).length,
   };

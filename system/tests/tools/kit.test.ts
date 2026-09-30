@@ -12,10 +12,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { TILE_ORDER } from '../../game/content/tile-order';
+import { RENDER_DENSITY } from '../../game/render/config';
 import { TILE } from '../../game/sim';
 import { createRaster, fillRect, loadPng, pixelAt, type Box, type Raster, type Rgba } from '../../tools/asset-kit/lib';
 import { sliceProps } from '../../tools/asset-kit/props';
 import { sliceTiles } from '../../tools/asset-kit/tiles';
+
+/** The tile the atlas is cut to: 16 world units at two pixels each (ADR-003). */
+const TILE_PX = TILE * RENDER_DENSITY;
 
 const OPAQUE = 255;
 
@@ -73,11 +77,12 @@ function drawnShare(raster: Raster): number {
 }
 
 describe('the tile slicer', () => {
-  it('yields one 16 px tile per name, in the atlas order', () => {
+  it('yields one 32 px tile per name, in the atlas order', () => {
     const tiles = sliceTiles(tileset(TILE_ORDER.length));
 
-    expect(tiles.map((tile) => [tile.width, tile.height])).toEqual(TILE_ORDER.map(() => [TILE, TILE]));
-    expect(tiles.map((tile) => pixelAt(tile, TILE / 2, TILE / 2))).toEqual(TILE_ORDER.map((_, index) => tileColour(index)));
+    expect(TILE_PX).toBe(32);
+    expect(tiles.map((tile) => [tile.width, tile.height])).toEqual(TILE_ORDER.map(() => [TILE_PX, TILE_PX]));
+    expect(tiles.map((tile) => pixelAt(tile, TILE_PX / 2, TILE_PX / 2))).toEqual(TILE_ORDER.map((_, index) => tileColour(index)));
   });
 
   it('refuses a sheet that draws a different number of tiles', () => {
@@ -181,14 +186,16 @@ describe('the prop mapping', () => {
         cellW: strip.cellW,
         cell: strip.cell,
         size: [strip.image.width, strip.image.height],
-        frames: Array.from({ length: strip.frames }, (_, frame) => coloursIn(strip.image, frame, strip.cellW)),
+        frames: Array.from({ length: strip.frames }, (_, frame) => coloursIn(strip.image, frame, strip.cellW * RENDER_DENSITY)),
       })),
     ).toEqual(
+      // The cells stay the simulation's own world units and the file holds
+      // `RENDER_DENSITY` pixels of each of them (ADR-003).
       PROP_STRIPS.map(({ name, frames, cellW, cell }) => ({
         name,
         cellW,
         cell,
-        size: [frames.length * cellW, cell],
+        size: [frames.length * cellW * RENDER_DENSITY, cell * RENDER_DENSITY],
         frames: frames.map((frame) => [frameColour(frame)]),
       })),
     );
