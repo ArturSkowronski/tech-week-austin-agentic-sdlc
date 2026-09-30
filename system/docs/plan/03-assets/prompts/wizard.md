@@ -21,6 +21,6 @@ Start every prompt with the sprite style block from [art direction](../art-direc
 | charge, 5 frames | "One wind-up pose standing upright with the wand pulled back, then four frames charging forward astride the wand like a hobby horse, body low, legs trailing behind, the crystal tip leading with a trail of pale blue sparks and two frames with speed lines. Side view, labelled." The 1x sheet that exists has five riding frames and no upright pose; the renderer holds frame 1 for the wind-up either way. |
 | recoil, 1 | "Recoiling after hitting a wall while astride the wand, hat pushed over the eyes, wand tip up, small stars." |
 | hurt, 2 | "Two frames knocked back, side view, flashing pale, hat askew." |
-| victory, 4 | "Four frames with the wand raised overhead, sparks bursting from the crystal, a little hop of joy." |
+| victory, 8 | done 2026-09-10 as the cast that lights the beacon: idle, a spin over four, the burst, the beam, idle (`wizard-victory.png`, HWP-044). The earlier brief was "Four frames with the wand raised overhead, sparks bursting from the crystal, a little hop of joy." |
 
 Do not ask for: bouncing on the wand as movement, a fireball, an orb at the wand tip, a spin. Those were the concept's first draft and are out.

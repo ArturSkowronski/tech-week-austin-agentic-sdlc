@@ -39,7 +39,7 @@ JSON-serialisable. Fields, all required:
 | `props` | `{ id, kind, x, y, w, h, hitTick, active }` for every prop in the room |
 | `creature` | `{ at, travelTo, travelUntil, carriedSince, firstCarried }`, see [bug quest](bug-quest.md) |
 | `deaths` | count |
-| `victoryTick` | tick the beacon was reached, −1 until then; the run clock stops here |
+| `victoryTick` | tick the beacon was reached, −1 until then; the run clock stops here, and the beacon lights `VICTORY_CAST_HIT_TICKS` later, when the cast's beam lands (HWP-044) |
 | `events` | strings emitted this tick, cleared every tick; consumed by audio and particles |
 | `lastInput` | the frame applied this tick |
 

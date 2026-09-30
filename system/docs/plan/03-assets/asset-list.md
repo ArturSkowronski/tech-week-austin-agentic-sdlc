@@ -20,11 +20,11 @@ Cell 32 by 32 units (64 px at 2x), drawn roughly 24 by 30. All frames face right
 | jump | 2 | take-off for four ticks, then air up; the sheet has seven poses: idle, squash, take-off, air up, air down, landing, recovery | 1x done, `wizard-jump.png` |
 | fall | 1 + 3 | air down from the jump sheet; after 20 ticks three flailing poses | 1x done, `wizard-fall.png`, 40-unit cells |
 | charge | 5 at 15 fps | astride the wand, legs trailing, spark trail behind the crystal; frame 1 is held for the 2-tick wind-up, frames 2 to 5 loop. The 1x sheet has no upright wind-up pose; the 2x regeneration may add one as frame 1, the renderer's logic is the same | 1x done, `wizard-charge.png` |
-| chargeRecoil | 1 | bounced back off a wall, hat over the eyes | to draw |
+| chargeRecoil | 1 | bounced back off a wall, hat over the eyes | not drawn; borrows the first charge frame, which passes for its 3 ticks |
 | land | 2 + 1 | landing and recovery from the jump sheet; hard landing with dust from the fall sheet | 1x done |
-| hurt | 2 | flash, knocked back | to draw |
-| victory | 4 | wand raised, sparks | to draw |
-| all of the above at 2x | | 64 px cells, crystal visible in every frame | to generate before or during M4 |
+| hurt | 2 | flash, knocked back | not drawn; borrows the first idle frame for the moment before the respawn |
+| victory | 8, played once | the cast: idle, a spin over four, the burst, the beam, idle; the beacon lights on the beam frame | raw generated 2026-09-10, `wizard-victory.png` on PR #106; built by HWP-044 with a 64-unit cell |
+| all of the above at density 2 | | 64 px cells from the existing raws, which hold finer outlines than their 6 to 10 px blocks | HWP-043; finer drawing would need new sheets and is not planned |
 
 ## Props
 
@@ -50,7 +50,7 @@ The 1x sheet `props-sheet.png` is not laid out in rows: the bushes, logs, rocks 
 
 | Asset | Content | Status |
 |---|---|---|
-| forest tileset | eleven tiles: grass surface, grass corners left and right, earth, earth with roots, stone, stone edges left and right, mossy stone, plank (one-way), spike trap | 1x done, `tileset.png`, eleven tiles on a grid; to be cleaned to a transparent sheet |
+| forest tileset | eleven tiles: grass surface, grass corners left and right, earth, earth with roots, stone, stone edges left and right, mossy stone, plank (one-way), spike trap | 1x done, `tileset.png`, cleaned to a transparent sheet on 2026-09-16; its 205 px cells go to density 2 in HWP-043 |
 
 ## Backgrounds
 

@@ -71,7 +71,7 @@ A run plays the glade and ends at its beacon. The boot with no `?room=` plays th
 
 ## The beacon ends the run
 
-The beacon is the end of the run. Touching it puts the wizard in `victory`, stops the run clock and shows the banner with time and deaths. This does not depend on the planted bugs: the healed world shows itself through the missing creature and the ticket card's "the logs are clean" state ([bug quest](bug-quest.md)). This supersedes the concept's beacon that lit only when the region was healed; a run must always be completable.
+The beacon is the end of the run. Touching it puts the wizard in `victory` and stops the run clock. He then casts: a spin, a burst at the wand tip and a beam into the beacon, eight frames played once; the beacon lights as the beam lands and the banner with time and deaths follows ([HWP-044](../tickets/HWP-044.md)). This does not depend on the planted bugs: the healed world shows itself through the missing creature and the ticket card's "the logs are clean" state ([bug quest](bug-quest.md)). This supersedes the concept's beacon that lit only when the region was healed; a run must always be completable.
 
 ## Painting a room
 
