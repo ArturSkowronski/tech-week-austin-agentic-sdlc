@@ -65,6 +65,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
+      issues: write
       pull-requests: write
     steps:
       # The secrets context is not available to an `if:` expression, so the
@@ -139,23 +140,61 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
 
-      # One comment per pull request: the marker finds the comment a previous run
-      # left and the body is replaced, so a re-push updates instead of piling up.
-      - name: Comment the preview URL on the pull request
+      # One comment per thread: the marker finds the comment a previous run left
+      # and the body is replaced, so a re-push updates instead of piling up. The
+      # issues endpoint serves pull requests too, so the pull request and the
+      # issue behind it are the same call with a different number.
+      - name: Comment the preview URL
         if: steps.secrets.outputs.present == 'true' && github.event_name == 'pull_request' && steps.preview.outputs.url != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref }}
           URL: ${{ steps.preview.outputs.url }}
         run: |
           set -euo pipefail
           marker='<!-- hobby-wizard-preview -->'
           body=$(printf '%s\nPreview: %s\n' "$marker" "$URL")
-          existing=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq "[.[] | select(.body | startswith(\"$marker\")) | .id] | first // empty")
-          if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body"
-          else
-            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body"
+
+          # Upsert the marked comment on one thread. The response bodies are
+          # noise in the log; the step summary already carries the URL.
+          upsert() {
+            existing=$(gh api "repos/$REPO/issues/$1/comments" --paginate \
+              --jq "[.[] | select(.body | startswith(\"$marker\")) | .id] | first // empty")
+            if [ -n "$existing" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$REPO/issues/$1/comments" -f body="$body" >/dev/null
+            fi
+          }
+
+          # The pull request is the thread that must carry the URL, so it is
+          # commented on first and before any lookup that could fail: a hiccup
+          # resolving the issue must not cost the pull request the comment it
+          # gets unconditionally. Only this call can fail the step.
+          upsert "$PR"
+
+          # GitHub itself resolves the "Closes #n" an orchestrator pull request
+          # carries; references into another repository are dropped, since our
+          # own issue of that number is a different thread. A planted-bug
+          # branch, fix/HW-00N-..., carries no such line; its issue is the one
+          # titled "HW-00N: ...", the title game/render/issue.ts prefills. Only
+          # that branch shape counts, so a branch merely mentioning an HW token
+          # does not post onto an unrelated bug. A branch with neither leaves
+          # the list empty and the pull request has been commented on alone.
+          issues=$(gh pr view "$PR" --repo "$REPO" --json closingIssuesReferences \
+            | jq -r --arg repo "$REPO" '.closingIssuesReferences[]
+                | select(.repository.owner.login + "/" + .repository.name == $repo)
+                | .number' || true)
+          bug=$(printf '%s' "$BRANCH" | sed -nE 's|^fix/(HW-[0-9]{3})-.*|\1|p')
+          if [ -z "$issues" ] && [ -n "$bug" ]; then
+            issues=$(gh issue list --repo "$REPO" --state all --search "$bug in:title" --json number,title \
+              --jq "[.[] | select(.title | startswith(\"$bug:\")) | .number] | first // empty" || true)
           fi
+
+          # A secondary thread that cannot be commented on — locked, moved,
+          # deleted — is a warning, not a red deploy that did in fact deploy.
+          for number in $issues; do
+            upsert "$number" || echo "::warning::could not comment the preview URL on #$number"
+          done
