@@ -61,6 +61,7 @@ Transitions are a table in `game/sim/player.ts` so a reviewer can read them:
 | land | 4 ticks, or any movement input | idle or run |
 | any except victory | spikes, water bottom, or falls out of the room | hurt, then respawn at the checkpoint |
 | any | touches the room's beacon | victory: the cast plays once and the beacon lights on its beam frame ([level design](level-design.md)) |
+| victory | every tick after the touch | victory — input is held, gravity is not: a touch taken in mid-air finishes its fall and lands |
 
 The state timer counts ticks in the current state and drives every animation; the renderer never keeps a timer of its own.
 

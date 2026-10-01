@@ -59,6 +59,11 @@ function accelerate(player: Player, wanted: number): void {
   }
 }
 
+/** A tick of falling: gravity, down to the fastest fall the table allows. */
+function fall(player: Player): void {
+  player.vy = Math.min(player.vy + GRAVITY * DT, TERMINAL_VELOCITY);
+}
+
 /** Carry the wizard through the room and keep what he touched on the way. */
 function move(room: Room, player: Player): void {
   const box = { x: player.x, y: player.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
@@ -246,7 +251,7 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
     player.vy = JUMP_CUT_VELOCITY;
   }
 
-  player.vy = Math.min(player.vy + GRAVITY * DT, TERMINAL_VELOCITY);
+  fall(player);
 
   const falling = player.vy > 0;
 
@@ -271,6 +276,21 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
 }
 
 /**
+ * One tick after the beacon: gravity and the sweep, and nothing else. The
+ * beacon's box is four tiles tall, so the touch is as likely to be taken in
+ * mid-air as on the ground, and he has to finish the fall he was in or he
+ * hangs at the height he touched it for the rest of the run. `vx` is zero
+ * from the touch on, so `move` here is a sweep straight down.
+ */
+function stepVictory(state: WorldState): void {
+  const player = state.player;
+
+  fall(player);
+
+  move(state.room, player);
+}
+
+/**
  * Advance the wizard by one tick. Called only by tick(); it is the sole owner
  * of everything under `state.player`.
  *
@@ -285,18 +305,22 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
  * a charge suspends neither.
  *
  * The one tick that belongs to neither is a tick after the beacon: the run is
- * over, the cast holds him where he touched it and facing it
- * (level-design.md, "The beacon ends the run"), and a held button steers
- * nothing. Returning here is what makes that true — zeroing his speed after
- * the move, as game/sim/props.ts once did alone, still let this function
- * accelerate him a quarter of a unit and re-read his facing every tick of the
- * cast, so the beam could be drawn firing away from the beacon it lights.
+ * over, the cast holds him over the column he touched it from and facing it
+ * while gravity settles his height (level-design.md, "The beacon ends the
+ * run"), and a held button steers nothing. Taking `stepVictory` here is what
+ * makes that true — zeroing his speed after the move, as game/sim/props.ts
+ * once did alone, still let this function accelerate him a quarter of a unit
+ * and re-read his facing every tick of the cast, so the beam could be drawn
+ * firing away from the beacon it lights. What victory holds is the input, not
+ * the physics.
  * game/sim/props.ts owns `state` and `stateTimer` from the touch on.
  */
 export function stepPlayer(state: WorldState, input: InputFrame): void {
   const player = state.player;
 
   if (state.victoryTick >= 0) {
+    stepVictory(state);
+
     return;
   }
 

@@ -104,16 +104,24 @@ function lightBeacon(state: WorldState): void {
  * game/sim/player.ts puts him in, and the state table's "any except victory"
  * means nothing can kill him any more.
  *
- * The speed he arrived with goes too, and it is a full stop: game/sim/player.ts
- * returns without a step of its own once `victoryTick` is set, so no input
- * moves him or turns him for the rest of the cast. His position and his facing
- * are the touch tick's, which is what puts the beam on the beacon.
+ * His horizontal speed goes with it: game/sim/player.ts reads no input once
+ * `victoryTick` is set, so nothing turns him or walks him off his column for
+ * the rest of the cast, and his facing stays the touch tick's, which is what
+ * puts the beam on the beacon.
+ *
+ * `vy` is left alone: it belongs to the fall game/sim/player.ts finishes for
+ * a touch taken in mid-air.
+ *
+ * That fall is unbounded, because this function returns before `killing` and
+ * nothing can kill him in victory. A beacon whose four-tile box hung over a
+ * pit or over water would drop him out of the room or sink him, with no
+ * respawn to follow. Every column of the box needs solid floor under it; in
+ * forest-glade the box stands on the tower, so the fall always lands.
  */
 function holdVictory(state: WorldState): void {
   state.player.state = 'victory';
   state.player.stateTimer = state.tick - state.victoryTick;
   state.player.vx = 0;
-  state.player.vy = 0;
 }
 
 /**

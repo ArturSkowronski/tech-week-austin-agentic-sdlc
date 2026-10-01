@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   beaconOf,
+  TICK_RATE,
   VICTORY_CAST_HIT_TICKS,
   type Prop,
   type WorldState,
@@ -35,6 +36,19 @@ const BEHIND_HIM_ROOM = `
   #       #
   # EP    #
   #########
+`;
+
+/**
+ * A tower top with headroom over it. The beacon's box is four tiles tall
+ * (level-design.md), so a jump taken beside it touches it well above the
+ * floor he has to come back down to.
+ */
+const TOWER_ROOM = `
+  #          #
+  #          #
+  #          #
+  # P     E  #
+  ############
 `;
 
 /** The room's beacon, so a missing prop fails loudly, not as undefined. */
@@ -140,6 +154,49 @@ describe('the victory cast', () => {
 
     expect(world.player.facing).toBe(-1);
     expect(beacon.active).toBe(true);
+  });
+
+  it('lets a touch taken in mid-air finish its fall and land him on the tower', () => {
+    const world = worldFrom(TOWER_ROOM);
+    const tower = world.player.y;
+
+    // Walk up to the beacon, then jump beside it: the four-tile box catches
+    // him on the way down, thirty units above the tower top.
+    run(world, hold({ right: true }, 18));
+    run(world, hold({ right: true, jump: true }, 30));
+
+    expect(world.victoryTick).toBeLessThan(0);
+    expect(world.player.state).toBe('fall');
+
+    run(world, hold({ right: true }, 1));
+
+    const touched = world.victoryTick;
+    const column = world.player.x;
+    const faced = world.player.facing;
+
+    expect(touched).toBe(world.tick);
+    expect(tower - world.player.y).toBe(30);
+    expect(world.player.onGround).toBe(false);
+
+    // A second of the cast with everything held down: gravity is the only
+    // thing left that may move him, and the cast never lets go of him.
+    for (let step = 0; step < TICK_RATE; step += 1) {
+      run(world, hold({ right: true, jump: true, charge: true }, 1));
+
+      expect(world.player.state).toBe('victory');
+    }
+
+    expect(world.player.onGround).toBe(true);
+    expect(world.player.y).toBe(tower);
+    expect(world.player.x).toBe(column);
+    expect(world.player.facing).toBe(faced);
+
+    // The clock stopped on the touch, and the beam still lands on its tick.
+    expect(world.victoryTick).toBe(touched);
+
+    run(world, hold({}, VICTORY_CAST_HIT_TICKS));
+
+    expect(theBeacon(world).hitTick).toBe(touched + VICTORY_CAST_HIT_TICKS);
   });
 
   it('lights the beacon once, and not again on every tick after it', () => {
