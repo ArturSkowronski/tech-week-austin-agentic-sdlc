@@ -23,6 +23,7 @@ import {
   VIEW_W,
   type CreatureSeat,
 } from '../../game/render/config';
+import { EYE_MARKS } from '../../game/render/creature';
 import {
   HIDING_PLACES,
   parseRoom,
@@ -447,17 +448,44 @@ function rowOf(frame: IdleFrame, seat: CreatureSeat): number {
   return Math.round(frame.h - seat.up * frame.density);
 }
 
-/** The art the two eyes cover at a seat: how bright it is, and what it misses. */
-function artUnder(frame: IdleFrame, seat: CreatureSeat): { mean: number; blank: number } {
-  const { patch, eye } = CREATURE_EYES;
-  const left = Math.round((seat.x - patch / 2) * frame.density);
-  const top = rowOf(frame, seat) - Math.round((eye / 2) * frame.density);
+/** How far the eyes alone reach from their middle, in world units. */
+const EYE_REACH: Vec2 = { x: CREATURE_EYES.patch / 2, y: CREATURE_EYES.eye / 2 };
+
+/**
+ * The same for everything the creature draws there, the glow pixels included.
+ * Read off `EYE_MARKS`, which is what the renderer puts on the screen, so the
+ * extent cannot drift from the mark. Each side of every square is measured
+ * from the middle, so the box holds the whole mark whether or not the marks
+ * come out symmetric, which nothing asserts (issue #127 review).
+ */
+const MARK_REACH: Vec2 = {
+  x: Math.max(...EYE_MARKS.flatMap((mark) => [-mark.x, mark.x + mark.size])),
+  y: Math.max(...EYE_MARKS.flatMap((mark) => [-mark.y, mark.y + mark.size])),
+};
+
+/**
+ * The art a box of a seat covers: how bright it is on average, how bright its
+ * brightest pixel is, and how many of its pixels the sprite draws nothing on.
+ * `reach` is how far the box goes out from the seat and up and down from its
+ * row. A pixel off the sprite altogether counts as the brightest there is,
+ * which is as far from a hollow as a pixel can be.
+ */
+function artUnder(
+  frame: IdleFrame,
+  seat: CreatureSeat,
+  reach: Vec2 = EYE_REACH,
+): { mean: number; brightest: number; blank: number } {
+  const at = (unit: number): number => Math.round(unit * frame.density);
+  const row = rowOf(frame, seat);
+  const right = at(seat.x + reach.x);
+  const bottom = row + at(reach.y);
   let sum = 0;
   let drawn = 0;
   let blank = 0;
+  let brightest = 0;
 
-  for (let y = top; y < top + eye * frame.density; y += 1) {
-    for (let x = left; x < left + patch * frame.density; x += 1) {
+  for (let y = row - at(reach.y); y < bottom; y += 1) {
+    for (let x = at(seat.x - reach.x); x < right; x += 1) {
       const lum = frame.lumAt(x, y);
 
       if (lum === null) {
@@ -466,10 +494,12 @@ function artUnder(frame: IdleFrame, seat: CreatureSeat): { mean: number; blank: 
         sum += lum;
         drawn += 1;
       }
+
+      brightest = Math.max(brightest, lum ?? 255);
     }
   }
 
-  return { mean: drawn === 0 ? 0 : sum / drawn, blank };
+  return { mean: drawn === 0 ? 0 : sum / drawn, brightest, blank };
 }
 
 /** The middle of what the sprite draws across one of its rows, in world units. */
@@ -504,9 +534,15 @@ function cellMiddle(kind: HidingPlace): CreatureSeat {
  */
 const SEAT_SITS_ON: Readonly<Record<HidingPlace, (frame: IdleFrame) => void>> = {
   // The dark open end, against the bark in the middle of the cell the eyes
-  // used to be drawn on: less than half as bright (issue #116).
+  // used to be drawn on: less than half as bright (issue #116). The whole
+  // mark is on that dark and not only its middle — the brightest pixel the
+  // eyes and their glow cover, over every row they cover, clears the bark by
+  // the same margin (issue #127), which is what says the hollow is wide
+  // enough for them. Wide enough is all it is: the dark run is 13 pixels and
+  // the mark 12, so the spare pixel falls on one side only, and the check is
+  // for the mark being on the dark rather than for a gap around it.
   log: (frame) => {
-    expect(artUnder(frame, CREATURE_SEAT.log).mean * 2).toBeLessThan(
+    expect(artUnder(frame, CREATURE_SEAT.log, MARK_REACH).brightest * 2).toBeLessThan(
       artUnder(frame, cellMiddle('log')).mean,
     );
   },

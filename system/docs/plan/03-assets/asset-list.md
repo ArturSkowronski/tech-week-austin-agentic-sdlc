@@ -42,7 +42,7 @@ Cell sizes are the simulation's prop table. All static or looped.
 | lantern | 16 by 32 | 4-frame loop | not planned; no room places one (HWP-062 closed) |
 | glowing mushrooms | 16 by 16 | 2-frame loop | not planned; no room places one |
 | waterfall | 96 wide, down to the room bottom | drawn in code | none |
-| creature eyes and wisp | 9 by 4 with the glow pixel beside each eye, 16 by 16 | drawn in code in Season 1 | none; each hiding place seats the eyes off its own strip (HWP-089) |
+| creature eyes and wisp | 6 by 4 with the glow pixel beside each eye, 16 by 16 | drawn in code in Season 1 | none; each hiding place seats the eyes off its own strip (HWP-089) |
 
 The sheet `props-sheet.png` is not laid out in rows: the bushes, logs, rocks and flags stack on its left, the beacons, the torch and the sparks on its right, and touching objects, the five beacons and the five rocks, form one region each. The kit cuts it through a hand-written mapping of region band and position in `tools/asset-kit/props.ts`, described in the [pipeline](pipeline.md). The frame counts above are what the sheet holds and what the renderer plays; a regenerated sheet keeps them or changes the mapping in the same PR.
 

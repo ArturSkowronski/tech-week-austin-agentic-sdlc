@@ -318,15 +318,24 @@ export const SPRITE_FOOT_OFFSET = 2;
 
 /**
  * The creature's two red eyes, drawn in code in Season 1 (asset-list.md): two
- * squares of `eye` units at the ends of the 8-unit patch the list gives them,
- * each with one pixel of the same red beside it on its outer side at `glow`'s
- * alpha, which is what reads as a glow in the dark of a hiding place. `hat` is
- * how far down from the top of the wizard's cell the patch sits while the
- * creature rides him (bug-quest.md, the creature); `CREATURE_SEAT` below is
- * where it sits in everything else.
+ * squares of `eye` units at the ends of the patch, each with one pixel of the
+ * same red beside it on its outer side at `glow`'s alpha, which is what reads
+ * as a glow in the dark of a hiding place. `hat` is how far down from the top
+ * of the wizard's cell the patch sits while the creature rides him
+ * (bug-quest.md, the creature); `CREATURE_SEAT` below is where it sits in
+ * everything else.
+ *
+ * The patch is as wide as the narrowest hiding place can take. The whole mark
+ * spans `patch` and one glow pixel beyond each eye, and the log's hollow is
+ * the tightest of the three: measured off the strip `pnpm assets` cuts, the
+ * dark around its seat is 13 pixels across on the rows the eyes cover, and it
+ * is not centred on the seat. The mark at 5 is 12 of those pixels, so it fits
+ * with the one spare pixel falling on its right and none on its left; 6 would
+ * be 14 and hang over the bark. tests/smoke/props.spec.ts asserts that off
+ * those pixels rather than off this number (HWP-091).
  */
 export const CREATURE_EYES = {
-  patch: 8,
+  patch: 5,
   eye: 2,
   colour: 0xff3b2f,
   hat: 6,
