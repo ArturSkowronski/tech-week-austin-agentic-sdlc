@@ -11,7 +11,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import forestGlade from '../../game/content/rooms/forest-glade';
-import { parseRoom, Tile, tileAt } from '../../game/sim/index';
+import { parseRoom, PLAYER_HEIGHT, TILE, Tile, tileAt } from '../../game/sim/index';
 
 import { fieldsOf } from './wizard-frame';
 
@@ -91,6 +91,46 @@ test('the glade, which has no painting, is drawn out of the atlas throughout', a
   // along, so it leaves them exactly as they were.
   await pressF1(page);
   expect(await room(page)).toEqual(drew);
+});
+
+/**
+ * A cell of the plateau to stand the wizard on, so the camera carries the
+ * stretch of ground the owner's report named into the middle of the frame.
+ * The plateau runs from column 20 to column 32 with its surface at row 13;
+ * the view is twenty columns wide, so standing at 26 shows all of it. Only a
+ * test writes to the world like this — the game itself walks him there.
+ */
+const PLATEAU = { x: 26, y: 13 };
+
+test('the plateau interior, which the report called wallpaper, is drawn turned', async ({
+  page,
+}, run: TestInfo) => {
+  test.slow();
+  await open(page, 'forest-glade');
+
+  const spawn = await room(page);
+
+  await page.evaluate(
+    (at) => {
+      const { player } = window.wizard.state();
+
+      player.x = at.x;
+      player.y = at.y;
+    },
+    { x: PLATEAU.x * TILE, y: PLATEAU.y * TILE - PLAYER_HEIGHT },
+  );
+  await drawn(page);
+
+  // Which way round a cell is drawn is a function of the cell's own position
+  // and is asserted on cell by cell in tests/render/tiles.test.ts; what this
+  // frame is for is the acceptance line that asks for the plateau to be
+  // looked at. Moving the camera must not change which cells were drawn, and
+  // the room layer is built once per room, so the report is the spawn's.
+  expect(await room(page)).toEqual(spawn);
+  await run.attach('forest-glade-plateau.png', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
 });
 
 test('a ?room= that names no room falls back to the glade', async ({ page }) => {

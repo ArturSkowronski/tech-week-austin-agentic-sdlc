@@ -46,6 +46,8 @@ Early dusk, "magic and mysterious" without being dark; the wizard is the light.
 
 For rooms without a painting the renderer picks atlas variants by context: moss surface with corner pieces at ledge ends, two rows of earth with scattered roots, stone below with edge pieces and mossy blocks, a plank for one-way platforms, a spike trap. The atlas order is one shared module, `game/content/tile-order.ts`, that the asset kit and the renderer both import.
 
+Each cell is also turned, by its own position and nothing else, so a run of ground does not read as wallpaper. How far a tile may turn follows from its art: one with no up at all — the earth, the stone, and the mossy stone, whose moss runs along the crevices between the cobbles and reads the same whichever way round the cell is — takes any of the four quarter turns, mirrored or not, rolled from a hash of the position. One that reads one way up only — the roots, which hang down — is mirrored and no further, and takes that flip from the parity of its coordinates rather than from the hash, so that no cell of it ever stands beside its own copy. One whose orientation is its meaning is left standing. Which of the three each atlas tile takes is the `TILE_TURN` table in `game/render/config.ts`.
+
 ## Sprites
 
 Wizard strips are loaded by the manifest's cell size and frame count; animation frame comes from `stateTimer` and the state's frame rate. Every frame is drawn facing right and flipped by facing. The wizard and props are drawn two units below their collision line so feet meet the drawn ground.

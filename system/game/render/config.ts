@@ -2,6 +2,7 @@
 // (docs/plan/02-design/rendering-and-look.md, ADR-003). The rest of
 // game/render/ imports from here; no layer, panel or effect declares its own.
 
+import type { TileName } from '../content/tile-order';
 import { TICK_RATE } from '../sim';
 
 /** Width of the view, in world units. */
@@ -170,6 +171,35 @@ export const DEBUG_TILE_ALPHA = 0.5;
  * ground carries them, not a chance rolled per frame.
  */
 export const TILE_SCATTER = { roots: 0.25, moss: 0.2 } as const;
+
+/**
+ * How far round a cell of each tile may be turned from the way the atlas drew
+ * it (rendering-and-look.md, tiles), so that a run of ground reads as ground
+ * and not as wallpaper. `fixed` is a tile whose orientation is its meaning:
+ * the moss surface, the corners, the stone edges, a plank and a spike all say
+ * which way is up. `mirror` is a tile that reads one way up only — the roots
+ * hang down — so those cells are flipped left to right and no further.
+ * `rotate` is a tile with no up at all, and takes any of the four quarter
+ * turns, mirrored or not. game/render/tiles.ts reads this off the cell's own
+ * position, the way it reads TILE_SCATTER.
+ */
+export const TILE_TURN = {
+  'grass-top': 'fixed',
+  'grass-corner-left': 'fixed',
+  'grass-corner-right': 'fixed',
+  earth: 'rotate',
+  'earth-roots': 'mirror',
+  stone: 'rotate',
+  'stone-edge-left': 'fixed',
+  'stone-edge-right': 'fixed',
+  // The moss runs along the crevices between the cobbles and across the whole
+  // tile rather than lying on top of it, so there is no up to lose: cut out of
+  // public/assets/tiles/forest.png and turned, all four quarters read the
+  // same. This is the ticket's open question answered off the shipped art.
+  'mossy-stone': 'rotate',
+  plank: 'fixed',
+  spike: 'fixed',
+} as const satisfies Record<TileName, 'fixed' | 'mirror' | 'rotate'>;
 
 // The width of a waterfall's water column is not here: PROP_SIZE in
 // game/sim/room.ts already owns every prop size (AGENTS.md rule 9).

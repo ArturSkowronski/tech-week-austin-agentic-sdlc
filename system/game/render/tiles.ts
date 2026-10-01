@@ -6,35 +6,47 @@
 // is game/content/tile-order.ts, the one module the asset kit slices by and
 // this one draws by (AGENTS.md rule 9).
 //
-// Nothing here reads wall time or Math.random. The scatter of roots and moss
-// is a hash of the tile's own position, so the same map always draws the same
-// frame and a replay replays.
+// Nothing here reads wall time or Math.random. The scatter of roots and moss,
+// and which way round each cell is turned, are read off the tile's own
+// position and nothing else, so the same map always draws the same frame and
+// a replay replays.
 
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
 
 import { TILE_ATLAS, TILE_ORDER, type TileName } from '../content/tile-order';
 import { Tile, TILE, tileAt, type Room } from '../sim';
 
-import { TILE_SCATTER } from './config';
+import { TILE_SCATTER, TILE_TURN } from './config';
 import { loadArt, type Manifest } from './sprites';
 
 /** Rows of earth under the mossy surface before the stone begins. */
 const EARTH_ROWS = 2;
 
 /**
- * A fraction in [0, 1) that belongs to this tile and to no other. The
- * simulation's `nextRandom` is no use here: it advances a seed the run owns,
- * and the renderer may draw a cell any number of times without moving it.
+ * A fraction in [0, 1) that belongs to this tile and to this salt, and to no
+ * other pair of the two. The simulation's `nextRandom` is no use here: it
+ * advances a seed the run owns, and the renderer may draw a cell any number
+ * of times without moving it.
+ *
+ * The salt is mixed in rather than added to the coordinates, for the reason
+ * game/render/particles.ts gives for `own`: a hash walked from shifted inputs
+ * is the first scatter slid along, and two of the cell's decisions taken from
+ * it would agree with each other across the whole room.
  */
-function spot(x: number, y: number): number {
+function spot(x: number, y: number, salt: number): number {
   // Mixed hard enough that neighbouring tiles land far apart in the range, so
   // what it scatters reads as scattered rather than as a diagonal.
-  let hash = Math.imul(x, 0x27d4eb2d) ^ Math.imul(y, 0x165667b1);
+  let hash =
+    Math.imul(x, 0x27d4eb2d) ^ Math.imul(y, 0x165667b1) ^ Math.imul(salt, 0x9e3779b1);
 
   hash = Math.imul(hash ^ (hash >>> 15), 0x2545f491);
 
   return ((hash ^ (hash >>> 16)) >>> 0) / 0x1_0000_0000;
 }
+
+/** The salts of {@link spot}: one for each decision a cell takes from it. */
+const ART = 0;
+const TURN = 1;
 
 /** Whether this cell is ground; the surface and the edges are read against it. */
 function isGround(room: Room, x: number, y: number): boolean {
@@ -84,13 +96,47 @@ export function tileArt(room: Room, x: number, y: number): TileName | undefined 
   }
 
   if (depth <= EARTH_ROWS) {
-    return spot(x, y) < TILE_SCATTER.roots ? 'earth-roots' : 'earth';
+    return spot(x, y, ART) < TILE_SCATTER.roots ? 'earth-roots' : 'earth';
   }
 
   if (openLeft) return 'stone-edge-left';
   if (openRight) return 'stone-edge-right';
 
-  return spot(x, y) < TILE_SCATTER.moss ? 'mossy-stone' : 'stone';
+  return spot(x, y, ART) < TILE_SCATTER.moss ? 'mossy-stone' : 'stone';
+}
+
+/** Which way round a cell draws the tile it shows. */
+export interface TileTurn {
+  /** Quarter turns clockwise. */
+  readonly quarter: number;
+  /** Whether it is flipped left to right as well. */
+  readonly mirror: boolean;
+}
+
+/**
+ * Which way round this cell draws its tile, as far round as TILE_TURN lets
+ * that tile go. Like `tileArt` it is a function of the cell's own position
+ * and of nothing else, so the same map always draws the same frame and a
+ * replay replays.
+ */
+export function tileTurn(x: number, y: number, name: TileName): TileTurn {
+  const allowed = TILE_TURN[name];
+
+  if (allowed === 'fixed') return { quarter: 0, mirror: false };
+
+  // A tile that may only be flipped has two ways round, and a hash spends two
+  // the way a coin does: a quarter of the neighbouring pairs land the same,
+  // and in the glade seven of the sixteen pairs of roots did, two of them in
+  // the plateau the ticket is about. The parity of the cell's own coordinates
+  // spends them so that no cell ever stands beside its own copy, which is
+  // what the acceptance asks for; it is still a function of the position
+  // alone, so a replay still replays.
+  if (allowed === 'mirror') return { quarter: 0, mirror: (x + y) % 2 === 1 };
+
+  // Eight ways round a square: the four quarter turns, each mirrored or not.
+  const roll = Math.floor(spot(x, y, TURN) * 8);
+
+  return { quarter: roll % 4, mirror: roll >= 4 };
 }
 
 /** The atlas cut into its tiles, and the pixels per world unit it was drawn at. */
@@ -139,12 +185,19 @@ export function drawTiles(room: Room, tileset: Tileset): Container {
       if (name === undefined) continue;
 
       const sprite = new Sprite(tileset.tiles[name]);
+      const turn = tileTurn(x, y, name);
       // `=` is the same plank with its surface half a tile down, which is
       // where game/sim/physics.ts catches a fall on it.
       const half = tileAt(room, x, y) === Tile.OneWayHalf ? TILE / 2 : 0;
 
-      sprite.scale.set(1 / tileset.density);
-      sprite.position.set(x * TILE, y * TILE + half);
+      // A cell turns about the middle of itself, so it is placed by its middle
+      // rather than by its top left corner. Both are whole world units, and a
+      // quarter turn of a square about its centre lands back on them, so the
+      // tiles still meet without a seam.
+      sprite.anchor.set(0.5);
+      sprite.scale.set((turn.mirror ? -1 : 1) / tileset.density, 1 / tileset.density);
+      sprite.rotation = (turn.quarter * Math.PI) / 2;
+      sprite.position.set(x * TILE + TILE / 2, y * TILE + half + TILE / 2);
       view.addChild(sprite);
     }
   }
