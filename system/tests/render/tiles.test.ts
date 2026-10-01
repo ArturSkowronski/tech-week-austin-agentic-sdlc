@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import forestGlade from '../../game/content/rooms/forest-glade';
 import { TILE_ORDER, type TileName } from '../../game/content/tile-order';
 import { TILE_SCATTER, TILE_TURN } from '../../game/render/config';
-import { tileArt, tileTurn } from '../../game/render/tiles';
+import { EARTH_ROWS, EDGE_QUARTER, tileArt, tileTurn } from '../../game/render/tiles';
 import { parseRoom, Tile, tileAt, type Room } from '../../game/sim';
 import { worldFrom } from '../sim/helpers';
 
@@ -116,6 +116,27 @@ describe('the tile a cell of a map shows', () => {
     ]);
   });
 
+  it('fringes an earth row that stands open at a side with the moss surface', () => {
+    const { room } = worldFrom(`
+      P
+      ####
+      ####
+      ####
+      ####
+      ####
+    `);
+
+    // Rows 2 and 3 are the earth; the atlas has no earth side piece, so the
+    // cells at either end of them show the surface tile instead and
+    // `tileTurn` below turns it to face the open side.
+    expect(tileArt(room, 0, 2)).toBe('grass-top');
+    expect(tileArt(room, 0, 3)).toBe('grass-top');
+    expect(tileArt(room, 3, 2)).toBe('grass-top');
+    expect(tileArt(room, 3, 3)).toBe('grass-top');
+    expect(tileArt(room, 1, 2)).toMatch(/^earth/);
+    expect(tileArt(room, 2, 3)).toMatch(/^earth/);
+  });
+
   it('edges the stone where the ground stands open at its side', () => {
     const { room } = worldFrom(`
       P
@@ -162,18 +183,44 @@ describe('the tile a cell of a map shows', () => {
 });
 
 /** A cell's turn as one value, so that two of them compare as one. */
-function turned(x: number, y: number, name: TileName): string {
-  const turn = tileTurn(x, y, name);
+function turned(room: Room, x: number, y: number, name: TileName): string {
+  const turn = tileTurn(room, x, y, name);
 
   return `${turn.quarter}${turn.mirror ? ' mirrored' : ''}`;
 }
+
+/** A map with no ground in it: what a tile's own art allows, and no context. */
+const AIR = worldFrom('P').room;
 
 /** A patch of cells wide enough to show every turn a tile is allowed. */
 const PATCH = Array.from({ length: 256 }, (_, at) => ({ x: at % 16, y: Math.floor(at / 16) }));
 
 /** The turns a tile is drawn at over that patch, each of them once. */
 function turns(name: TileName): string[] {
-  return [...new Set(PATCH.map(({ x, y }) => turned(x, y, name)))].sort();
+  return [...new Set(PATCH.map(({ x, y }) => turned(AIR, x, y, name)))].sort();
+}
+
+/**
+ * Where the ground is and which way it is open, worked out from the map alone
+ * rather than borrowed from game/render/tiles.ts: the glade test below is an
+ * oracle, and sharing the renderer's own helpers would make it agree with
+ * itself. Which quarter faces which side is the renderer's fact, so that one
+ * is imported; the test pins the quarters themselves on a map of its own.
+ */
+function depthOf(room: Room, x: number, y: number): number {
+  let depth = 0;
+
+  while (tileAt(room, x, y - depth - 1) === Tile.Solid) depth += 1;
+
+  return depth;
+}
+
+function openSide(room: Room, x: number, y: number): keyof typeof EDGE_QUARTER | undefined {
+  if (tileAt(room, x - 1, y) !== Tile.Solid) return 'left';
+  if (tileAt(room, x + 1, y) !== Tile.Solid) return 'right';
+  if (tileAt(room, x, y + 1) !== Tile.Solid) return 'bottom';
+
+  return undefined;
 }
 
 /** The columns of the plateau, the stretch of ground the owner reported. */
@@ -197,8 +244,8 @@ function rootPairs(): Array<{ x: number; y: number; one: string; other: string }
         pairs.push({
           x,
           y,
-          one: turned(x, y, 'earth-roots'),
-          other: turned(x + dx, y + dy, 'earth-roots'),
+          one: turned(GLADE, x, y, 'earth-roots'),
+          other: turned(GLADE, x + dx, y + dy, 'earth-roots'),
         });
       }
     }
@@ -231,10 +278,10 @@ describe('which way round a cell draws the tile it shows', () => {
     // than the fact that a pure function is one. The first two are the hash
     // the rotating tiles roll; the last two are the parity the mirrored ones
     // read off the cell, which is why they alternate down the column.
-    expect(turned(0, 0, 'earth')).toBe('3');
-    expect(turned(2, 0, 'earth')).toBe('1 mirrored');
-    expect(turned(0, 0, 'earth-roots')).toBe('0');
-    expect(turned(0, 1, 'earth-roots')).toBe('0 mirrored');
+    expect(turned(AIR, 0, 0, 'earth')).toBe('3');
+    expect(turned(AIR, 2, 0, 'earth')).toBe('1 mirrored');
+    expect(turned(AIR, 0, 0, 'earth-roots')).toBe('0');
+    expect(turned(AIR, 0, 1, 'earth-roots')).toBe('0 mirrored');
   });
 
   it('leaves no root cell of the glade standing beside its own copy', () => {
@@ -265,9 +312,71 @@ describe('which way round a cell draws the tile it shows', () => {
     const ways = new Set<string>();
 
     for (const { x, y } of cells(GLADE)) {
-      if (tileArt(GLADE, x, y) === 'mossy-stone') ways.add(turned(x, y, 'mossy-stone'));
+      if (tileArt(GLADE, x, y) === 'mossy-stone') ways.add(turned(GLADE, x, y, 'mossy-stone'));
     }
 
     expect(ways).toEqual(new Set(ALLOWED.rotate));
+  });
+
+  it('turns the fringe of an earth row towards the side it stands open at', () => {
+    const { room } = worldFrom(`
+      P
+      ####
+      ####
+      ####
+    `);
+
+    // Quarters count clockwise, so the quarter turn counter-clockwise the
+    // open left asks for is three of them, and the open right's is one: the
+    // fringe the atlas drew along the top comes round to face the gap.
+    expect(turned(room, 0, 2, 'grass-top')).toBe('3');
+    expect(turned(room, 3, 2, 'grass-top')).toBe('1');
+    // The bottom row of the map has nothing under it, so its earth is open
+    // below and takes the half turn. No shipped room ends in earth; a
+    // hand-authored map may.
+    expect(turned(room, 1, 3, 'grass-top')).toBe('2');
+    // The surface above and the earth away from either end are untouched.
+    expect(turned(room, 1, 1, 'grass-top')).toBe('0');
+  });
+
+  it('gives an earth row open at both sides the left fringe, as the ledge does', () => {
+    const { room } = worldFrom(`
+      P
+      #
+      #
+      #
+    `);
+
+    expect(tileArt(room, 0, 2)).toBe('grass-top');
+    expect(turned(room, 0, 2, 'grass-top')).toBe('3');
+  });
+
+  it('fringes every earth cell of the glade that stands open, and no other', () => {
+    // The owner's report, read off the shipped room: the left face of the
+    // plateau and both faces of the beacon tower. Each open earth cell shows
+    // the surface tile turned to face its gap; each enclosed one is still
+    // earth, so the fringe has not spread over the ground.
+    const fringed = [];
+
+    for (const { x, y, tile } of cells(GLADE)) {
+      if (tile !== Tile.Solid) continue;
+
+      const depth = depthOf(GLADE, x, y);
+
+      if (depth < 1 || depth > EARTH_ROWS) continue;
+
+      const side = openSide(GLADE, x, y);
+
+      if (side === undefined) {
+        expect(tileArt(GLADE, x, y)).toMatch(/^earth/);
+        continue;
+      }
+
+      fringed.push({ x, y, side, art: tileArt(GLADE, x, y), turn: turned(GLADE, x, y, 'grass-top') });
+    }
+
+    expect(fringed.filter(({ x }) => x >= PLATEAU.from && x <= PLATEAU.to).length).toBeGreaterThan(0);
+    expect(fringed.filter(({ art }) => art !== 'grass-top')).toEqual([]);
+    expect(fringed.filter(({ side, turn }) => turn !== String(EDGE_QUARTER[side]))).toEqual([]);
   });
 });

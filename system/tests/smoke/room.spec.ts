@@ -52,6 +52,24 @@ async function open(page: Page, room: string): Promise<void> {
   await drawn(page);
 }
 
+/**
+ * Stand the wizard on top of a cell and let the frame be drawn, so the camera
+ * carries that stretch of ground into the middle of the view. Only a test
+ * writes to the world like this — the game itself walks him there.
+ */
+async function stand(page: Page, cell: { x: number; y: number }): Promise<void> {
+  await page.evaluate(
+    (at) => {
+      const { player } = window.wizard.state();
+
+      player.x = at.x;
+      player.y = at.y;
+    },
+    { x: cell.x * TILE, y: cell.y * TILE - PLAYER_HEIGHT },
+  );
+  await drawn(page);
+}
+
 /** Press F1 and let the frame it changes be drawn. */
 async function pressF1(page: Page): Promise<void> {
   await page.keyboard.press('F1');
@@ -97,8 +115,7 @@ test('the glade, which has no painting, is drawn out of the atlas throughout', a
  * A cell of the plateau to stand the wizard on, so the camera carries the
  * stretch of ground the owner's report named into the middle of the frame.
  * The plateau runs from column 20 to column 32 with its surface at row 13;
- * the view is twenty columns wide, so standing at 26 shows all of it. Only a
- * test writes to the world like this — the game itself walks him there.
+ * the view is twenty columns wide, so standing at 26 shows all of it.
  */
 const PLATEAU = { x: 26, y: 13 };
 
@@ -110,16 +127,7 @@ test('the plateau interior, which the report called wallpaper, is drawn turned',
 
   const spawn = await room(page);
 
-  await page.evaluate(
-    (at) => {
-      const { player } = window.wizard.state();
-
-      player.x = at.x;
-      player.y = at.y;
-    },
-    { x: PLATEAU.x * TILE, y: PLATEAU.y * TILE - PLAYER_HEIGHT },
-  );
-  await drawn(page);
+  await stand(page, PLATEAU);
 
   // Which way round a cell is drawn is a function of the cell's own position
   // and is asserted on cell by cell in tests/render/tiles.test.ts; what this
@@ -128,6 +136,38 @@ test('the plateau interior, which the report called wallpaper, is drawn turned',
   // the room layer is built once per room, so the report is the spawn's.
   expect(await room(page)).toEqual(spawn);
   await run.attach('forest-glade-plateau.png', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+});
+
+/**
+ * A cell of the plateau beside its left face, the open side the owner's
+ * report named: the ground is cut off down column 20 from the surface to the
+ * room's floor, so standing him one column in carries that whole face into
+ * the frame with ground on either side of it.
+ */
+const PLATEAU_FACE = { x: 21, y: 13 };
+
+test('the left face of the plateau is fringed from the grass down to the stone', async ({
+  page,
+}, run: TestInfo) => {
+  test.slow();
+  await open(page, 'forest-glade');
+
+  const spawn = await room(page);
+
+  await stand(page, PLATEAU_FACE);
+
+  // Which tile each cell of that face shows, and which way round, is asserted
+  // cell by cell in tests/render/tiles.test.ts. This frame is the acceptance
+  // line that asks for the face to be looked at: the corner piece at the top,
+  // the two earth rows carrying the same fringe turned to face left, and the
+  // stone edge under them. Moving the camera must not change which cells were
+  // drawn, and the room layer is built once per room, so the report is the
+  // spawn's.
+  expect(await room(page)).toEqual(spawn);
+  await run.attach('forest-glade-plateau-face.png', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
