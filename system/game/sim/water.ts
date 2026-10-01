@@ -6,8 +6,9 @@
 //
 // What the water does to him it does after he has moved: the pull and the drag
 // are the speed he carries into the next tick, and the stamp belongs to the
-// tick he was seen in the column. Touching the water parts it for a while and
-// shows the logs behind it (bug-quest.md); `hitTick` is the whole of that
+// tick he was seen beside the column. Standing within `WATER_NEAR` of the
+// water parts it and shows the logs behind it, and touching it or charging
+// into it does the same (bug-quest.md); `hitTick` is the whole of that
 // record, the same field a charge hit stamps.
 //
 // The death at the bottom of the column is not here: what a hazard costs him
@@ -19,6 +20,7 @@ import {
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
   WATER_DRAG,
+  WATER_NEAR,
   WATER_PULL,
 } from './constants';
 import type { Box } from './physics';
@@ -30,17 +32,28 @@ function overlaps(a: Box, b: Box): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-/** The water columns the player box is standing in, empty while he is dry. */
-function columns(state: WorldState): Prop[] {
+/** The box the wizard takes up this tick. */
+function playerBox(state: WorldState): Box {
   const player = state.player;
-  const box: Box = { x: player.x, y: player.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
 
-  return state.props.filter((prop) => prop.kind === 'waterfall' && overlaps(box, prop));
+  return { x: player.x, y: player.y, w: PLAYER_WIDTH, h: PLAYER_HEIGHT };
+}
+
+/**
+ * Is the box within `WATER_NEAR` of this column, near enough to part it? The
+ * reach is measured across only: a column hangs from its surface row to the
+ * room's floor, so there is no height beside it that is not beside the water,
+ * and a height test would only take back the reveal.
+ */
+function near(box: Box, prop: Prop): boolean {
+  return prop.x - (box.x + box.w) <= WATER_NEAR && box.x - (prop.x + prop.w) <= WATER_NEAR;
 }
 
 /** Is the wizard in water this tick? */
 export function inWater(state: WorldState): boolean {
-  return columns(state).length > 0;
+  const box = playerBox(state);
+
+  return state.props.some((prop) => prop.kind === 'waterfall' && overlaps(box, prop));
 }
 
 /**
@@ -60,17 +73,24 @@ export function inWater(state: WorldState): boolean {
  * player.ts exports it.
  */
 export function stepWater(state: WorldState): void {
-  const wet = columns(state);
+  const box = playerBox(state);
+  let wet = false;
 
-  if (wet.length === 0) {
+  for (const prop of state.props) {
+    // Standing beside the water parts it as surely as falling in, and it
+    // parts again the moment he comes back, so every column within reach is
+    // stamped — the one he is in among them, which is what the rest is for.
+    if (prop.kind === 'waterfall' && near(box, prop)) {
+      prop.hitTick = state.tick;
+      wet ||= overlaps(box, prop);
+    }
+  }
+
+  if (!wet) {
     return;
   }
 
   const player = state.player;
-
-  for (const column of wet) {
-    column.hitTick = state.tick;
-  }
 
   if (charging(player)) {
     player.state = player.onGround ? 'idle' : 'fall';

@@ -58,7 +58,7 @@ Prop frame logic per kind: bush rustles, log chatters, rock cracks and opens, fl
 
 ## The waterfall
 
-Drawn in code, not from a sprite: a dark rock face with a rounded right edge, a base blue with thin scrolling strands of a second blue, water streaks falling 3 to 5 units per tick in fixed columns, foam along the lip, mist at the base. Behind the water, columns of log text fall at 0.9 to 1.6 units per tick; the lines come from the manifest for the bug that lives in this room. The water is near opaque with faint green flickers until touched or charge-hit, then parts for 150 ticks. Drawn only when on screen. The prop is 96 units wide and runs from its surface row, the row of its map character, down to the bottom of the room.
+Drawn in code, not from a sprite: a dark rock face with a rounded right edge, a base blue with thin scrolling strands of a second blue, water streaks falling 3 to 5 units per tick in fixed columns, foam along the lip, mist at the base. Behind the water are the log lines of the manifest's bug for this room, each drawn whole as one horizontal row of glyphs across the face, in reading order; the roll of them creeps downward at 0.6 units per tick the way credits roll, one or two lines in sight at a time. A 40-character line is 79.5 of the 96 units with a margin of eight on each side, and the parting opens wide enough to show it whole. The water is near opaque with faint green flickers until the wizard stands within a tile and a half of it, touches it or charge-hits it, and it stays parted for 150 ticks after the last of those. Drawn only when on screen. The prop is 96 units wide and runs from its surface row, the row of its map character, down to the bottom of the room.
 
 ## UI
 

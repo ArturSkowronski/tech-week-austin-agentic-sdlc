@@ -17,6 +17,7 @@ import {
   TILE,
   tick,
   WATER_DRAG,
+  WATER_NEAR,
   WATER_PULL,
 } from '../../game/sim/index';
 import type { InputFrame, Prop, WorldState } from '../../game/sim/index';
@@ -48,7 +49,11 @@ const LEDGE = `
   #          #
 `;
 
-/** Floor with the water standing on it, a charge's length from the spawn. */
+/**
+ * Floor with the water standing on it, a charge's length from the spawn. The
+ * bank to its left is also where he stands to part the water without ever
+ * touching it.
+ */
 const SHALLOWS = `
   #              #
   #              #
@@ -178,6 +183,39 @@ describe('the water column', () => {
     expect(world.player.chargeCooldown).toBe(CHARGE_COOLDOWN_TICKS);
   });
 
+  it('stamps the column every tick he stands within WATER_NEAR of it, dry', () => {
+    const world = worldFrom(SHALLOWS);
+    const column = waterfall(world);
+
+    // A tile from the column, which is inside the tile and a half it parts for.
+    world.player.x = column.x - PLAYER_WIDTH - TILE;
+    run(world, hold({}, 10));
+
+    expect(wet(world)).toBe(false);
+    expect(column.hitTick).toBe(world.tick);
+
+    run(world, hold({}, 1));
+
+    expect(column.hitTick).toBe(world.tick);
+  });
+
+  it('stops stamping the tick he has walked out of WATER_NEAR', () => {
+    const world = worldFrom(SHALLOWS);
+    const column = waterfall(world);
+
+    world.player.x = column.x - PLAYER_WIDTH - TILE;
+    run(world, hold({}, 10));
+
+    const beside = column.hitTick;
+
+    // One unit further off than the water reaches, and it stops following.
+    world.player.x = column.x - PLAYER_WIDTH - WATER_NEAR - 1;
+    run(world, hold({}, 10));
+
+    expect(wet(world)).toBe(false);
+    expect(column.hitTick).toBe(beside);
+  });
+
   it('stamps the column on the tick of first contact', () => {
     const world = worldFrom(DROP);
     const column = waterfall(world);
@@ -210,31 +248,35 @@ describe("the glade's six-tile charge gap", () => {
 
   /**
    * Jump off the lip holding right, with or without a charge pressed from the
-   * air eight ticks later, until he lands or dies. Reports how far he got.
+   * air eight ticks later, until he lands or dies. Reports how far he got and
+   * whether he was ever in the column: the stamp no longer answers that, since
+   * the water parts for him from a tile and a half away as well.
    */
-  function leap(world: WorldState, charging: boolean): number {
+  function leap(world: WorldState, charging: boolean): { farthest: number; touched: boolean } {
     let farthest = world.player.x;
+    let touched = false;
 
     for (let step = 0; step < 200; step += 1) {
       tick(world, { ...NO_INPUT, right: true, jump: step < 30, charge: charging && step >= 8 });
       farthest = Math.max(farthest, world.player.x);
+      touched ||= wet(world);
 
       if (world.deaths > 0 || (step > 4 && world.player.onGround)) {
         break;
       }
     }
 
-    return farthest;
+    return { farthest, touched };
   }
 
   it('is crossed dry by a jump and then a charge', () => {
     const world = runningAtTheGap();
     const column = waterfall(world);
 
-    const farthest = leap(world, true);
+    const { farthest, touched } = leap(world, true);
 
     expect(farthest).toBeGreaterThanOrEqual(column.x + column.w);
-    expect(column.hitTick).toBe(-1);
+    expect(touched).toBe(false);
     expect(world.deaths).toBe(0);
     expect(world.player.onGround).toBe(true);
   });
@@ -243,10 +285,10 @@ describe("the glade's six-tile charge gap", () => {
     const world = runningAtTheGap();
     const column = waterfall(world);
 
-    const farthest = leap(world, false);
+    const { farthest, touched } = leap(world, false);
 
     expect(farthest).toBeLessThan(column.x + column.w);
-    expect(column.hitTick).toBeGreaterThan(0);
+    expect(touched).toBe(true);
     expect(world.deaths).toBe(1);
   });
 });

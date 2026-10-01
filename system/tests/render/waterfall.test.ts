@@ -1,7 +1,7 @@
 // What the waterfall draws is a pure function of the world's tick and of the
 // prop's own `hitTick` (docs/plan/02-design/rendering-and-look.md, the
-// waterfall): how far the water has parted, how fast each column of log text
-// falls, which lines it shows and whether the prop is on screen at all. The
+// waterfall): how far the water has parted, where the roll of log lines has
+// crept to, which lines it shows and whether the prop is on screen at all. The
 // pixels themselves need a browser and are covered in
 // tests/smoke/waterfall.spec.ts.
 
@@ -19,17 +19,33 @@ import {
   WATERFALL,
 } from '../../game/render/config';
 import {
+  CELL_H,
   fallen,
   flickering,
+  gapOf,
   glyphOf,
   logLines,
+  type LogLine,
   logsRead,
   onScreen,
   parted,
+  rollOf,
+  rowChars,
+  rowWidth,
+  rowX,
+  rowY,
   speedOf,
   spread,
+  wrapLine,
 } from '../../game/render/waterfall';
-import { createWorld, parseRoom, type Prop, type WorldState } from '../../game/sim';
+import {
+  createWorld,
+  parseRoom,
+  PLANTED_BUGS,
+  TILE,
+  type Prop,
+  type WorldState,
+} from '../../game/sim';
 
 /** The glade's own waterfall: the six-tile charge gap of its text map. */
 const GLADE_FALL = parseRoom(forestGlade).props.find((prop) => prop.kind === 'waterfall') as Prop;
@@ -71,9 +87,10 @@ describe('the parting a hit opens', () => {
     expect(parted(hit, WATER_PARTED_TICKS + 60)).toBe(0);
   });
 
-  it('stays wide open while the wizard stands in the column', () => {
-    // game/sim/water.ts stamps the prop again on every tick he is in it, so
-    // the parting is asked about a hit that keeps moving with the clock.
+  it('stays wide open while the wizard stands near the column', () => {
+    // game/sim/water.ts stamps the prop again on every tick he is within
+    // WATER_NEAR of it, so the parting is asked about a hit that keeps moving
+    // with the clock.
     for (let tick = 0; tick < 200; tick += 1) {
       expect(parted(hitOn(tick), tick)).toBe(1);
     }
@@ -85,21 +102,6 @@ describe('the parting a hit opens', () => {
 });
 
 describe('what falls down the face', () => {
-  it('gives every column of log text a speed the look doc allows', () => {
-    const speeds = Array.from({ length: GLADE_FALL.w / LOG_TEXT.columnStep }, (_, index) =>
-      speedOf(index, LOG_FALL_SPEED),
-    );
-
-    for (const speed of speeds) {
-      expect(speed).toBeGreaterThanOrEqual(LOG_FALL_SPEED.min);
-      expect(speed).toBeLessThanOrEqual(LOG_FALL_SPEED.max);
-    }
-
-    // No two columns fall in step, which is what makes it rain rather than
-    // slide down as one block.
-    expect(new Set(speeds).size).toBe(speeds.length);
-  });
-
   it('gives every streak of water a speed of three to five units a tick', () => {
     for (let index = 0; index < WATERFALL.streaks; index += 1) {
       const speed = speedOf(index, WATER_STREAK_SPEED, 0.61);
@@ -190,7 +192,11 @@ describe('the lines the water hides', () => {
     // the font lacks would pass a test on the rows alone while drawing nothing
     // at all. The ink is what says the character can be read, and this is the
     // only guard on the font's coverage of what the manifest writes.
-    const written = [...HW_001_LOGS, ...logLines([]).map((line) => line.text)].join('');
+    const written = [
+      ...PLANTED_BUGS.flatMap((bug) => bug.logs),
+      ...HW_001_LOGS,
+      ...logLines([]).map((line) => line.text),
+    ].join('');
 
     for (const char of new Set(written.replace(/ /g, ''))) {
       const rows = glyphOf(char);
@@ -220,6 +226,123 @@ describe('the lines the water hides', () => {
     // A glyph pixel that is not a texture pixel would be smeared by the
     // nearest-neighbour scale up, and the lines are meant to be read (ADR-003).
     expect(LOG_TEXT.pixel * RENDER_DENSITY).toBe(1);
+  });
+});
+
+describe('the roll the lines come by on', () => {
+  /** Every line the glade's water hides, the chatter and the evidence. */
+  const GLADE_LINES = rollOf(GLADE_FALL, logLines(HW_001_LOGS));
+
+  /** The band of the face a full parting leaves clear of water. */
+  const OPENING = gapOf(GLADE_FALL, 1);
+
+  it('lays each line out as one horizontal row that fits across the water', () => {
+    for (const line of GLADE_LINES) {
+      const x = rowX(GLADE_FALL, line.text);
+
+      expect(rowWidth(line.text), line.text).toBeLessThanOrEqual(GLADE_FALL.w);
+      expect(x, line.text).toBeGreaterThanOrEqual(0);
+      expect(x + rowWidth(line.text), line.text).toBeLessThanOrEqual(GLADE_FALL.w);
+    }
+  });
+
+  it('shows every line of every planted bug whole inside the opening', () => {
+    // The manifest, not a fixture: `bugForRoom` shows the first entry for the
+    // room and fixing that one on main reveals the next (ADR-009), so a line
+    // of any entry can end up on this face. HW-002's are 45 and 48 characters
+    // against the 40 a row holds, and are wrapped onto a second row rather
+    // than cut or set tighter — the whole of a line is drawn either way.
+    for (const bug of PLANTED_BUGS) {
+      for (const text of bug.logs) {
+        const rows = wrapLine(GLADE_FALL, text);
+
+        expect(rows.join(' '), text).toBe(text);
+
+        for (const row of rows) {
+          const x = rowX(GLADE_FALL, row);
+
+          expect(row.length, row).toBeLessThanOrEqual(rowChars(GLADE_FALL));
+          expect(x, row).toBeGreaterThanOrEqual(OPENING.from + LOG_TEXT.margin);
+          expect(x + rowWidth(row), row).toBeLessThanOrEqual(OPENING.to - LOG_TEXT.margin);
+        }
+      }
+    }
+  });
+
+  it('leaves a margin round the 40-character line the ticket sizes it for', () => {
+    // Half a tile of water on each side of a line that long, which is what
+    // the font is sized against. The manifest carries longer lines — 48
+    // characters would take the whole face — and those are wrapped.
+    const margin = TILE / 2;
+    const forty = 'X'.repeat(40);
+
+    expect(rowChars(GLADE_FALL)).toBeGreaterThanOrEqual(40);
+    expect(rowWidth(forty) + 2 * margin).toBeLessThanOrEqual(GLADE_FALL.w);
+    expect(rowX(GLADE_FALL, forty)).toBeGreaterThanOrEqual(margin);
+  });
+
+  it('opens the water wide enough to show the widest line whole', () => {
+    const widest = Math.max(...GLADE_LINES.map((line) => rowWidth(line.text)));
+
+    expect(WATERFALL.openShare * GLADE_FALL.w).toBeGreaterThanOrEqual(widest);
+  });
+
+  it('wraps a line at a word, and a word too long for a row across rows', () => {
+    const limit = rowChars(GLADE_FALL);
+    const sentence = `${'a'.repeat(limit - 2)} tail`;
+
+    expect(wrapLine(GLADE_FALL, sentence)).toEqual(['a'.repeat(limit - 2), 'tail']);
+    expect(wrapLine(GLADE_FALL, 'b'.repeat(limit + 1))).toEqual([
+      'b'.repeat(limit),
+      'b',
+    ]);
+  });
+
+  it('creeps the roll downward, wraps it and lands on whole texture pixels', () => {
+    const count = GLADE_LINES.length;
+    const roll = count * LOG_TEXT.lineStep;
+
+    expect(rowY(0, 100, count) - rowY(0, 0, count)).toBeCloseTo(100 * LOG_FALL_SPEED);
+    expect(rowY(0, roll / LOG_FALL_SPEED, count)).toBe(rowY(0, 0, count));
+
+    for (let tick = 0; tick < 200; tick += 1) {
+      expect(Number.isInteger(rowY(0, tick, count) * RENDER_DENSITY), `tick ${tick}`).toBe(
+        true,
+      );
+    }
+  });
+
+  /** How many rows of a roll stand whole in the band he reads, on a tick. */
+  function wholeInBand(roll: readonly LogLine[], tick: number): number {
+    return roll.filter((_, index) => {
+      const y = rowY(index, tick, roll.length);
+
+      return y >= 0 && y + CELL_H <= LOG_TEXT.band;
+    }).length;
+  }
+
+  it('keeps one or two whole lines standing in the band he reads', () => {
+    // LOG_TEXT.band is how much of the face the view and the bushes in front
+    // leave in sight; a step wider than it would leave the band empty, and
+    // half of it would crowd a third line in.
+    for (let tick = 0; tick < 400; tick += 1) {
+      expect(wholeInBand(GLADE_LINES, tick), `tick ${tick}`).toBeGreaterThanOrEqual(1);
+      expect(wholeInBand(GLADE_LINES, tick), `tick ${tick}`).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('keeps that true of the roll of every bug the manifest can plant here', () => {
+    // Wrapping a long line puts another row on the roll, which is what the
+    // band has to hold one or two of; the step is the same for every roll, so
+    // this holds whichever entry the room's creature is carrying.
+    for (const bug of PLANTED_BUGS) {
+      const roll = rollOf(GLADE_FALL, logLines(bug.logs));
+
+      for (let tick = 0; tick < 400; tick += 1) {
+        expect(wholeInBand(roll, tick), `${bug.id} tick ${tick}`).toBeGreaterThanOrEqual(1);
+        expect(wholeInBand(roll, tick), `${bug.id} tick ${tick}`).toBeLessThanOrEqual(2);
+      }
+    }
   });
 });
 

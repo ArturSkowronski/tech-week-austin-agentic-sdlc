@@ -1,14 +1,18 @@
 // The waterfall, drawn in code rather than out of a sprite
 // (docs/plan/02-design/rendering-and-look.md, the waterfall;
-// docs/plan/02-design/bug-quest.md, evidence): a dark rock face behind the
-// columns of falling log text, and the water on top of both, near opaque until
-// something disturbs it and parted for 150 ticks after.
+// docs/plan/02-design/bug-quest.md, evidence): a dark rock face behind a roll
+// of log lines, and the water on top of both, near opaque until something
+// disturbs it and parted for 150 ticks after. Each line is one horizontal row
+// of glyphs across the face, whole — wrapped at a word onto a second row of
+// the roll if it is longer than the parting can show — and the roll creeps
+// downward the way credits do, so a line that comes by can be read.
 //
 // Everything moves on `state.tick` and on the prop's own `hitTick`, never on
 // wall time and never on `Math.random`, so the same tick always draws the same
 // frame and a replay replays. The prop's `active` flag is no use here: nothing
 // in game/sim/ ever raises it for water, and `hitTick` is the whole record of
-// a touch or a charge hit (game/sim/water.ts, game/sim/charge-hit.ts).
+// a wizard standing near, a touch or a charge hit (game/sim/water.ts,
+// game/sim/charge-hit.ts).
 
 import { Container, Graphics } from 'pixi.js';
 
@@ -33,9 +37,9 @@ const GLYPH_H = 5;
 /**
  * A font drawn in code, three pixels across and five down, one texture pixel
  * each: the smallest character that can still be read at the scales ADR-003
- * allows, and small enough that a whole log line fits down the rock face. Each
- * glyph is its five rows, `#` for an inked pixel, split by slashes so the
- * shape can be seen in the source.
+ * allows, and small enough that a whole log line fits across the rock face.
+ * Each glyph is its five rows, `#` for an inked pixel, split by slashes so
+ * the shape can be seen in the source.
  *
  * Capitals only — five rows have no room for descenders — so a line is drawn
  * upper case whatever case the manifest wrote it in. The space, and any
@@ -127,11 +131,11 @@ export interface LogLine {
   real: boolean;
 }
 
-/** Pixel rows one character cell takes down a column, its row of gap included. */
-const CELL_ROWS = GLYPH_H + 1;
+/** Units one character cell takes across a line, its column of gap included. */
+export const CELL_W = (GLYPH_W + LOG_TEXT.gap) * LOG_TEXT.pixel;
 
-/** Units one character cell takes down a column. */
-const CELL = CELL_ROWS * LOG_TEXT.pixel;
+/** Units a line of glyphs takes down the face. */
+export const CELL_H = GLYPH_H * LOG_TEXT.pixel;
 
 /**
  * The lines the columns cycle through: the bug's own lines spread evenly
@@ -169,9 +173,10 @@ export function spread(index: number, offset = 0): number {
 }
 
 /**
- * A speed between two bounds, this column's own: every column of text and
- * every strand and streak of water falls at its own rate inside the range its
- * kind is given (rendering-and-look.md, the waterfall).
+ * A speed between two bounds, this one's own: every strand and streak of
+ * water falls at its own rate inside the range its kind is given
+ * (rendering-and-look.md, the waterfall). The log text does not use it — the
+ * roll comes down as one piece, at LOG_FALL_SPEED.
  */
 export function speedOf(index: number, bounds: { min: number; max: number }, offset = 0): number {
   return bounds.min + spread(index, offset) * (bounds.max - bounds.min);
@@ -191,7 +196,7 @@ export function fallen(tick: number, speed: number, phase: number, cycle: number
  * while it is closed. A hit opens it at once — a charge through the column is
  * a splash, not a curtain — and it draws back over the last ticks of the 150
  * the hit buys it. Opening over a ramp as well would never finish: the wizard
- * standing in the water is stamped again every tick (game/sim/water.ts), so
+ * standing near the water is stamped again every tick (game/sim/water.ts), so
  * the ramp would restart under him and the logs would stay hidden.
  */
 export function parted(prop: Prop, tick: number): number {
@@ -211,8 +216,9 @@ export function parted(prop: Prop, tick: number): number {
 /**
  * Has the room's evidence been read this run? The log lines stand behind the
  * water and can be read only while it is parted (bug-quest.md, evidence), so
- * the first touch or charge hit on any of the room's waterfalls is what shows
- * them, and the ticket card treats them as read from then on. `hitTick` is
+ * the first time he stands near, touches or charge-hits any of the room's
+ * waterfalls is what shows them, and the ticket card treats them as read from
+ * then on. `hitTick` is
  * that record already: game/sim/ stamps it and never clears it, so only a
  * fresh world takes it back to -1 and starts the run over with the logs unseen.
  */
@@ -241,19 +247,120 @@ export function glyphOf(char: string): readonly string[] {
 }
 
 /**
- * One line of text drawn down a column, a character to a cell, in the colour
- * that says whether it is evidence or chatter. The geometry never changes once
- * it is built, so a column is drawn once and afterwards only moved.
+ * How wide one line is drawn, in world units: a cell for every character, the
+ * last one's column of gap left off so the line is measured by its ink.
  */
-function drawColumn(line: LogLine): Graphics {
+export function rowWidth(text: string): number {
+  return Math.max(text.length * CELL_W - LOG_TEXT.gap * LOG_TEXT.pixel, 0);
+}
+
+/** Where a line starts across a face, in units from its left edge. */
+export function rowX(prop: Prop, text: string): number {
+  return wholePixels((prop.w - rowWidth(text)) / 2);
+}
+
+/**
+ * How wide a parting this far open is, in units, on whole pixels of the
+ * texture: the share of the face {@link WATERFALL.openShare} allows it. This
+ * is what a row of text has to fit inside, so it is also what settles how
+ * long a row may be.
+ */
+function gapWidth(prop: Prop, open: number): number {
+  return wholePixels(open * prop.w * WATERFALL.openShare);
+}
+
+/**
+ * How many characters a row of this face holds: what the parting opens, less
+ * the water a row leaves standing at each end of it. Forty on the glade's
+ * 96-unit column, which is the length the ticket sizes the font for.
+ */
+export function rowChars(prop: Prop): number {
+  const room = gapWidth(prop, 1) - 2 * LOG_TEXT.margin;
+
+  // A row is as wide as its cells less the last one's column of gap, so the
+  // budget is measured with that column handed back.
+  return Math.max(1, Math.floor((room + LOG_TEXT.gap * LOG_TEXT.pixel) / CELL_W));
+}
+
+/**
+ * The rows one line is drawn on: itself, unless it is longer than the parting
+ * can show whole, and then it is wrapped at a word so the whole of it is read
+ * — the roll brings a wrapped tail by right after its head. A word longer
+ * than a row on its own is cut across rows, which no manifest line needs but
+ * which keeps the wrapping total.
+ */
+export function wrapLine(prop: Prop, text: string): readonly string[] {
+  const limit = rowChars(prop);
+
+  if (text.length <= limit) {
+    return [text];
+  }
+
+  const rows: string[] = [];
+  let row = '';
+
+  for (const word of text.split(' ')) {
+    for (let at = 0; at < word.length; at += limit) {
+      const part = word.slice(at, at + limit);
+      const joined = row === '' ? part : `${row} ${part}`;
+
+      if (joined.length <= limit) {
+        row = joined;
+      } else {
+        rows.push(row);
+        row = part;
+      }
+    }
+  }
+
+  rows.push(row);
+
+  return rows;
+}
+
+/**
+ * The roll of a face: every line of it on the rows it takes, each row whole
+ * inside the parting, and a wrapped tail in the colour of the line it came
+ * from so evidence still reads as evidence.
+ */
+export function rollOf(prop: Prop, lines: readonly LogLine[]): readonly LogLine[] {
+  return lines.flatMap((line) =>
+    wrapLine(prop, line.text).map((text) => ({ text, real: line.real })),
+  );
+}
+
+/**
+ * Where line `index` of a roll of `count` stands on this tick, in units down
+ * the face. The whole roll creeps down at one speed and wraps, and a line
+ * later in the list stands above one before it, so a reader watching one spot
+ * of the face is met by the lines in the order the manifest wrote them. A
+ * line starts a cell above the lip, so it wipes in under the mask rather than
+ * appearing whole.
+ */
+export function rowY(index: number, tick: number, count: number): number {
+  const roll = count * LOG_TEXT.lineStep;
+  const down = tick * LOG_FALL_SPEED + (count - index) * LOG_TEXT.lineStep;
+
+  return wholePixels((down % roll) - CELL_H);
+}
+
+/**
+ * One line of text drawn across the face, a character to a cell, centred on
+ * the face and in the colour that says whether it is evidence or chatter. The
+ * geometry never changes once it is built, so a line is drawn once and
+ * afterwards only moved.
+ */
+function drawRow(prop: Prop, line: LogLine): Graphics {
   const text = new Graphics();
   const { pixel } = LOG_TEXT;
+
+  text.x = rowX(prop, line.text);
 
   [...line.text].forEach((char, index) => {
     glyphOf(char).forEach((row, y) => {
       [...row].forEach((ink, x) => {
         if (ink === '#') {
-          text.rect(x * pixel, (index * CELL_ROWS + y) * pixel, pixel, pixel);
+          text.rect(index * CELL_W + x * pixel, y * pixel, pixel, pixel);
         }
       });
     });
@@ -291,11 +398,6 @@ function topOf(what: Falling, prop: Prop, tick: number): number {
   return wholePixels(fallen(tick, what.speed, what.phase, prop.h + what.length) - what.length);
 }
 
-/** One column of falling text, spelling its line downwards. */
-interface Column extends Falling {
-  text: Graphics;
-}
-
 /** One column of falling water: where it stands, and what it is made of. */
 interface Fall extends Falling {
   x: number;
@@ -306,29 +408,9 @@ interface Fall extends Falling {
 /** One waterfall prop on the screen. Built once, then moved and redrawn. */
 interface Face {
   view: Container;
-  columns: Column[];
+  rows: Graphics[];
   falls: Fall[];
   water: Graphics;
-}
-
-/** The text columns of one face, one every `columnStep` units across it. */
-function buildColumns(prop: Prop, lines: readonly LogLine[]): Column[] {
-  const { columnStep, pixel } = LOG_TEXT;
-  const count = Math.max(1, Math.floor(prop.w / columnStep));
-
-  return Array.from({ length: count }, (_, index) => {
-    const line = lines[index % lines.length] ?? { text: '', real: false };
-    const text = drawColumn(line);
-
-    text.x = wholePixels(index * columnStep + (columnStep - GLYPH_W * pixel) / 2);
-
-    return {
-      text,
-      length: line.text.length * CELL,
-      speed: speedOf(index, LOG_FALL_SPEED, SPEED),
-      phase: spread(index, START),
-    };
-  });
 }
 
 /**
@@ -373,7 +455,7 @@ function buildFace(prop: Prop, lines: readonly LogLine[]): Face {
   const inside = new Container();
   // The rock's own outline: the prop's box with its right edge rounded off,
   // the one side of it that stands out of the room's tiles. Everything the
-  // rock carries is cut to it — the lines run longer than the face is tall and
+  // rock carries is cut to it — the roll runs longer than the face is tall and
   // would spill over the plateau above it, and the water would square off the
   // very corner the rock rounds.
   const mask = new Graphics()
@@ -381,26 +463,26 @@ function buildFace(prop: Prop, lines: readonly LogLine[]): Face {
     .rect(0, 0, prop.w - WATERFALL.radius, prop.h)
     .fill(WATERFALL_COLOURS.rock);
   const rock = new Graphics().rect(0, 0, prop.w, prop.h).fill(WATERFALL_COLOURS.rock);
-  const columns = buildColumns(prop, lines);
+  const rows = rollOf(prop, lines).map((line) => drawRow(prop, line));
   const water = new Graphics();
 
-  inside.addChild(rock, ...columns.map((column) => column.text), water);
+  inside.addChild(rock, ...rows, water);
   inside.mask = mask;
   view.addChild(mask, inside);
   view.position.set(prop.x, prop.y);
 
-  return { view, columns, falls: buildFalls(prop), water };
+  return { view, rows, falls: buildFalls(prop), water };
 }
 
 /** The band across the middle of the face a parting has emptied of water. */
-interface Gap {
+export interface Gap {
   from: number;
   to: number;
 }
 
 /** The gap this much of a parting opens, on whole pixels of the texture. */
-function gapOf(prop: Prop, open: number): Gap {
-  const width = wholePixels(open * prop.w * WATERFALL.openShare);
+export function gapOf(prop: Prop, open: number): Gap {
+  const width = gapWidth(prop, open);
   const from = wholePixels((prop.w - width) / 2);
 
   return { from, to: from + width };
@@ -541,9 +623,14 @@ export function createWaterfall(logs: readonly string[]): WaterfallView {
         // A waterfall off screen is not drawn at all: neither its water, which
         // is redrawn every tick, nor its text, which is only moved.
         if (seen) {
-          for (const column of face.columns) {
-            column.text.y = topOf(column, prop, state.tick);
-          }
+          face.rows.forEach((text, index) => {
+            const y = rowY(index, state.tick, face.rows.length);
+
+            // Most of the roll waits off the face, where the mask cuts it;
+            // Pixi batches a masked-out child all the same unless it is told.
+            text.visible = y + CELL_H > 0 && y < prop.h;
+            text.y = y;
+          });
 
           drawWater(face, prop, state.tick, open);
         }

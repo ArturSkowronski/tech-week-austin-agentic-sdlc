@@ -207,8 +207,12 @@ export const TILE_TURN = {
 /** Slowest and fastest water streak, in world units per tick. */
 export const WATER_STREAK_SPEED = { min: 3, max: 5 } as const;
 
-/** Slowest and fastest column of log text behind the water, units per tick. */
-export const LOG_FALL_SPEED = { min: 0.9, max: 1.6 } as const;
+/**
+ * Units a tick the roll of log lines creeps down behind the water. Slow
+ * enough that a line takes four seconds to cross the band below, which is
+ * about what it takes to read one.
+ */
+export const LOG_FALL_SPEED = 0.6;
 
 /** Ticks a hit keeps the water parted. */
 export const WATER_PARTED_TICKS = 150;
@@ -262,8 +266,14 @@ export const WATERFALL = {
   closedAlpha: 0.94,
   /** Ticks the water takes to draw back over the gap at the end of a parting. */
   closeTicks: 12,
-  /** The share of the face a parting opens. */
-  openShare: 0.68,
+  /**
+   * The share of the face a parting opens. Wide enough to show a whole log
+   * row and the margin it is drawn with: a 40-character row is 79.5 of the 96
+   * units and the gap is 84.5, so a narrower one would hide its ends. It is
+   * what settles how long a row may be, and a manifest line longer than that
+   * is wrapped onto the next row rather than cut (LOG_TEXT below).
+   */
+  openShare: 0.88,
   /** Ticks between green flickers, how many of them one lasts, how faint. */
   flickerPeriod: 37,
   flickerTicks: 4,
@@ -273,12 +283,37 @@ export const WATERFALL = {
 } as const;
 
 /**
- * The log text that falls behind the water. A glyph pixel is one pixel of the
+ * The roll of log lines behind the water. A glyph pixel is one pixel of the
  * render texture (ADR-003), which is the smallest the font can be drawn at,
- * and the columns stand this far apart across the face, so the text reads as
- * rain rather than as a wall.
+ * and a character takes its three of them and one more of gap: four pixels,
+ * two world units, so a 40-character row is 79.5 units of the 96 the water
+ * is wide and is drawn with a margin of eight on each side.
+ *
+ * `margin` is the water a row leaves standing at each end of the parting, and
+ * with it the 84.5-unit gap holds 40 characters — the length the ticket sizes
+ * the font for. The manifest carries longer lines than that: HW-002's are 45
+ * and 48 characters, and 48 of them take the whole 96-unit face, so no
+ * parting could show one whole. They are wrapped at a word onto the next row
+ * of the roll instead of being set tighter, because three-pixel glyphs with
+ * no column between them run into each other and stop being letters, and
+ * instead of being cut, because the evidence is there to be read
+ * (bug-quest.md, evidence).
+ *
+ * `band` is how much of a face is really read: the view and the bushes in
+ * front, which are drawn over the actors, leave about this many units of the
+ * glade's column in sight below its lip. `lineStep`, the distance from one
+ * row of the roll to the next, is kept under the band, which is what keeps
+ * one or two rows in sight at a time — a whole row always stands in it, and a
+ * third is never crowded in. The rest of the roll stands below the foot of
+ * the face, where the rock's mask cuts it, until it wraps back above the lip.
  */
-export const LOG_TEXT = { columnStep: 8, pixel: 1 / RENDER_DENSITY } as const;
+export const LOG_TEXT = {
+  pixel: 1 / RENDER_DENSITY,
+  gap: 1,
+  margin: 2,
+  lineStep: 56,
+  band: 60,
+} as const;
 
 /**
  * Frames per second each wizard strip plays at. The run's ten and the

@@ -87,6 +87,14 @@ export const WATER_PULL = 160;
 /** What one tick in water leaves of his horizontal speed. */
 export const WATER_DRAG = 0.85;
 
+/**
+ * How near the water he has to stand for it to part for him, in world units:
+ * a tile and a half, measured across from the column. Standing beside a
+ * waterfall is enough to read what falls behind it (bug-quest.md, evidence),
+ * so the reveal is not only the touch that would drown him.
+ */
+export const WATER_NEAR = 1.5 * TILE;
+
 /** Ticks each pose of the victory cast holds, ten of them a second. */
 export const VICTORY_CAST_FRAME_TICKS = 6;
 

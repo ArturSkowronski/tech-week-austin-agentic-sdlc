@@ -64,7 +64,7 @@ The symptom is the defect itself: the creature does nothing but set a flag the b
 
 ## Evidence
 
-The waterfall carries the live bug's log lines, drawn behind the water and readable only while the water is parted: disturbed by touch or a charge hit, it stays parted 150 ticks. Fictional flavour lines and real evidence are visibly distinct; only the manifest's lines are real.
+The waterfall carries the live bug's log lines, each drawn behind the water as one whole horizontal line and readable only while the water is parted: it parts while the wizard stands within a tile and a half of the column, and a touch or a charge hit parts it too, for 150 ticks after the last disturbance. Standing beside the water is therefore enough to read it, and it parts again whenever he comes back. Fictional flavour lines and real evidence are visibly distinct; only the manifest's lines are real.
 
 ## The ticket card
 
