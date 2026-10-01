@@ -1,4 +1,4 @@
-// The line in the corner: which room this is, and, behind F1, what the
+// The line in the corner: nothing at all during a run, and behind F1 what the
 // simulation is doing (docs/plan/02-design/rendering-and-look.md, UI).
 
 import { Container } from 'pixi.js';
@@ -8,16 +8,17 @@ import { UI_COLOURS, UI_SIZES } from './config';
 import { createText, textReport, uiScale } from './panel';
 
 /**
- * The HUD's line: the room's name, and behind F1 the labels a run is read
- * with — the player's state and its timer, the tick, and the deaths so far.
- * Every one of them comes off the state, so the line replays with the run.
+ * The HUD's line: empty while the run is simply played, and behind F1 the
+ * labels a run is read with — which room the trace came from, the player's
+ * state and its timer, the position, the tick, and the deaths so far. Every
+ * one of them comes off the state, so the line replays with the run.
  */
 export function hudLine(state: WorldState, debug: boolean): string {
-  const { player } = state;
-
   if (!debug) {
-    return state.roomName;
+    return '';
   }
+
+  const { player } = state;
 
   return [
     state.roomName,
@@ -61,6 +62,9 @@ export function createHud(): Hud {
 
     update(state: WorldState, debug: boolean): void {
       line.text = hudLine(state, debug);
+      // A line with nothing to say leaves the screen rather than standing in
+      // the corner as an empty text object.
+      line.visible = line.text !== '';
     },
   };
 }

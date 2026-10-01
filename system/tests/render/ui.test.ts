@@ -104,10 +104,10 @@ describe('the completion banner', () => {
 });
 
 describe('the HUD line', () => {
-  it('is the room name, and behind F1 the state the run is in', () => {
+  it('is empty, and behind F1 the room and the state the run is in', () => {
     const world = worldFrom(ROOM, { roomName: 'forest-glade' });
 
-    expect(hudLine(world, false)).toBe('forest-glade');
+    expect(hudLine(world, false)).toBe('');
 
     const debug = hudLine(world, true);
 

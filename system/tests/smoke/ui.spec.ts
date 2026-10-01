@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
-import { TICKET_DISMISS_TICKS, UI_SIZES, VIEW_H, VIEW_W } from '../../game/render/config';
+import { TICKET_DISMISS_TICKS, UI_COLOURS, UI_SIZES, VIEW_H, VIEW_W } from '../../game/render/config';
 import { VICTORY_CAST_HIT_TICKS } from '../../game/sim/index';
 
 /**
@@ -93,7 +93,16 @@ for (const { width, height, scale } of WINDOWS) {
       window.wizard.start();
     });
 
+    // The HUD's line is read behind F1, because that is the only time it is
+    // on the screen: outside F1 it has nothing to say and hides itself.
+    await page.keyboard.press('F1');
+    await settle(page);
     await expect(canvas).toHaveAttribute('data-ui-text', `${UI_SIZES.body * scale}px scale 1`);
+
+    // And back off it, so the lines below are read off the frame a player is
+    // shown rather than one carrying the debug line and the debug drawing.
+    await page.keyboard.press('F1');
+    await settle(page);
 
     // And the card's own lines, which the HUD's size says nothing about: a
     // dropped `* scale` in panel.ts or title.ts would leave the HUD green.
@@ -102,6 +111,71 @@ for (const { width, height, scale } of WINDOWS) {
     await expect(canvas).toHaveAttribute('data-ui-card-text', `${UI_SIZES.body * scale}px scale 1`);
   });
 }
+
+/** The window the owner played at when he asked for the name to go. */
+const CORNER_WINDOW = { width: 1280, height: 720 };
+
+/** The box the room's name stood in, in window pixels of that window. */
+const CORNER = { left: 0, top: 0, width: 300, height: 60 };
+
+/** How far off the UI's own gold a pixel may be, per channel, and still be it. */
+const HUD_TOLERANCE = 12;
+
+/**
+ * The HUD's colour, taken apart from the one place it is written down
+ * (AGENTS.md rule 9) rather than copied into this file as three numbers.
+ */
+const HUD_R = (UI_COLOURS.dim >> 16) & 0xff;
+const HUD_G = (UI_COLOURS.dim >> 8) & 0xff;
+const HUD_B = UI_COLOURS.dim & 0xff;
+
+/**
+ * The pixels of the HUD's gold in the top-left corner of the drawn frame. The
+ * claim is made against the frame rather than against the text object, because
+ * what the owner saw and asked to be rid of is the drawing.
+ */
+async function goldInTheCorner(page: Page): Promise<number> {
+  const corner = await sharp(await page.screenshot())
+    .extract(CORNER)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let gold = 0;
+
+  for (let at = 0; at < corner.data.length; at += corner.info.channels) {
+    const off = Math.max(
+      Math.abs((corner.data[at] ?? 0) - HUD_R),
+      Math.abs((corner.data[at + 1] ?? 0) - HUD_G),
+      Math.abs((corner.data[at + 2] ?? 0) - HUD_B),
+    );
+
+    if (off <= HUD_TOLERANCE) gold += 1;
+  }
+
+  return gold;
+}
+
+// The line HWP-095 is judged by: a run at 1280 by 720 shows nothing in the
+// top-left corner, where the room's name used to stand for the whole run.
+// Pressing F1 is the control — it proves the box and the colour are the ones
+// the line is really drawn in, so the empty half cannot pass by looking at the
+// wrong place. Measured here rather than in tests/render/ui.test.ts because
+// only a real canvas can say what was drawn.
+test('a run leaves the top-left corner empty, and F1 writes the line into it', async ({ page }) => {
+  await page.setViewportSize(CORNER_WINDOW);
+  await open(page);
+  await page.evaluate(() => {
+    window.wizard.start();
+  });
+  await settle(page);
+
+  expect(await goldInTheCorner(page)).toBe(0);
+
+  await page.keyboard.press('F1');
+  await settle(page);
+
+  expect(await goldInTheCorner(page)).toBeGreaterThan(0);
+});
 
 test('the card cannot be waved away before three seconds and can after', async ({ page }) => {
   await open(page);
