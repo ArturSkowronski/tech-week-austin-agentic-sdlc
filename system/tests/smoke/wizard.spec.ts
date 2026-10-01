@@ -9,9 +9,20 @@ import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
+import forestGlade from '../../game/content/rooms/forest-glade';
 import { VIEW_H, VIEW_W, WAND_LIGHT } from '../../game/render/config';
 import type { PoseStripEntry } from '../../game/render/sprites';
-import { LONG_FALL_TICKS, type InputFrame, type PlayerState, type Vec2 } from '../../game/sim/index';
+import {
+  LONG_FALL_TICKS,
+  PLAYER_HEIGHT,
+  PLAYER_WIDTH,
+  WATER_NEAR,
+  parseRoom,
+  type InputFrame,
+  type PlayerState,
+  type Prop,
+  type Vec2,
+} from '../../game/sim/index';
 
 import { wizardFrame, type Drawn } from './wizard-frame';
 
@@ -50,11 +61,17 @@ async function open(page: Page, paused: boolean): Promise<void> {
   await drawn(page);
 }
 
+/** One stretch of a replay: the frame held, and how many ticks it is held for. */
+interface Step {
+  ticks: number;
+  input: Partial<InputFrame>;
+}
+
 /**
  * A run that puts him through most of the state table: a walk, a jump and the
  * fall out of it, a stand, a wand charge and the cooldown after it.
  */
-const SCRIPT: readonly { ticks: number; input: Partial<InputFrame> }[] = [
+const SCRIPT: readonly Step[] = [
   { ticks: 20, input: { right: true } },
   { ticks: 25, input: { right: true, jump: true } },
   { ticks: 25, input: { right: true } },
@@ -63,32 +80,47 @@ const SCRIPT: readonly { ticks: number; input: Partial<InputFrame> }[] = [
   { ticks: 30, input: {} },
 ];
 
-/** The frame drawn after every tick of the script, from a fresh run. */
-function replay(page: Page): Promise<string[]> {
-  return page.evaluate((script) => {
-    window.wizard.reset();
+/**
+ * The frame drawn after every tick of the script, from a fresh run. `from`
+ * starts it somewhere other than the spawn, with two ticks to come to rest on
+ * the ground under him first, so what follows is played from standing.
+ */
+function replay(page: Page, script: readonly Step[], from?: Vec2): Promise<string[]> {
+  return page.evaluate(
+    (play) => {
+      window.wizard.reset();
 
-    const frames: string[] = [];
+      if (play.from !== null) {
+        const { player } = window.wizard.state();
 
-    for (const step of script) {
-      for (let tick = 0; tick < step.ticks; tick += 1) {
-        window.wizard.step(1, step.input);
-
-        const { sheet, frame } = window.wizard.debug;
-
-        frames.push(`${sheet}:${frame}`);
+        player.x = play.from.x;
+        player.y = play.from.y;
+        window.wizard.step(2);
       }
-    }
 
-    return frames;
-  }, SCRIPT);
+      const frames: string[] = [];
+
+      for (const step of play.script) {
+        for (let tick = 0; tick < step.ticks; tick += 1) {
+          window.wizard.step(1, step.input);
+
+          const { sheet, frame } = window.wizard.debug;
+
+          frames.push(`${sheet}:${frame}`);
+        }
+      }
+
+      return frames;
+    },
+    { script, from: from ?? null },
+  );
 }
 
 test('a replay stepped twice draws the very same frames', async ({ page }) => {
   await open(page, true);
 
-  const once = await replay(page);
-  const twice = await replay(page);
+  const once = await replay(page, SCRIPT);
+  const twice = await replay(page, SCRIPT);
 
   expect(twice).toEqual(once);
 
@@ -96,6 +128,45 @@ test('a replay stepped twice draws the very same frames', async ({ page }) => {
   // visits several strips and a good spread of the cells in them.
   expect(new Set(once.map((frame) => frame.split(':')[0])).size).toBeGreaterThan(2);
   expect(new Set(once).size).toBeGreaterThan(6);
+});
+
+/**
+ * The glade's waterfall. Its lip is the plateau's right edge at the plateau's
+ * own height, so this one prop gives both the ground a hop is made on and the
+ * charge gap a drop goes down (level-design.md, the six-tile charge gap).
+ */
+const GLADE_FALL = parseRoom(forestGlade).props.find((prop) => prop.kind === 'waterfall') as Prop;
+
+/**
+ * Where he is put on the plateau: feet on its surface, and clear of the water
+ * by its whole reach, so the column neither parts under him nor takes the hop
+ * away (game/sim/constants.ts, `WATER_NEAR`).
+ */
+const ON_THE_PLATEAU = {
+  x: GLADE_FALL.x - WATER_NEAR - PLAYER_WIDTH,
+  y: GLADE_FALL.y - PLAYER_HEIGHT,
+} as const;
+
+test('a hop on the plateau stays on the jump sheet, and the drop beside it does not', async ({
+  page,
+}) => {
+  await open(page, true);
+
+  // He is put on the plateau rather than played onto it — that is a walk and
+  // two climbs from the spawn — the way tests/smoke/waterfall.spec.ts puts him
+  // beside the water. The hop and the drop themselves are played, and they are
+  // what is under test. Sixty ticks is a whole hop, and a long drop.
+  const hop = await replay(page, [{ ticks: 60, input: { jump: true } }], ON_THE_PLATEAU);
+  const drop = await replay(page, [{ ticks: 60, input: { right: true } }], ON_THE_PLATEAU);
+
+  // Coming down from his own jump is the jump sheet's air down, all the way to
+  // the take-off height the hop started from: the fall sheet never shows.
+  expect(hop).toContain('jump:4');
+  expect(hop.filter((frame) => frame.startsWith('fall:'))).toEqual([]);
+
+  // Walking off the plateau's right edge drops him down the charge gap, which
+  // is further than he ever jumped, and that is what the fall sheet is for.
+  expect(drop.some((frame) => frame.startsWith('fall:'))).toBe(true);
 });
 
 /**
@@ -117,6 +188,10 @@ async function pose(
       player.stateTimer = stand.stateTimer;
       player.fellFor = stand.fellFor;
       player.facing = stand.facing;
+      // Below the height he left the ground from, so a `fall` state posed here
+      // is a drop and draws the fall sheet; the jump sheet's own air down is
+      // the hop's, and the replay above is where that one is read.
+      player.leftGroundY = player.y - 1;
     },
     { state, ...at },
   );

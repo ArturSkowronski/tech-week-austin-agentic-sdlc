@@ -17,8 +17,8 @@ Cell 32 by 32 units (64 px at 2x), drawn roughly 24 by 30. All frames face right
 |---|---|---|---|
 | idle | 4 | breathing, hat brim tilts, crystal sparks on frame 3 | density 2 from the 1x raw, `wizard-idle.png` |
 | run | 8 at 10 fps | walk cycle, wand held forward | density 2 from the 1x raw, `wizard-walk.png` |
-| jump | 2 | take-off for four ticks, then air up; the sheet has seven poses: idle, squash, take-off, air up, air down, landing, recovery | density 2 from the 1x raw, `wizard-jump.png` |
-| fall | 1 + 3 | air down from the jump sheet; after 20 ticks three flailing poses | density 2 from the 1x raw, `wizard-fall.png`, 40-unit cells |
+| jump | 3 | take-off for four ticks, then air up, then air down for the descent of the hop; the sheet has seven poses: idle, squash, take-off, air up, air down, landing, recovery | density 2 from the 1x raw, `wizard-jump.png` |
+| fall | 1 + 3 | air down, drawn only once he is below the height he left the ground from — the descent of his own hop keeps the jump sheet's air down; after 20 ticks three flailing poses | density 2 from the 1x raw, `wizard-fall.png`, 40-unit cells |
 | charge | 5 at 15 fps | astride the wand, legs trailing, spark trail behind the crystal; frame 1 is held for the 2-tick wind-up, frames 2 to 5 loop. The 1x sheet has no upright wind-up pose; the 2x regeneration may add one as frame 1, the renderer's logic is the same | density 2 from the 1x raw, `wizard-charge.png` |
 | chargeRecoil | 1 | bounced back off a wall, hat over the eyes | not drawn; borrows the first charge frame, which passes for its 3 ticks |
 | land | 2 + 1 | landing and recovery from the jump sheet; hard landing with dust from the fall sheet | density 2 from the 1x raw |

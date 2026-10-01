@@ -35,7 +35,7 @@ JSON-serialisable. Fields, all required:
 | `tick` | ticks since the run started |
 | `seed`, `rng` | seed and current generator word |
 | `room` | `{ width, height, tiles: Uint8Array, spawn }`, tiles in row-major order |
-| `player` | position (top-left of the hitbox), velocity, facing, `state`, `stateTimer`, `onGround`, `coyote`, `jumpBuffer`, `jumpHeld`, `chargeCooldown`, `invuln`, `fellFor`, `checkpoint` |
+| `player` | position (top-left of the hitbox), velocity, facing, `state`, `stateTimer`, `onGround`, `coyote`, `jumpBuffer`, `jumpHeld`, `chargeCooldown`, `invuln`, `fellFor`, `leftGroundY`, `checkpoint` |
 | `props` | `{ id, kind, x, y, w, h, hitTick, active }` for every prop in the room |
 | `creature` | `{ at, travelTo, travelUntil, carriedSince, firstCarried }`, see [bug quest](bug-quest.md) |
 | `deaths` | count |

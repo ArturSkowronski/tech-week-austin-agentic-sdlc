@@ -81,6 +81,8 @@ export interface Player {
   invuln: number;
   /** Ticks spent falling; the long fall threshold reads this. */
   fellFor: number;
+  /** The `y` of the ground he last stood on; a drop past it is a fall, not a hop. */
+  leftGroundY: number;
   /** Where a death respawns the wizard: the last raised flag, or the spawn. */
   checkpoint: Vec2;
 }
@@ -275,6 +277,7 @@ export function createWorld(roomText: string, options: CreateWorldOptions = {}):
       chargeCooldown: 0,
       invuln: 0,
       fellFor: 0,
+      leftGroundY: spawn.y,
       checkpoint: { x: spawn.x, y: spawn.y },
     },
     props,

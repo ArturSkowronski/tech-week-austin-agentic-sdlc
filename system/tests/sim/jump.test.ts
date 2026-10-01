@@ -3,7 +3,13 @@
 // nothing here bounces and nothing charges a jump (ADR-002).
 
 import { describe, expect, it } from 'vitest';
-import { COYOTE_TICKS, JUMP_BUFFER_TICKS, NO_INPUT, tick } from '../../game/sim/index';
+import {
+  COYOTE_TICKS,
+  JUMP_BUFFER_TICKS,
+  LONG_FALL_TICKS,
+  NO_INPUT,
+  tick,
+} from '../../game/sim/index';
 import type { InputFrame, PlayerState, WorldState } from '../../game/sim/index';
 import { hold, run, worldFrom } from './helpers';
 
@@ -123,5 +129,25 @@ describe('the jump buffer', () => {
   it('fires a press made up to JUMP_BUFFER_TICKS ticks early on the landing tick', () => {
     expect(jumpBeforeLanding(JUMP_BUFFER_TICKS - 1)).toBe('jump');
     expect(jumpBeforeLanding(JUMP_BUFFER_TICKS)).toBe('land');
+  });
+});
+
+describe('the take-off height', () => {
+  it('is kept for the whole jump, so the descent knows it is a hop', () => {
+    const world = standing(FLAT);
+    const takeOff = world.player.y;
+
+    for (const frame of hold({ jump: true }, 60)) {
+      tick(world, frame);
+      expect(world.player.leftGroundY).toBe(takeOff);
+      // The height test only reaches the sheet while the drop is a short one:
+      // past LONG_FALL_TICKS the flail is drawn from the fall sheet whatever
+      // the height. His own hop has to stay under that threshold, or the bug
+      // this ticket fixes comes back on the tallest jump. The margin is one
+      // tick today, so pin it here rather than let it close in silence.
+      expect(world.player.fellFor).toBeLessThan(LONG_FALL_TICKS);
+    }
+
+    expect(world.player.onGround).toBe(true);
   });
 });

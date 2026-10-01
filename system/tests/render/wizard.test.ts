@@ -24,6 +24,9 @@ import {
 /** The strips the kit writes today (asset-list.md, wizard table). */
 const CELLS: Cells = { idle: 4, run: 8, jump: 7, fall: 4, charge: 5, victory: 8 };
 
+/** A height to drop from. Any would do; only which side of it he is on counts. */
+const TAKE_OFF_Y = 100;
+
 /** A player standing in one state, with everything else at its fresh value. */
 function standing(state: PlayerState, at: Partial<Player> = {}): Player {
   return { ...createWorld('#').player, state, ...at };
@@ -67,9 +70,22 @@ describe('the frame a state shows', () => {
     ]);
   });
 
+  it('comes down from a hop on the jump sheet and drops past it on the fall one', () => {
+    // Height alone tells the two apart: the same state at the same tick of the
+    // same drop, read from above the height he left the ground from and from
+    // below it. Level with it is the end of the hop, not the start of a fall.
+    const comingDown = (below: number): string =>
+      shown(standing('fall', { fellFor: 3, y: TAKE_OFF_Y + below, leftGroundY: TAKE_OFF_Y }));
+
+    expect(comingDown(-1)).toBe('jump:4');
+    expect(comingDown(0)).toBe('jump:4');
+    expect(comingDown(1)).toBe('fall:0');
+  });
+
   it('falls on one pose until twenty ticks, then flails through the other three', () => {
-    const short = standing('fall', { fellFor: LONG_FALL_TICKS - 1, stateTimer: 99 });
-    const long = (fellFor: number): string => shown(standing('fall', { fellFor }));
+    const dropping = { y: TAKE_OFF_Y + 1, leftGroundY: TAKE_OFF_Y };
+    const short = standing('fall', { ...dropping, fellFor: LONG_FALL_TICKS - 1, stateTimer: 99 });
+    const long = (fellFor: number): string => shown(standing('fall', { ...dropping, fellFor }));
 
     expect(shown(short)).toBe('fall:0');
     expect(long(LONG_FALL_TICKS)).toBe('fall:1');
@@ -157,9 +173,29 @@ describe('reading the same state twice', () => {
     expect(new Set(poses.map((pose) => `${pose.sheet}:${pose.frame}`)).size).toBeGreaterThan(10);
   });
 
-  it('reads nothing but the four fields the animation is a function of', () => {
-    const one = standing('run', { stateTimer: 7, fellFor: 3, facing: 1, x: 0, vx: 0 });
-    const other = standing('run', { stateTimer: 7, fellFor: 3, facing: -1, x: 400, vx: 110 });
+  it('reads nothing but the fields the animation is a function of', () => {
+    // The two heights are the pair that does move the pose in `fall`: one
+    // above the ground he left and one below it. Outside `fall` neither the
+    // height nor the ground he left from is part of the animation, so the
+    // same tick of the same state has to draw the same frame at both.
+    const one = standing('run', {
+      stateTimer: 7,
+      fellFor: 3,
+      facing: 1,
+      x: 0,
+      vx: 0,
+      y: TAKE_OFF_Y - 40,
+      leftGroundY: TAKE_OFF_Y,
+    });
+    const other = standing('run', {
+      stateTimer: 7,
+      fellFor: 3,
+      facing: -1,
+      x: 400,
+      vx: 110,
+      y: TAKE_OFF_Y + 40,
+      leftGroundY: TAKE_OFF_Y,
+    });
 
     expect(poseFor(other, CELLS)).toEqual(poseFor(one, CELLS));
   });

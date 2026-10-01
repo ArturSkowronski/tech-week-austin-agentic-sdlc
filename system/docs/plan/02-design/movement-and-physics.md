@@ -58,6 +58,7 @@ Transitions are a table in `game/sim/player.ts` so a reviewer can read them:
 | charge | hitbox meets a solid tile | chargeRecoil |
 | chargeRecoil | 3 ticks | idle or fall |
 | fall | touches ground | land |
+| fall | sinks below the height he left the ground from | fall — the art changes sheet, from the jump sheet's air down to the fall sheet's ([asset list](../03-assets/asset-list.md)) |
 | land | 4 ticks, or any movement input | idle or run |
 | any except victory | spikes, water bottom, or falls out of the room | hurt, then respawn at the checkpoint |
 | any | touches the room's beacon | victory: the cast plays once and the beacon lights on its beam frame ([level design](level-design.md)) |
@@ -105,8 +106,8 @@ One file per rule group under `tests/sim/`, using a helper that builds a world f
 |---|---|
 | `world.test.ts` | same inputs and seed give identical state after 600 ticks; parser places spawn and props; spikes and out-of-room kill; a death after raising a flag respawns at the checkpoint, not the spawn (the respawn position to the unit is asserted only by the paired test of HW-002) |
 | `physics.test.ts` | swept X then Y; one-way from above only; half-height surface; ceiling bump |
-| `jump.test.ts` | jump height about three and a third tiles held, shorter when cut; coyote within 6 ticks; buffer lands and jumps |
-| `fall.test.ts` | long-fall threshold; landing pose selection value |
+| `jump.test.ts` | jump height about three and a third tiles held, shorter when cut; coyote within 6 ticks; buffer lands and jumps; the take-off height is kept for the whole jump |
+| `fall.test.ts` | long-fall threshold; landing pose selection value; a walk off a ledge records the ledge as the height the drop began at |
 | `charge.test.ts` | wind-up, distance, gravity off, wall recoil, cooldown, hitbox hits props; a charge into a wall three tiles thick recoils; the one-tile wall was reserved for the paired test of HW-003, dropped with the cliff ruins (ADR-009), and HWP-084 asserts it here |
 | `oneway-half.test.ts` | the `=` tile |
 | `water.test.ts` | pull, drag, no jump, charge ended, death at the bottom, reveal stamp |

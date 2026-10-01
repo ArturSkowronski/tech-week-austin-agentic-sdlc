@@ -1,8 +1,8 @@
 // The wizard on screen (docs/plan/02-design/rendering-and-look.md, Sprites;
 // docs/plan/03-assets/asset-list.md, wizard). Which cell of which strip he
-// shows is a pure function of his state, the ticks he has spent in it and the
-// ticks he has been falling — never of wall time — so a replay draws the same
-// frames twice.
+// shows is a pure function of his state, the ticks he has spent in it, the
+// ticks he has been falling and how far below his take-off height the drop has
+// carried him — never of wall time — so a replay draws the same frames twice.
 //
 // The crystal is the wizard's light (art-direction.md). The kit records where
 // it is drawn in every cell, and the additive glow hangs on that point, so it
@@ -88,7 +88,7 @@ export interface WizardFrame extends Pose {
  * are about the drop that just ended, not about the state that follows it.
  */
 export function poseFor(player: Player, cells: Cells): Pose {
-  const { fellFor, state, stateTimer } = player;
+  const { fellFor, leftGroundY, state, stateTimer, y } = player;
 
   switch (state) {
     case 'run':
@@ -98,14 +98,22 @@ export function poseFor(player: Player, cells: Cells): Pose {
       return { sheet: 'jump', frame: stateTimer < TAKE_OFF_TICKS ? JUMP.takeOff : JUMP.airUp };
 
     case 'fall':
-      // He sinks on the air-down pose, and flails once the drop is a long one.
-      return {
-        sheet: 'fall',
-        frame:
-          fellFor < LONG_FALL_TICKS
-            ? FALL_AIR_DOWN
-            : cycle(fellFor - LONG_FALL_TICKS, WIZARD_FPS.flail, cells.fall, FALL_AIR_DOWN + 1),
-      };
+      // He sinks on an air-down pose, and flails once the drop is a long one.
+      // Which sheet's air-down is how far the drop has taken him: down to the
+      // ground he left he is finishing his own hop, and the jump sheet draws
+      // that; below it he is falling further than he jumped, which is what the
+      // fall sheet is for (asset-list.md, fall). Level with it he is back at
+      // the surface he left, so that is still the hop.
+      if (fellFor >= LONG_FALL_TICKS) {
+        return {
+          sheet: 'fall',
+          frame: cycle(fellFor - LONG_FALL_TICKS, WIZARD_FPS.flail, cells.fall, FALL_AIR_DOWN + 1),
+        };
+      }
+
+      return y <= leftGroundY
+        ? { sheet: 'jump', frame: JUMP.airDown }
+        : { sheet: 'fall', frame: FALL_AIR_DOWN };
 
     case 'land':
       // A long drop lands hard, in the dust of the fall sheet's last pose;

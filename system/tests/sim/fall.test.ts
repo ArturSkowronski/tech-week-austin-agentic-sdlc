@@ -36,13 +36,18 @@ function standing(map: string): WorldState {
   return run(worldFrom(map), hold({}, 1));
 }
 
+/** Walk him right until the ground runs out; the world is left on that tick. */
+function walkOff(world: WorldState): WorldState {
+  while (world.player.onGround) {
+    tick(world, RIGHT);
+  }
+
+  return world;
+}
+
 describe('a long fall', () => {
   it('is what a drop of four tiles counts as', () => {
-    const world = standing(FOUR_TILE_DROP);
-
-    while (world.player.onGround) {
-      tick(world, RIGHT);
-    }
+    const world = walkOff(standing(FOUR_TILE_DROP));
 
     while (!world.player.onGround) {
       tick(world, NO_INPUT);
@@ -63,5 +68,17 @@ describe('a long fall', () => {
 
     expect(longest).toBeGreaterThan(0);
     expect(longest).toBeLessThan(LONG_FALL_TICKS);
+  });
+});
+
+describe('the height a drop began at', () => {
+  it('is the ledge he walked off, not the fraction gravity had sunk him by', () => {
+    const world = standing(FOUR_TILE_DROP);
+    const ledge = world.player.y;
+
+    walkOff(world);
+
+    expect(world.player.onGround).toBe(false);
+    expect(world.player.leftGroundY).toBe(ledge);
   });
 });

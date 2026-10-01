@@ -257,6 +257,14 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
 
   move(state.room, player);
 
+  // The ground under him, kept while he is on it rather than taken on the
+  // edge he leaves it: a standing invariant needs no second site for the jump
+  // and no backing out of the fraction of a unit gravity sank him before the
+  // step off a ledge, and it heals itself after a respawn puts him elsewhere.
+  if (player.onGround) {
+    player.leftGroundY = player.y;
+  }
+
   // `fellFor` measures one drop: it restarts when he leaves the ground, and
   // counts every tick he sank while off the ground at either end of it, so the
   // step off the ledge and the landing tick are both part of the fall.
