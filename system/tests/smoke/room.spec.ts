@@ -112,66 +112,54 @@ test('the glade, which has no painting, is drawn out of the atlas throughout', a
 });
 
 /**
- * A cell of the plateau to stand the wizard on, so the camera carries the
- * stretch of ground the owner's report named into the middle of the frame.
- * The plateau runs from column 20 to column 32 with its surface at row 13;
- * the view is twenty columns wide, so standing at 26 shows all of it.
+ * The stretches of ground the owner's report asks to be looked at, and the
+ * cell to stand the wizard on so the camera carries each into the middle of
+ * the frame. The view is twenty columns wide. The plateau runs from column
+ * 20 to column 32 with its surface at row 13, so standing at 26 shows all of
+ * it and standing at 21 shows its left face — the open side, with ground on
+ * either side of the cut. The beacon tower runs from column 64 to column 71
+ * with its surface at row 12 and seven rows of stone under the earth, so
+ * standing at 67 carries its whole block of stone in.
+ *
+ * Which tile each cell shows, and which way round, is asserted cell by cell
+ * in tests/render/tiles.test.ts. These are the acceptance lines that ask for
+ * the ground itself to be looked at: the plateau interior the report called
+ * wallpaper, the fringe running down the face from the corner piece to the
+ * stone edge, and the tower's moss as the odd block rather than a band.
  */
-const PLATEAU = { x: 26, y: 13 };
+const FRAMES = [
+  {
+    title: 'the plateau interior, which the report called wallpaper, is drawn turned',
+    cell: { x: 26, y: 13 },
+    shot: 'forest-glade-plateau.png',
+  },
+  {
+    title: 'the left face of the plateau is fringed from the grass down to the stone',
+    cell: { x: 21, y: 13 },
+    shot: 'forest-glade-plateau-face.png',
+  },
+  {
+    title: 'the beacon tower shows its mossy blocks as the odd block, not as a band',
+    cell: { x: 67, y: 12 },
+    shot: 'forest-glade-tower.png',
+  },
+] as const;
 
-test('the plateau interior, which the report called wallpaper, is drawn turned', async ({
-  page,
-}, run: TestInfo) => {
-  test.slow();
-  await open(page, 'forest-glade');
+for (const { title, cell, shot } of FRAMES) {
+  test(title, async ({ page }, run: TestInfo) => {
+    test.slow();
+    await open(page, 'forest-glade');
 
-  const spawn = await room(page);
+    const spawn = await room(page);
 
-  await stand(page, PLATEAU);
+    await stand(page, cell);
 
-  // Which way round a cell is drawn is a function of the cell's own position
-  // and is asserted on cell by cell in tests/render/tiles.test.ts; what this
-  // frame is for is the acceptance line that asks for the plateau to be
-  // looked at. Moving the camera must not change which cells were drawn, and
-  // the room layer is built once per room, so the report is the spawn's.
-  expect(await room(page)).toEqual(spawn);
-  await run.attach('forest-glade-plateau.png', {
-    body: await page.screenshot(),
-    contentType: 'image/png',
+    // Moving the camera must not change which cells were drawn, and the room
+    // layer is built once per room, so the report is still the spawn's.
+    expect(await room(page)).toEqual(spawn);
+    await run.attach(shot, { body: await page.screenshot(), contentType: 'image/png' });
   });
-});
-
-/**
- * A cell of the plateau beside its left face, the open side the owner's
- * report named: the ground is cut off down column 20 from the surface to the
- * room's floor, so standing him one column in carries that whole face into
- * the frame with ground on either side of it.
- */
-const PLATEAU_FACE = { x: 21, y: 13 };
-
-test('the left face of the plateau is fringed from the grass down to the stone', async ({
-  page,
-}, run: TestInfo) => {
-  test.slow();
-  await open(page, 'forest-glade');
-
-  const spawn = await room(page);
-
-  await stand(page, PLATEAU_FACE);
-
-  // Which tile each cell of that face shows, and which way round, is asserted
-  // cell by cell in tests/render/tiles.test.ts. This frame is the acceptance
-  // line that asks for the face to be looked at: the corner piece at the top,
-  // the two earth rows carrying the same fringe turned to face left, and the
-  // stone edge under them. Moving the camera must not change which cells were
-  // drawn, and the room layer is built once per room, so the report is the
-  // spawn's.
-  expect(await room(page)).toEqual(spawn);
-  await run.attach('forest-glade-plateau-face.png', {
-    body: await page.screenshot(),
-    contentType: 'image/png',
-  });
-});
+}
 
 test('a ?room= that names no room falls back to the glade', async ({ page }) => {
   // The retired ruin gate, which ADR-009 took out of game/content/rooms/: the

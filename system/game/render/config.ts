@@ -169,8 +169,13 @@ export const DEBUG_TILE_ALPHA = 0.5;
  * drawn mossy (rendering-and-look.md, tiles). game/render/tiles.ts picks which
  * ones by a hash of the tile's position, so the shares are how much of the
  * ground carries them, not a chance rolled per frame.
+ *
+ * A twelfth of each, so that both read as the occasional feature of ground
+ * rather than as its pattern: a quarter and a fifth put roots and moss in
+ * touching cells all down the plateau and the beacon tower, which the owner
+ * read as paving rather than as ground (HWP-094).
  */
-export const TILE_SCATTER = { roots: 0.25, moss: 0.2 } as const;
+export const TILE_SCATTER = { roots: 0.08, moss: 0.08 } as const;
 
 /**
  * How far round a cell of each tile may be turned from the way the atlas drew
