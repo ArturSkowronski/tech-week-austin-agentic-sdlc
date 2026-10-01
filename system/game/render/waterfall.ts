@@ -1,11 +1,19 @@
 // The waterfall, drawn in code rather than out of a sprite
 // (docs/plan/02-design/rendering-and-look.md, the waterfall;
-// docs/plan/02-design/bug-quest.md, evidence): a dark rock face behind a roll
-// of log lines, and the water on top of both, near opaque until something
+// docs/plan/02-design/bug-quest.md, evidence): a dark rock face, a rain of log
+// glyphs falling down it as its texture, a roll of whole log lines over that,
+// and the water sheet on top of all three, near opaque until something
 // disturbs it and parted for 150 ticks after. Each line is one horizontal row
 // of glyphs across the face, whole — wrapped at a word onto a second row of
-// the roll if it is longer than the parting can show — and the roll creeps
-// downward the way credits do, so a line that comes by can be read.
+// the roll if it is longer than a row can show — and the roll creeps downward
+// the way credits do, so a line that comes by can be read.
+//
+// A parting thins the water, it never cuts a hole in it: the sheet, its
+// strands, its streaks, its foam and its mist are drawn over the whole face at
+// every value of `open`, and only fade from `closedAlpha` to `partedAlpha`.
+// The roll of lines stands in front of that sheet and is hidden by its own
+// alpha, which is the parting itself, so a line reads through thinned water
+// as plainly as it did when a parting emptied a band of the face.
 //
 // Everything moves on `state.tick` and on the prop's own `hitTick`, never on
 // wall time and never on `Math.random`, so the same tick always draws the same
@@ -14,7 +22,7 @@
 // a wizard standing near, a touch or a charge hit (game/sim/water.ts,
 // game/sim/charge-hit.ts).
 
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, GraphicsContext } from 'pixi.js';
 
 import type { Prop, WorldState } from '../sim';
 
@@ -173,10 +181,11 @@ export function spread(index: number, offset = 0): number {
 }
 
 /**
- * A speed between two bounds, this one's own: every strand and streak of
+ * A value between two bounds, this one's own: every strand and streak of
  * water falls at its own rate inside the range its kind is given
- * (rendering-and-look.md, the waterfall). The log text does not use it — the
- * roll comes down as one piece, at LOG_FALL_SPEED.
+ * (rendering-and-look.md, the waterfall), and the blobs of the foam's churn
+ * take their drift and their radius the same way. The roll of log text does
+ * not use it — that comes down as one piece, at LOG_FALL_SPEED.
  */
 export function speedOf(index: number, bounds: { min: number; max: number }, offset = 0): number {
   return bounds.min + spread(index, offset) * (bounds.max - bounds.min);
@@ -259,23 +268,33 @@ export function rowX(prop: Prop, text: string): number {
   return wholePixels((prop.w - rowWidth(text)) / 2);
 }
 
-/**
- * How wide a parting this far open is, in units, on whole pixels of the
- * texture: the share of the face {@link WATERFALL.openShare} allows it. This
- * is what a row of text has to fit inside, so it is also what settles how
- * long a row may be.
- */
-function gapWidth(prop: Prop, open: number): number {
-  return wholePixels(open * prop.w * WATERFALL.openShare);
+/** The band across the middle of the face the rows of text are kept inside. */
+export interface Band {
+  from: number;
+  to: number;
 }
 
 /**
- * How many characters a row of this face holds: what the parting opens, less
- * the water a row leaves standing at each end of it. Forty on the glade's
- * 96-unit column, which is the length the ticket sizes the font for.
+ * That band, on whole pixels of the texture: the share of the face
+ * {@link WATERFALL.openShare} allows it. It is the text's own concern — it
+ * settles how long a row may be, and nothing else — and not a hole in the
+ * water, which a parting has not cut since HWP-096.
+ */
+export function textBand(prop: Prop): Band {
+  const width = wholePixels(prop.w * WATERFALL.openShare);
+  const from = wholePixels((prop.w - width) / 2);
+
+  return { from, to: from + width };
+}
+
+/**
+ * How many characters a row of this face holds: the band it is kept inside,
+ * less the margin it leaves at each end. Forty on the glade's 96-unit column,
+ * which is the length the ticket sizes the font for.
  */
 export function rowChars(prop: Prop): number {
-  const room = gapWidth(prop, 1) - 2 * LOG_TEXT.margin;
+  const band = textBand(prop);
+  const room = band.to - band.from - 2 * LOG_TEXT.margin;
 
   // A row is as wide as its cells less the last one's column of gap, so the
   // budget is measured with that column handed back.
@@ -344,6 +363,19 @@ export function rowY(index: number, tick: number, count: number): number {
   return wholePixels((down % roll) - CELL_H);
 }
 
+/** Lay one character into a shape, a texture pixel to a pixel of the font. */
+function inkGlyph(into: GraphicsContext, char: string, x: number, y: number): void {
+  const { pixel } = LOG_TEXT;
+
+  glyphOf(char).forEach((row, down) => {
+    [...row].forEach((ink, across) => {
+      if (ink === '#') {
+        into.rect(x + across * pixel, y + down * pixel, pixel, pixel);
+      }
+    });
+  });
+}
+
 /**
  * One line of text drawn across the face, a character to a cell, centred on
  * the face and in the colour that says whether it is evidence or chatter. The
@@ -351,22 +383,16 @@ export function rowY(index: number, tick: number, count: number): number {
  * afterwards only moved.
  */
 function drawRow(prop: Prop, line: LogLine): Graphics {
-  const text = new Graphics();
-  const { pixel } = LOG_TEXT;
+  const glyphs = new GraphicsContext();
+
+  [...line.text].forEach((char, index) => inkGlyph(glyphs, char, index * CELL_W, 0));
+  glyphs.fill(line.real ? WATERFALL_COLOURS.evidence : WATERFALL_COLOURS.flavour);
+
+  const text = new Graphics(glyphs);
 
   text.x = rowX(prop, line.text);
 
-  [...line.text].forEach((char, index) => {
-    glyphOf(char).forEach((row, y) => {
-      [...row].forEach((ink, x) => {
-        if (ink === '#') {
-          text.rect(index * CELL_W + x * pixel, y * pixel, pixel, pixel);
-        }
-      });
-    });
-  });
-
-  return text.fill(line.real ? WATERFALL_COLOURS.evidence : WATERFALL_COLOURS.flavour);
+  return text;
 }
 
 /**
@@ -382,6 +408,121 @@ const START = 0.67;
 /** The two faint colours the water lays over its own blue. */
 const MIST = { color: WATERFALL_COLOURS.mist, alpha: WATERFALL.mistAlpha } as const;
 const FLICKER = { color: WATERFALL_COLOURS.flicker, alpha: WATERFALL.flickerAlpha } as const;
+
+/** How bright the foam is closed and fully parted, under a shorter name. */
+const FOAM = WATERFALL.foamAlpha;
+
+/** One blob of churn, settled by its index and never again. */
+interface Blob {
+  /** Units a tick it steps along its path. */
+  drift: number;
+  /** Where on that path it starts, as a share of it. */
+  phase: number;
+  radius: number;
+  /** How far into its band it rides, as a share of the band. */
+  deep: number;
+}
+
+/**
+ * The blobs of the foam's churn and of the mist, settled once: nothing about
+ * a blob but where it has drifted to depends on the tick, and neither depends
+ * on the prop, so the walks of {@link spread} are taken here rather than
+ * sixty times a frame in the draw. This is what `buildFalls` does for the
+ * strands and the streaks, which are the same thing moving down the face.
+ */
+function churn(count: number, radius: { min: number; max: number }): readonly Blob[] {
+  return Array.from({ length: count }, (_, index) => ({
+    drift: speedOf(index, WATERFALL.churnDrift, SPEED),
+    phase: spread(index, PLACE),
+    radius: speedOf(index, radius, START),
+    // The bigger a blob, the deeper it rides: a row of them all at one depth
+    // reads as beading rather than as churn.
+    deep: speedOf(index, radius, START) / radius.max,
+  }));
+}
+
+const CHURN = churn(WATERFALL.foamBlobs, WATERFALL.foamRadius);
+const MIST_CHURN = churn(WATERFALL.mistBlobs, { min: 0, max: 1 });
+
+/** Where something stands between its closed look and its fully parted one. */
+function fade(open: number, closed: number, parted: number): number {
+  return closed + open * (parted - closed);
+}
+
+/**
+ * How much of what is behind it the sheet keeps back at this parting:
+ * {@link WATERFALL.closedAlpha} closed, thinning to
+ * {@link WATERFALL.partedAlpha} wide open. The sheet is never taken away.
+ */
+export function sheetAlpha(open: number): number {
+  return fade(open, WATERFALL.closedAlpha, WATERFALL.partedAlpha);
+}
+
+/** Glyph rows one column of the rain takes to cover a face this tall. */
+export function rainRun(prop: Prop): number {
+  return Math.ceil(prop.h / CELL_H);
+}
+
+/**
+ * How many columns of rain a face this wide carries: one every
+ * {@link WATERFALL.rainStep} units, so the rain covers the whole of it.
+ */
+export function rainColumns(prop: Prop): number {
+  return Math.floor(prop.w / WATERFALL.rainStep);
+}
+
+/** Where column `index` stands across the face, in units: its step, centred. */
+export function rainX(index: number): number {
+  const { rainStep } = WATERFALL;
+
+  return wholePixels(index * rainStep + (rainStep - GLYPH_W * LOG_TEXT.pixel) / 2);
+}
+
+/**
+ * Where it stands down the face on this tick, in units. Each column falls at
+ * its own speed and wraps; the run of glyphs is drawn twice head to tail (see
+ * {@link buildRain}), so a column slides over one run's worth of face and the
+ * wrap is never seen. It is settled by the index and the tick and nothing
+ * else, so the same tick always draws the same rain.
+ */
+export function rainY(prop: Prop, index: number, tick: number): number {
+  const cycle = rainRun(prop) * CELL_H;
+  const speed = speedOf(index, WATERFALL.rainSpeed, SPEED);
+
+  return wholePixels(fallen(tick, speed, spread(index, START), cycle) - cycle);
+}
+
+/**
+ * One column of rain, built once and afterwards only moved: a slice of the
+ * room's own log text, starting where this column's walk of {@link spread}
+ * puts it and wrapping round the end. The run of glyphs is drawn twice, head
+ * to tail, so that sliding the column down by one run's worth leaves the face
+ * covered throughout and the wrap is never seen. Both halves are the one
+ * shape shown twice, so a column's glyphs are built and held once.
+ */
+function buildRain(prop: Prop, text: string): Container[] {
+  const run = rainRun(prop);
+
+  return Array.from({ length: rainColumns(prop) }, (_, index) => {
+    const glyphs = new GraphicsContext();
+    const start = Math.floor(spread(index, PLACE) * text.length);
+
+    for (let row = 0; row < run; row += 1) {
+      inkGlyph(glyphs, text[(start + row) % text.length] ?? ' ', 0, row * CELL_H);
+    }
+
+    glyphs.fill(WATERFALL_COLOURS.flavour);
+
+    const column = new Container();
+    const tail = new Graphics(glyphs);
+
+    tail.y = run * CELL_H;
+    column.addChild(new Graphics(glyphs), tail);
+    column.x = rainX(index);
+
+    return column;
+  });
+}
 
 /** Something that falls down the face over and over, settled when it is built. */
 interface Falling {
@@ -408,7 +549,10 @@ interface Fall extends Falling {
 /** One waterfall prop on the screen. Built once, then moved and redrawn. */
 interface Face {
   view: Container;
-  rows: Graphics[];
+  /** The roll of whole log lines, which stands in front of the sheet. */
+  text: Container;
+  /** The columns of the rain behind it, each moved as one piece. */
+  rain: Container[];
   falls: Fall[];
   water: Graphics;
 }
@@ -449,7 +593,7 @@ function buildFalls(prop: Prop): Fall[] {
   );
 }
 
-/** Build the face of one waterfall prop: the rock, the text and the water. */
+/** Build one face: the rock, the rain, the roll of text and the water. */
 function buildFace(prop: Prop, lines: readonly LogLine[]): Face {
   const view = new Container();
   const inside = new Container();
@@ -463,102 +607,155 @@ function buildFace(prop: Prop, lines: readonly LogLine[]): Face {
     .rect(0, 0, prop.w - WATERFALL.radius, prop.h)
     .fill(WATERFALL_COLOURS.rock);
   const rock = new Graphics().rect(0, 0, prop.w, prop.h).fill(WATERFALL_COLOURS.rock);
-  const rows = rollOf(prop, lines).map((line) => drawRow(prop, line));
+  const rain = buildRain(prop, lines.map((line) => line.text).join('  '));
+  const text = new Container();
+  const falling = new Container();
   const water = new Graphics();
 
-  inside.addChild(rock, ...rows, water);
+  text.addChild(...rollOf(prop, lines).map((line) => drawRow(prop, line)));
+  falling.addChild(...rain);
+  // Back to front: the rock, the rain that is the face's texture, the sheet of
+  // water over both, and the roll of whole lines in front of it all. The roll
+  // is in front because a parting thins the sheet rather than emptying a band
+  // of it, and a line has to read through what is left; what hides the roll
+  // while the water is closed is its own alpha, which is the parting (see
+  // `update`), and not the sheet.
+  inside.addChild(rock, falling, water, text);
   inside.mask = mask;
   view.addChild(mask, inside);
   view.position.set(prop.x, prop.y);
 
-  return { view, rows, falls: buildFalls(prop), water };
-}
-
-/** The band across the middle of the face a parting has emptied of water. */
-export interface Gap {
-  from: number;
-  to: number;
-}
-
-/** The gap this much of a parting opens, on whole pixels of the texture. */
-export function gapOf(prop: Prop, open: number): Gap {
-  const width = gapWidth(prop, open);
-  const from = wholePixels((prop.w - width) / 2);
-
-  return { from, to: from + width };
-}
-
-/** Is this band of the face still under water, or has the gap taken it? */
-function under(gap: Gap, x: number, w: number): boolean {
-  return x + w <= gap.from || x >= gap.to;
+  return { view, text, rain, falls: buildFalls(prop), water };
 }
 
 /**
- * The water of one face on one tick: the base blue in whatever the parting has
- * left of it, the second blue scrolling down it in thin strands, the streaks
- * falling in their fixed columns, foam along the lip and the right edge, mist
- * at the base, and the green flicker of what it is holding back while it is
- * closed. Every one of them is a function of the tick alone.
+ * A point this far along the churn's path: from the left of the lip to the
+ * right of it, and then on down the rounded right edge. Those are the two
+ * sides of the face that stand in the open, and so the two the foam gathers
+ * on (rendering-and-look.md, the waterfall). `deep` is how far into the band
+ * the point lies, as a share of the band's own thickness: a half is its
+ * middle, and one is the inner edge, where a blob bulges into the water and
+ * so scallops it instead of disappearing into the band.
+ */
+function alongChurn(prop: Prop, along: number, deep: number): { x: number; y: number } {
+  return along < prop.w
+    ? { x: along, y: WATERFALL.lip * deep }
+    : { x: prop.w - WATERFALL.edge * deep, y: along - prop.w };
+}
+
+/**
+ * The foam of one face: the band along the lip and down the right edge, and
+ * the churn that makes it water rather than a painted stripe — round blobs
+ * stepping along that band at their own paces, and white pixels catching the
+ * light among them, moved on every few ticks.
+ */
+function drawFoam(water: Graphics, prop: Prop, tick: number, open: number): void {
+  const { w, h } = prop;
+  const fill = { color: WATERFALL_COLOURS.foam, alpha: fade(open, FOAM.closed, FOAM.parted) };
+  const path = w + h;
+
+  water.rect(0, 0, w, WATERFALL.lip);
+  water.rect(w - WATERFALL.edge, 0, WATERFALL.edge, h);
+
+  for (const blob of CHURN) {
+    const at = alongChurn(prop, fallen(tick, blob.drift, blob.phase, path), blob.deep);
+
+    water.circle(at.x, at.y, blob.radius);
+  }
+
+  // The band and its blobs are one fill: every shape of a fill is tessellated
+  // on its own, so the look is the same and Pixi is asked for one instruction
+  // rather than twenty-eight, on every frame of every face on the screen.
+  water.fill(fill);
+
+  const blink = Math.floor(tick / WATERFALL.foamSparkleTicks);
+
+  for (let index = 0; index < WATERFALL.foamSparkles; index += 1) {
+    const at = alongChurn(prop, spread(index, blink / 3) * path, 0.5);
+
+    // One pixel of the render texture, whose size LOG_TEXT owns.
+    water.rect(at.x, at.y, LOG_TEXT.pixel, LOG_TEXT.pixel);
+  }
+
+  water.fill({ color: WATERFALL_COLOURS.sparkle, alpha: fill.alpha });
+}
+
+/**
+ * The mist at the base: the bands that thicken towards the foot of the fall,
+ * and blobs of churn rolling sideways through them, at the drift the foam's
+ * own churn takes, so that it boils rather than lying in flat stripes.
+ */
+function drawMist(water: Graphics, prop: Prop, tick: number): void {
+  const { w, h } = prop;
+  const blob = WATERFALL.mistBlob;
+
+  for (let band = 0; band < WATERFALL.mistBands; band += 1) {
+    const depth = (WATERFALL.mist * (band + 1)) / WATERFALL.mistBands;
+
+    water.rect(0, h - depth, w, depth);
+  }
+
+  for (const drop of MIST_CHURN) {
+    water.ellipse(
+      fallen(tick, drop.drift, drop.phase, w + blob.w) - blob.w / 2,
+      h - drop.deep * WATERFALL.mist,
+      blob.w / 2,
+      blob.h / 2,
+    );
+  }
+
+  water.fill(MIST);
+}
+
+/**
+ * Closed water flickers green: a few faint patches of what it is holding
+ * back, moved to another part of the face on every flicker.
+ */
+function drawFlicker(water: Graphics, prop: Prop, tick: number): void {
+  const { w, h } = prop;
+  const flicker = Math.floor(tick / WATERFALL.flickerPeriod);
+  const size = { w: w / WATERFALL.flickerPatches, h: h / WATERFALL.flickerPatches };
+
+  for (let index = 0; index < WATERFALL.flickerPatches; index += 1) {
+    water.rect(
+      spread(index, flicker / 3) * (w - size.w),
+      spread(index, flicker / 5) * (h - size.h),
+      size.w,
+      size.h,
+    );
+  }
+
+  water.fill(FLICKER);
+}
+
+/**
+ * The water of one face on one tick: one sheet of the base blue over the
+ * whole of it, the second blue scrolling down it in thin strands, the streaks
+ * falling in their fixed columns, churned foam along the lip and the right
+ * edge, mist at the base, and the green flicker of what it is holding back
+ * while it is closed. A parting thins the sheet and the two kinds of fall
+ * that ride its alpha; it takes none of them away. Every one of them is a
+ * function of the tick alone.
  */
 function drawWater(face: Face, prop: Prop, tick: number, open: number): void {
-  const { w, h } = prop;
   const { water } = face;
-  const gap = gapOf(prop, open);
-  // Closed water is one sheet; a parting leaves the two the gap stands between.
-  const sheets: [number, number][] =
-    gap.from === gap.to
-      ? [[0, w]]
-      : [
-          [0, gap.from],
-          [gap.to, w - gap.to],
-        ];
+  const sheet = sheetAlpha(open);
 
   water.clear();
+  water.rect(0, 0, prop.w, prop.h).fill({ color: WATERFALL_COLOURS.water, alpha: sheet });
 
-  for (const [x, width] of sheets) {
-    water.rect(x, 0, width, h).fill(WATERFALL_COLOURS.water);
-    water.rect(x, 0, width, WATERFALL.lip).fill(WATERFALL_COLOURS.foam);
-
-    for (let band = 0; band < WATERFALL.mistBands; band += 1) {
-      const depth = (WATERFALL.mist * (band + 1)) / WATERFALL.mistBands;
-
-      water.rect(x, h - depth, width, depth).fill(MIST);
-    }
-  }
-
-  // The strands and the streaks stand in columns of their own across the whole
-  // face, and are drawn only where the water they are made of is still there.
   for (const fall of face.falls) {
-    if (under(gap, fall.x, fall.width)) {
-      water.rect(fall.x, topOf(fall, prop, tick), fall.width, fall.length).fill(fall.fill);
-    }
+    water
+      .rect(fall.x, topOf(fall, prop, tick), fall.width, fall.length)
+      .fill({ color: fall.fill.color, alpha: fall.fill.alpha * sheet });
   }
 
-  // The right edge is the one that stands out of the rock, so the foam runs
-  // down it as well as along the lip — unless the parting has reached it.
-  if (under(gap, w - WATERFALL.edge, WATERFALL.edge)) {
-    water.rect(w - WATERFALL.edge, 0, WATERFALL.edge, h).fill(WATERFALL_COLOURS.foam);
-  }
+  drawFoam(water, prop, tick, open);
+  drawMist(water, prop, tick);
 
-  // Closed water flickers green: a few faint patches of what it is holding
-  // back, moved to another part of the face on every flicker.
   if (open === 0 && flickering(tick)) {
-    const flicker = Math.floor(tick / WATERFALL.flickerPeriod);
-    const size = { w: w / WATERFALL.flickerPatches, h: h / WATERFALL.flickerPatches };
-
-    for (let index = 0; index < WATERFALL.flickerPatches; index += 1) {
-      water
-        .rect(
-          spread(index, flicker / 3) * (w - size.w),
-          spread(index, flicker / 5) * (h - size.h),
-          size.w,
-          size.h,
-        )
-        .fill(FLICKER);
-    }
+    drawFlicker(water, prop, tick);
   }
-
-  water.alpha = WATERFALL.closedAlpha;
 }
 
 /** The waterfalls of a room, drawn in code behind the props and the wizard. */
@@ -614,22 +811,44 @@ export function createWaterfall(logs: readonly string[]): WaterfallView {
           continue;
         }
 
-        const face = faceFor(prop);
         const seen = onScreen(prop, camera);
         const open = parted(prop, state.tick);
+        const bright = fade(open, WATERFALL.rainAlpha.closed, WATERFALL.rainAlpha.parted);
 
-        face.view.visible = seen;
+        // A waterfall off screen is not drawn at all — neither its water,
+        // which is redrawn every tick, nor its text, which is only moved — and
+        // one the view has never reached is not built either: the rain behind
+        // its sheet is some thousands of glyphs, and a room may never show the
+        // wizard its water at all.
+        if (!seen) {
+          const known = faces.get(prop.id);
 
-        // A waterfall off screen is not drawn at all: neither its water, which
-        // is redrawn every tick, nor its text, which is only moved.
-        if (seen) {
-          face.rows.forEach((text, index) => {
-            const y = rowY(index, state.tick, face.rows.length);
+          if (known !== undefined) {
+            known.view.visible = false;
+          }
+        } else {
+          const face = faceFor(prop);
+          const rows = face.text.children;
+
+          face.view.visible = true;
+          // The roll of whole lines stands in front of the sheet and is hidden
+          // by its own alpha, which is the parting itself: nothing of it while
+          // the water is closed, all of it while the water is wide open, and
+          // the same ramp as the sheet in between.
+          face.text.alpha = open;
+
+          rows.forEach((row, index) => {
+            const y = rowY(index, state.tick, rows.length);
 
             // Most of the roll waits off the face, where the mask cuts it;
             // Pixi batches a masked-out child all the same unless it is told.
-            text.visible = y + CELL_H > 0 && y < prop.h;
-            text.y = y;
+            row.visible = y + CELL_H > 0 && y < prop.h;
+            row.y = y;
+          });
+
+          face.rain.forEach((column, index) => {
+            column.y = rainY(prop, index, state.tick);
+            column.alpha = bright;
           });
 
           drawWater(face, prop, state.tick, open);

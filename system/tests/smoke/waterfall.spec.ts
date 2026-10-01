@@ -1,8 +1,10 @@
-// The waterfall in a real browser: HWP-025's acceptance, and HWP-092's. The
-// water is closed before anything touches it, parted after a charge hit and
-// parted again for as long as the wizard stands beside it; one whole log line
-// of the roll behind it reads at scale 4; and the same tick draws the same
-// frame twice (docs/plan/02-design/rendering-and-look.md, the waterfall).
+// The waterfall in a real browser: HWP-025's acceptance, HWP-092's and
+// HWP-096's. The water is closed before anything touches it, parted after a
+// charge hit and parted again for as long as the wizard stands beside it; it
+// is water over the whole face either way, because a parting thins the sheet
+// rather than cutting a hole in it; one whole log line of the roll reads at
+// scale 4; and the same tick draws the same frame twice
+// (docs/plan/02-design/rendering-and-look.md, the waterfall).
 //
 // The claims are made on the pixels of the face itself, clipped out of the
 // window by the view-unit corner game/render/waterfall.ts publishes, and both
@@ -12,8 +14,16 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
 import forestGlade from '../../game/content/rooms/forest-glade';
-import { LOG_TEXT, VIEW_H, VIEW_W, WATERFALL_COLOURS } from '../../game/render/config';
-import { CELL_H, CELL_W, logLines, rollOf, rowWidth, rowY } from '../../game/render/waterfall';
+import { LOG_TEXT, mix, VIEW_H, VIEW_W, WATERFALL_COLOURS } from '../../game/render/config';
+import {
+  CELL_H,
+  CELL_W,
+  logLines,
+  rollOf,
+  rowWidth,
+  rowY,
+  sheetAlpha,
+} from '../../game/render/waterfall';
 import {
   bugForRoom,
   parseRoom,
@@ -207,11 +217,44 @@ function isColour(data: Buffer, at: number, colour: number): boolean {
   );
 }
 
-/** Is this pixel one of the two inks the log lines are written in? */
-function isInk(data: Buffer, at: number): boolean {
-  return [WATERFALL_COLOURS.evidence, WATERFALL_COLOURS.flavour].some((colour) =>
-    isColour(data, at, colour),
-  );
+/**
+ * Is this pixel the ink the manifest's own lines are written in? The flavour
+ * ink is not read off the face by colour at all: it is a dim teal, and the
+ * water's own blues stacked at the thinned alpha of a parted sheet land
+ * within this tolerance of it (HWP-096), so a flavour reading would count
+ * strands of water as text. The evidence green is unmistakable, and it is the
+ * line the acceptance asks to be legible.
+ */
+function isEvidence(data: Buffer, at: number): boolean {
+  return isColour(data, at, WATERFALL_COLOURS.evidence);
+}
+
+/**
+ * There is water on both sides of the face and in the middle of it at this
+ * much of a parting. What is counted is the water's own colour — the sheet as
+ * it stands where nothing but the bare rock is behind it — because a parting
+ * thins that sheet and never cuts a hole in it (HWP-096), where before it
+ * left the middle of the face bare rock.
+ */
+async function expectWaterAcross(page: Page, open: number): Promise<void> {
+  const { data, width, channels } = await facePixels(page);
+  const sheet = mix(WATERFALL_COLOURS.rock, WATERFALL_COLOURS.water, sheetAlpha(open));
+  const wet = [0, 0, 0];
+  const pixels = data.length / channels;
+
+  for (let pixel = 0; pixel < pixels; pixel += 1) {
+    if (isColour(data, pixel * channels, sheet)) {
+      const third = Math.min(2, Math.floor(((pixel % width) * 3) / width));
+
+      wet[third] = (wet[third] ?? 0) + 1;
+    }
+  }
+
+  // Most of every third of it, which the bare rock of a cut-open sheet could
+  // never be: the water's own colour stands where nothing else is laid on it.
+  for (const count of wet) {
+    expect(count / (pixels / 3)).toBeGreaterThan(0.4);
+  }
 }
 
 /** What an ink leaves on the face, in window pixels. */
@@ -311,8 +354,12 @@ test('is closed while he is clear of it, and a charge brings the logs out', asyn
   expect(closed.open).toBe(0);
   await shot(page, info, 'waterfall-closed.png');
 
-  // Near opaque: what little of the ink survives the water is not text.
-  const hidden = await markOf(page, isInk);
+  // Water over the whole face, not a dark panel with two blue rims, closed
+  // and parted alike.
+  await expectWaterAcross(page, 0);
+
+  // Near opaque: what little of the evidence ink survives the water is not text.
+  const hidden = await markOf(page, isEvidence);
 
   expect(hidden.pixels).toBeLessThan(40);
   expect(await chargeIn(page)).toBe(true);
@@ -322,10 +369,13 @@ test('is closed while he is clear of it, and a charge brings the logs out', asyn
   expect(parted.open).toBe(1);
   await shot(page, info, 'waterfall-parted.png');
 
-  // And the lines are there to be read: whole blocks of ink, at least two
-  // window pixels to a glyph pixel at this scale, lying in the few rows a
-  // line of glyphs takes rather than smeared down the face.
-  const shown = await markOf(page, isInk);
+  await expectWaterAcross(page, 1);
+
+  // And the manifest's own line is there to be read, in front of the thinned
+  // sheet: whole blocks of ink, at least two window pixels to a glyph pixel at
+  // this scale, lying in the few rows a line of glyphs takes rather than
+  // smeared down the face.
+  const shown = await markOf(page, isEvidence);
 
   expect(shown.pixels).toBeGreaterThan(hidden.pixels + 400);
   expect(shown.run).toBeGreaterThanOrEqual(2);
@@ -354,9 +404,7 @@ test('parts while he stands beside it and reads one whole log line', async ({ pa
   // One whole line, laid out across the water: as wide as the line is drawn,
   // bar the blank outer column a first or last glyph may have, and only a
   // glyph tall.
-  const line = await markOf(page, (data, at) =>
-    isColour(data, at, WATERFALL_COLOURS.evidence),
-  );
+  const line = await markOf(page, isEvidence);
 
   expect(line.width).toBeGreaterThanOrEqual((rowWidth(EVIDENCE) - CELL_W) * SCALE);
   expect(line.width).toBeLessThanOrEqual(rowWidth(EVIDENCE) * SCALE);

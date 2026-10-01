@@ -22,20 +22,25 @@ import {
   CELL_H,
   fallen,
   flickering,
-  gapOf,
   glyphOf,
   logLines,
   type LogLine,
   logsRead,
   onScreen,
   parted,
+  rainColumns,
+  rainRun,
+  rainX,
+  rainY,
   rollOf,
   rowChars,
   rowWidth,
   rowX,
   rowY,
+  sheetAlpha,
   speedOf,
   spread,
+  textBand,
   wrapLine,
 } from '../../game/render/waterfall';
 import {
@@ -146,6 +151,61 @@ describe('what falls down the face', () => {
   });
 });
 
+describe('the sheet a parting thins', () => {
+  it('thins the water from closed to parted and never takes it away', () => {
+    expect(sheetAlpha(0)).toBe(WATERFALL.closedAlpha);
+    expect(sheetAlpha(1)).toBeCloseTo(WATERFALL.partedAlpha);
+    // Thinned, not gone: the face is still water at the widest parting, which
+    // is the whole of what HWP-096 is about.
+    expect(sheetAlpha(1)).toBeGreaterThan(0);
+    expect(sheetAlpha(0.5)).toBeGreaterThan(sheetAlpha(1));
+    expect(sheetAlpha(0.5)).toBeLessThan(sheetAlpha(0));
+  });
+});
+
+describe('the rain of glyphs behind the sheet', () => {
+  /** Where every column of the glade's rain stands down the face on a tick. */
+  const fallAt = (tick: number): number[] =>
+    Array.from({ length: rainColumns(GLADE_FALL) }, (_, index) => rainY(GLADE_FALL, index, tick));
+
+  it('stands a column every six units, covering the whole face', () => {
+    const count = rainColumns(GLADE_FALL);
+
+    expect(count).toBe(GLADE_FALL.w / WATERFALL.rainStep);
+
+    for (let index = 0; index < count; index += 1) {
+      expect(rainX(index), `column ${index}`).toBeGreaterThanOrEqual(0);
+      expect(rainX(index), `column ${index}`).toBeLessThan(GLADE_FALL.w);
+      expect(rainX(index) - rainX(index - 1), `column ${index}`).toBe(WATERFALL.rainStep);
+    }
+
+    // Both edges of the face are rained on, not only its middle.
+    expect(rainX(0)).toBeLessThan(WATERFALL.rainStep);
+    expect(rainX(count - 1)).toBeGreaterThan(GLADE_FALL.w - 2 * WATERFALL.rainStep);
+  });
+
+  it('places the rain by the tick alone, and moves it on with the tick', () => {
+    expect(fallAt(91)).toEqual(fallAt(91));
+    expect(fallAt(92)).not.toEqual(fallAt(91));
+  });
+
+  it('keeps every column covering the face as it falls and wraps', () => {
+    // A column is one run of glyphs drawn twice, so it covers the face for as
+    // long as its top stands within a run of the lip: anything else would
+    // show the wrap as a bare stripe of rock.
+    const run = rainRun(GLADE_FALL) * CELL_H;
+
+    expect(run).toBeGreaterThanOrEqual(GLADE_FALL.h);
+
+    for (let tick = 0; tick < 400; tick += 1) {
+      for (const y of fallAt(tick)) {
+        expect(y, `tick ${tick}`).toBeGreaterThanOrEqual(-run);
+        expect(y, `tick ${tick}`).toBeLessThanOrEqual(0);
+      }
+    }
+  });
+});
+
 describe('the lines the water hides', () => {
   it('shows the flavour chatter alone while no manifest names a bug', () => {
     const lines = logLines([]);
@@ -233,8 +293,8 @@ describe('the roll the lines come by on', () => {
   /** Every line the glade's water hides, the chatter and the evidence. */
   const GLADE_LINES = rollOf(GLADE_FALL, logLines(HW_001_LOGS));
 
-  /** The band of the face a full parting leaves clear of water. */
-  const OPENING = gapOf(GLADE_FALL, 1);
+  /** The band of the face a row of text is kept inside. */
+  const OPENING = textBand(GLADE_FALL);
 
   it('lays each line out as one horizontal row that fits across the water', () => {
     for (const line of GLADE_LINES) {
@@ -246,7 +306,7 @@ describe('the roll the lines come by on', () => {
     }
   });
 
-  it('shows every line of every planted bug whole inside the opening', () => {
+  it('shows every line of every planted bug whole inside the band', () => {
     // The manifest, not a fixture: `bugForRoom` shows the first entry for the
     // room and fixing that one on main reveals the next (ADR-009), so a line
     // of any entry can end up on this face. HW-002's are 45 and 48 characters
@@ -281,7 +341,7 @@ describe('the roll the lines come by on', () => {
     expect(rowX(GLADE_FALL, forty)).toBeGreaterThanOrEqual(margin);
   });
 
-  it('opens the water wide enough to show the widest line whole', () => {
+  it('keeps the band wide enough to show the widest line whole', () => {
     const widest = Math.max(...GLADE_LINES.map((line) => rowWidth(line.text)));
 
     expect(WATERFALL.openShare * GLADE_FALL.w).toBeGreaterThanOrEqual(widest);

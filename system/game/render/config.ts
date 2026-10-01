@@ -224,12 +224,14 @@ export const WATER_PARTED_TICKS = 150;
 
 /**
  * The waterfall's palette (rendering-and-look.md, the waterfall). It is drawn
- * in code rather than generated, so these nine colours are the whole of its
+ * in code rather than generated, so these ten colours are the whole of its
  * art: the rock behind it, the base blue and the second blue that scrolls over
- * it, the white of the foam and the paler white of the mist, the green of the
+ * it, the white of the foam, the plain white of the pixels that catch the
+ * light in its churn and the paler white of the mist, the green of the
  * flicker that says the water is holding something back, and the two inks the
  * log lines behind it are written in — the manifest's own evidence, and the
- * fictional chatter it hides among (bug-quest.md, evidence).
+ * fictional chatter it hides among (bug-quest.md, evidence). The rain of
+ * glyphs that is the face's own texture is drawn in that chatter's ink.
  */
 export const WATERFALL_COLOURS = {
   rock: 0x1b2230,
@@ -237,6 +239,7 @@ export const WATERFALL_COLOURS = {
   strand: 0x59a7cf,
   streak: 0x9fd8ff,
   foam: 0xdff1ff,
+  sparkle: 0xffffff,
   mist: 0xbcd9ec,
   flicker: 0x5ff2a6,
   evidence: 0x9ff2b5,
@@ -254,10 +257,28 @@ export const WATERFALL = {
   /** Foam along the lip, and down the right edge the rock rounds. */
   lip: 3,
   edge: 2,
+  /**
+   * The churn in that foam: round blobs of two to three units across stepping
+   * along the lip and the edge, with this many white sparkle pixels among
+   * them, each moved on every few ticks. A flat band alone reads as a painted
+   * stripe; the blobs are what make it water. `churnDrift` is the pace a blob
+   * steps at, its own inside these bounds, and the blobs of the mist below
+   * take their drift from it too — one churn, one pace.
+   */
+  foamBlobs: 26,
+  foamRadius: { min: 1, max: 1.5 },
+  churnDrift: { min: 0.25, max: 0.6 },
+  foamSparkles: 10,
+  foamSparkleTicks: 6,
+  /** How bright the foam is with the water closed, and fully parted. */
+  foamAlpha: { closed: 0.95, parted: 0.45 },
   /** Mist at the base: this deep, laid on in this many bands of this alpha. */
   mist: 12,
   mistBands: 3,
   mistAlpha: 0.18,
+  /** Blobs of churn in that mist, this many, this wide and this tall. */
+  mistBlobs: 8,
+  mistBlob: { w: 9, h: 4 },
   /** Thin strands of the second blue, and how wide and long one is. */
   strands: 9,
   strandWidth: 1,
@@ -269,16 +290,41 @@ export const WATERFALL = {
   streakAlpha: 0.8,
   /** How much of what is behind the water it keeps back while it is closed. */
   closedAlpha: 0.94,
-  /** Ticks the water takes to draw back over the gap at the end of a parting. */
+  /**
+   * And how little of it a full parting leaves. A parting thins the water, it
+   * never cuts a hole in it: the sheet, its strands and its streaks are drawn
+   * over the whole face at every value of `open` and only fade between these
+   * two, which is what keeps a parted waterfall looking like a waterfall.
+   */
+  partedAlpha: 0.22,
+  /** Ticks the water takes to thicken back up at the end of a parting. */
   closeTicks: 12,
   /**
-   * The share of the face a parting opens. Wide enough to show a whole log
-   * row and the margin it is drawn with: a 40-character row is 79.5 of the 96
-   * units and the gap is 84.5, so a narrower one would hide its ends. It is
-   * what settles how long a row may be, and a manifest line longer than that
-   * is wrapped onto the next row rather than cut (LOG_TEXT below).
+   * The share of the face a row of log text is kept inside. Wide enough to
+   * show a whole row and the margin it is drawn with: a 40-character row is
+   * 79.5 of the 96 units and the band is 84.5, so a narrower one would hide
+   * its ends. It is what settles how long a row may be, and a manifest line
+   * longer than that is wrapped onto the next row rather than cut (LOG_TEXT
+   * below). It is a band of the text's own, not a gap in the water.
    */
   openShare: 0.88,
+  /**
+   * The rain of log glyphs behind the sheet, which is the waterfall's own
+   * texture: one column every this many units across the face, each falling
+   * at its own speed inside these bounds. It is ambience, not the thing to
+   * read — the rows in front of it are what carry the evidence.
+   */
+  rainStep: 6,
+  rainSpeed: { min: 0.3, max: 0.9 },
+  /**
+   * How bright the rain is behind a closed sheet and behind a parted one.
+   * Behind the closed one almost nothing of it survives whatever this says —
+   * the sheet keeps back 94 per cent of what is behind it — so the parted
+   * figure is the one that is seen: bright enough to read as the texture of
+   * the face, dim enough to stay behind the rows of whole lines in front of
+   * it, which are what the evidence is read off.
+   */
+  rainAlpha: { closed: 0.35, parted: 0.45 },
   /** Ticks between green flickers, how many of them one lasts, how faint. */
   flickerPeriod: 37,
   flickerTicks: 4,
