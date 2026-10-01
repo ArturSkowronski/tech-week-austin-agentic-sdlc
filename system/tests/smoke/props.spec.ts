@@ -8,20 +8,33 @@
 // screenshot of each animation is attached to the run so the frames can be
 // looked at as well.
 
+import { readFile } from 'node:fs/promises';
+
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
 import forestGlade from '../../game/content/rooms/forest-glade';
-import { CREATURE_EYES, PROP_SHAKE, VIEW_H, VIEW_W } from '../../game/render/config';
 import {
+  CREATURE_EYES,
+  CREATURE_SEAT,
+  PROP_SHAKE,
+  SPRITE_FOOT_OFFSET,
+  VIEW_H,
+  VIEW_W,
+  type CreatureSeat,
+} from '../../game/render/config';
+import {
+  HIDING_PLACES,
   parseRoom,
   PLAYER_HEIGHT,
+  PROP_SIZE,
   VICTORY_CAST_HIT_TICKS,
+  type HidingPlace,
   type InputFrame,
   type Vec2,
 } from '../../game/sim/index';
 
-import { fieldsOf, hatOf } from './wizard-frame';
+import { fieldsOf, hatOf, numbers } from './wizard-frame';
 
 /** The view at the smallest scale ADR-003 allows: it fills the window exactly. */
 const VIEWPORT = { width: VIEW_W * 2, height: VIEW_H * 2 } as const;
@@ -135,14 +148,29 @@ async function wait(page: Page, ticks: number): Promise<void> {
   await drawn(page);
 }
 
-/** Keep the frame with the run, so the animation can be looked at. */
+/**
+ * Keep the frame with the run, so the animation can be looked at: written to
+ * the test's own output directory and attached by path, because
+ * `playwright.config.ts` reports with `list` and a body-only attachment is
+ * dropped by it, leaving nothing on disk (tests/smoke/creature.spec.ts).
+ */
 async function shot(page: Page, info: TestInfo, name: string): Promise<void> {
-  await info.attach(name, { body: await page.screenshot(), contentType: 'image/png' });
+  const path = info.outputPath(name);
+
+  await page.screenshot({ path });
+  await info.attach(name, { path, contentType: 'image/png' });
 }
 
 /** The point in view units the eyes stand at, as the report gives it. */
 async function eyesAt(page: Page): Promise<string> {
   return (await shown(page)).get('eyes') ?? '';
+}
+
+/** The same point, read as a pair, for a sample of the screen around it. */
+async function eyePoint(page: Page): Promise<Vec2> {
+  const [x = 0, y = 0] = numbers(await eyesAt(page));
+
+  return { x, y };
 }
 
 /** How far off the eyes' own red, per channel, a pixel may be and still be one. */
@@ -180,6 +208,82 @@ async function eyeRedAround(page: Page, at: Vec2): Promise<number> {
   }
 
   return seen;
+}
+
+/** Window pixels of the eyes' red two whole eyes come to at this scale. */
+const BOTH_EYES = CREATURE_EYES.eye ** 2 * SCALE ** 2 * 2;
+
+/** Where the creature sits in the glade's first prop of a kind, in world units. */
+function seatIn(kind: HidingPlace): Vec2 {
+  const prop = GLADE_PROPS.find((found) => found.kind === kind);
+  const seat = CREATURE_SEAT[kind];
+
+  return {
+    x: (prop?.x ?? 0) + seat.x,
+    y: (prop?.y ?? 0) + (prop?.h ?? 0) + SPRITE_FOOT_OFFSET - seat.up,
+  };
+}
+
+/**
+ * Put the creature in the first prop of a kind — or send it travelling, which
+ * draws nothing — and give back where it was drawn. HWP-051 is what puts the
+ * creature in its hiding place; until it lands, the test places it where
+ * bugs/manifest.json says it hides.
+ */
+async function hideIn(page: Page, kind: HidingPlace | null): Promise<string> {
+  await page.evaluate((hides) => {
+    const state = window.wizard.state();
+    const prop = state.props.find((found) => found.kind === hides);
+
+    state.creature = {
+      at: prop?.id ?? -1,
+      travelTo: prop === undefined ? 0 : -1,
+      travelUntil: prop === undefined ? 30 : -1,
+      carriedSince: -1,
+      firstCarried: false,
+    };
+  }, kind);
+  await drawn(page);
+
+  return eyesAt(page);
+}
+
+/**
+ * Stand the wizard beside a prop and draw until the eyes stop moving. The
+ * glade is wider than the view, so a hiding place is only on screen once the
+ * camera has been dragged to it and has come to rest (tests/smoke/creature.spec.ts).
+ */
+async function cameraOn(page: Page, kind: HidingPlace): Promise<void> {
+  await page.evaluate(
+    (stand) => {
+      const state = window.wizard.state();
+      const prop = state.props.find((found) => found.kind === stand.kind);
+
+      if (prop === undefined) {
+        throw new Error(`the glade carries no ${stand.kind}`);
+      }
+
+      state.player.x = prop.x - stand.clear;
+      state.player.y = prop.y + prop.h - stand.height;
+    },
+    { kind, clear: CLEAR, height: PLAYER_HEIGHT },
+  );
+
+  let last = '';
+
+  for (let frame = 0; frame < 90; frame += 1) {
+    await drawn(page);
+
+    const now = await eyesAt(page);
+
+    if (now === last) {
+      return;
+    }
+
+    last = now;
+  }
+
+  throw new Error('the camera never came to rest');
 }
 
 test('draws every prop of the glade at rest, and leaves the waterfall alone', async ({ page }) => {
@@ -257,64 +361,215 @@ test('the flag raises and then waves, and the beacon lights and then burns', asy
 test('the creature blinks its eyes at the prop it hides in', async ({ page }, info) => {
   await open(page);
 
-  /** Put the creature in the first prop of a kind and draw the frame. */
-  async function hideIn(kind: string): Promise<string> {
-    await page.evaluate((hides) => {
-      const state = window.wizard.state();
-      const prop = state.props.find((found) => found.kind === hides);
-
-      // HWP-051 is what puts the creature in its hiding place; until it
-      // lands, the test places it where bugs/manifest.json says it hides.
-      state.creature = {
-        at: prop?.id ?? -1,
-        travelTo: -1,
-        travelUntil: -1,
-        carriedSince: -1,
-        firstCarried: false,
-      };
-    }, kind);
-    await drawn(page);
-
-    return eyesAt(page);
-  }
-
   // A run opens on tick 0 with the eyes open, so the start-of-run shot the
   // acceptance asks for has eyes in it rather than a blink.
-  const atBush = await hideIn('bush');
+  const atBush = await hideIn(page, 'bush');
 
   await shot(page, info, 'eyes-at-the-bush.png');
 
-  const atLog = await hideIn('log');
+  const atLog = await hideIn(page, 'log');
 
   await shot(page, info, 'eyes-at-the-log.png');
 
-  /** The middle of the first prop of a kind, in world units. */
-  const middleOf = (kind: string): number => {
-    const prop = GLADE_PROPS.find((found) => found.kind === kind);
-
-    return (prop?.x ?? 0) + (prop?.w ?? 0) / 2;
-  };
-
   expect(atBush).toMatch(/^-?[\d.]+,-?[\d.]+$/);
   // The wizard has not moved between the two frames, so neither has the
-  // camera: the eyes moved by the distance between the two hiding places.
-  expect(Number(atLog.split(',')[0]) - Number(atBush.split(',')[0])).toBeCloseTo(
-    middleOf('log') - middleOf('bush'),
-  );
+  // camera: the eyes moved by the distance between the two seats, which is
+  // not the distance between the two cells' middles (HWP-089).
+  const [bushX = 0, bushY = 0] = numbers(atBush);
+  const [logX = 0, logY = 0] = numbers(atLog);
+
+  expect(logX - bushX).toBeCloseTo(seatIn('log').x - seatIn('bush').x);
+  expect(logY - bushY).toBeCloseTo(seatIn('log').y - seatIn('bush').y);
 
   // And a creature on its way from one hiding place to the next shows nothing.
-  await page.evaluate(() => {
-    const creature = window.wizard.state().creature;
-
-    if (creature !== null) {
-      creature.at = -1;
-      creature.travelTo = 0;
-      creature.travelUntil = 30;
-    }
-  });
-  await drawn(page);
-  expect(await eyesAt(page)).toBe('none');
+  expect(await hideIn(page, null)).toBe('none');
 });
+
+/** The idle frame of a prop's strip, off the art `pnpm assets` cut. */
+interface IdleFrame {
+  /** Pixels across and down, and pixels per world unit (ADR-003's density). */
+  readonly w: number;
+  readonly h: number;
+  readonly density: number;
+  /** How bright a pixel is, 0 to 255, or null where the sprite draws nothing. */
+  lumAt: (x: number, y: number) => number | null;
+}
+
+/** What the kit wrote for one strip, as `public/assets/manifest.json` gives it. */
+interface StripEntry {
+  readonly width: number;
+  readonly height: number;
+  readonly cellW: number;
+  readonly frames: number;
+}
+
+/**
+ * The first frame of a hiding place's strip, which is the one every prop of
+ * the glade is drawn on at rest. Its geometry is read off the manifest rather
+ * than written down again here (AGENTS.md rule 9), the way the parallax and
+ * wizard specs read the art the kit wrote.
+ */
+async function idleFrameOf(kind: HidingPlace): Promise<IdleFrame> {
+  const manifest = JSON.parse(await readFile('public/assets/manifest.json', 'utf8')) as Record<
+    string,
+    StripEntry | undefined
+  >;
+  const entry = manifest[`props/${kind}`];
+
+  if (entry === undefined) {
+    throw new Error(`the kit wrote no strip for the ${kind}`);
+  }
+
+  const w = entry.width / entry.frames;
+  const { data, info } = await sharp(await readFile(`public/assets/props/${kind}.png`))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return {
+    w,
+    h: entry.height,
+    density: w / entry.cellW,
+    lumAt: (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= entry.height) return null;
+
+      const at = (y * info.width + x) * info.channels;
+
+      if ((data[at + 3] ?? 0) === 0) return null;
+
+      return ((data[at] ?? 0) + (data[at + 1] ?? 0) + (data[at + 2] ?? 0)) / 3;
+    },
+  };
+}
+
+/** The row of the strip the eyes' middle lands on when seated there. */
+function rowOf(frame: IdleFrame, seat: CreatureSeat): number {
+  return Math.round(frame.h - seat.up * frame.density);
+}
+
+/** The art the two eyes cover at a seat: how bright it is, and what it misses. */
+function artUnder(frame: IdleFrame, seat: CreatureSeat): { mean: number; blank: number } {
+  const { patch, eye } = CREATURE_EYES;
+  const left = Math.round((seat.x - patch / 2) * frame.density);
+  const top = rowOf(frame, seat) - Math.round((eye / 2) * frame.density);
+  let sum = 0;
+  let drawn = 0;
+  let blank = 0;
+
+  for (let y = top; y < top + eye * frame.density; y += 1) {
+    for (let x = left; x < left + patch * frame.density; x += 1) {
+      const lum = frame.lumAt(x, y);
+
+      if (lum === null) {
+        blank += 1;
+      } else {
+        sum += lum;
+        drawn += 1;
+      }
+    }
+  }
+
+  return { mean: drawn === 0 ? 0 : sum / drawn, blank };
+}
+
+/** The middle of what the sprite draws across one of its rows, in world units. */
+function drawnMiddleOn(frame: IdleFrame, row: number): number {
+  let from = frame.w;
+  let to = -1;
+
+  for (let x = 0; x < frame.w; x += 1) {
+    if (frame.lumAt(x, row) === null) continue;
+
+    from = Math.min(from, x);
+    to = Math.max(to, x);
+  }
+
+  return (from + to + 1) / 2 / frame.density;
+}
+
+/** Where the eyes sat before HWP-089: the middle of the prop's own cell. */
+function cellMiddle(kind: HidingPlace): CreatureSeat {
+  const { w, h } = PROP_SIZE[kind];
+
+  return { x: w / 2, up: (h ?? 0) / 2 + SPRITE_FOOT_OFFSET };
+}
+
+/**
+ * The feature of its strip each seat was measured off, asserted against the
+ * pixels the kit cut. The eyes are drawn over the prop in one flat red the
+ * props carry nowhere, so counting that red on screen says the eyes arrived —
+ * it cannot say they arrived in the hollow, and reads the same with the seat
+ * back at the cell's middle. Only the art under the seat tells the two apart,
+ * and it is also what a regenerated `props-sheet.png` would move.
+ */
+const SEAT_SITS_ON: Readonly<Record<HidingPlace, (frame: IdleFrame) => void>> = {
+  // The dark open end, against the bark in the middle of the cell the eyes
+  // used to be drawn on: less than half as bright (issue #116).
+  log: (frame) => {
+    expect(artUnder(frame, CREATURE_SEAT.log).mean * 2).toBeLessThan(
+      artUnder(frame, cellMiddle('log')).mean,
+    );
+  },
+  // The middle of the leaf mass the bush draws at the eyes' own height. The
+  // bush's measured seat is one unit above its cell middle, so brightness
+  // cannot separate the two there; where the leaves are, can.
+  bush: (frame) => {
+    const middle = drawnMiddleOn(frame, rowOf(frame, CREATURE_SEAT.bush));
+
+    expect(Math.abs(middle - CREATURE_SEAT.bush.x)).toBeLessThanOrEqual(1);
+  },
+  // The widest step of the crack, which is darker than the lit face around it.
+  rock: (frame) => {
+    expect(artUnder(frame, CREATURE_SEAT.rock).mean).toBeLessThan(
+      artUnder(frame, cellMiddle('rock')).mean,
+    );
+  },
+};
+
+test('every seat is on the feature of its strip it was measured off', async () => {
+  for (const kind of HIDING_PLACES) {
+    const frame = await idleFrameOf(kind);
+
+    // Wherever the feature is, the eyes themselves are on the drawn prop:
+    // a seat that slid off its silhouette would hang them in the air.
+    expect(artUnder(frame, CREATURE_SEAT[kind]).blank, kind).toBe(0);
+    SEAT_SITS_ON[kind](frame);
+  }
+});
+
+/**
+ * HWP-089's acceptance: the eyes are drawn inside the log's hollow and inside
+ * the bush's foliage, with the faint pixel beside each. The seat is read off
+ * the prop strips, so what it is worth can only be seen in pixels — the
+ * report says where the eyes were put, not what is around them — and the
+ * close-up is attached for the hollow and the glow to be looked at.
+ */
+for (const kind of ['bush', 'log'] as const) {
+  test(`the eyes are drawn in the ${kind}, not on it`, async ({ page }, info) => {
+    await open(page);
+    await hideIn(page, kind);
+    await cameraOn(page, kind);
+
+    const at = await eyePoint(page);
+    // The art of the hiding place alone, with the creature away from it.
+    await hideIn(page, null);
+
+    const onTheArt = await eyeRedAround(page, at);
+
+    await hideIn(page, kind);
+
+    const withEyes = await eyeRedAround(page, at);
+
+    await shot(page, info, `eyes-in-the-${kind}.png`);
+    // Neither the bush's leaves nor the log's bark carries the eyes' red, and
+    // both eyes reach the screen whole at the seat the report named.
+    expect(onTheArt).toBeLessThan(BOTH_EYES);
+    expect(withEyes).toBeGreaterThanOrEqual(onTheArt + BOTH_EYES);
+    // And the seat they arrived at is the hollow, or the leaves, rather than
+    // anywhere else on the prop: that part is in the art, not on the screen.
+    SEAT_SITS_ON[kind](await idleFrameOf(kind));
+  });
+}
 
 test('the eyes ride on the hat in front of the wizard, not behind him', async ({ page }, info) => {
   await open(page);

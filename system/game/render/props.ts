@@ -17,11 +17,19 @@
 
 import { Container, Sprite } from 'pixi.js';
 
-import { PROP_SIZE, type Prop, type PropKind, type Vec2, type WorldState } from '../sim';
+import {
+  HIDING_PLACES,
+  PROP_SIZE,
+  type Prop,
+  type PropKind,
+  type Vec2,
+  type WorldState,
+} from '../sim';
 
 import { wholePixels, type Camera } from './camera';
 import {
   CREATURE_EYES,
+  CREATURE_SEAT,
   PROP_FPS,
   PROP_RUSTLE_TICKS,
   PROP_SHAKE,
@@ -115,8 +123,8 @@ export function propShake(prop: Prop, tick: number): number {
 
 /**
  * Where the creature stands, in world units, or null when it shows nothing.
- * It rides the wizard's hat while carried, sits in the prop it hides in
- * otherwise, and is not drawn at all while it runs between the two
+ * It rides the wizard's hat while carried, sits on the seat its hiding place
+ * gives it otherwise, and is not drawn at all while it runs between the two
  * (bug-quest.md, the creature).
  *
  * The glitch aura is left out of this on purpose: HWP-061 throws the hiding
@@ -142,12 +150,23 @@ export function eyesAt(state: WorldState, wizard: WizardFrame): Vec2 | null {
     return null;
   }
 
-  // The shake moves the prop's own sprite, so the eyes take it too: a
-  // charge-hit bush would otherwise rustle out from under its eyes for four
-  // ticks while they sat still in its untouched middle.
+  // Only a hiding place is given a seat, and the simulation puts the creature
+  // in nothing else (game/sim/bugs.ts), so anything else shows nothing.
+  const kind = HIDING_PLACES.find((place) => place === hiding.kind);
+
+  if (kind === undefined) {
+    return null;
+  }
+
+  const seat = CREATURE_SEAT[kind];
+
+  // The seat is measured off the sprite, which stands `SPRITE_FOOT_OFFSET`
+  // below the prop's own cell, and the shake moves that sprite — so the eyes
+  // take both. A charge-hit bush would otherwise rustle out from under its
+  // eyes for four ticks while they sat still where it had been.
   return {
-    x: hiding.x + hiding.w / 2 + propShake(hiding, state.tick),
-    y: hiding.y + hiding.h / 2,
+    x: hiding.x + seat.x + propShake(hiding, state.tick),
+    y: hiding.y + hiding.h + SPRITE_FOOT_OFFSET - seat.up,
   };
 }
 

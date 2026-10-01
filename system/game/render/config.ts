@@ -3,7 +3,7 @@
 // game/render/ imports from here; no layer, panel or effect declares its own.
 
 import type { TileName } from '../content/tile-order';
-import { TICK_RATE } from '../sim';
+import { TICK_RATE, type HidingPlace } from '../sim';
 
 /** Width of the view, in world units. */
 export const VIEW_W = 320;
@@ -319,10 +319,42 @@ export const SPRITE_FOOT_OFFSET = 2;
 /**
  * The creature's two red eyes, drawn in code in Season 1 (asset-list.md): two
  * squares of `eye` units at the ends of the 8-unit patch the list gives them,
- * and `hat` units down from the top of the wizard's cell while it rides him
- * (bug-quest.md, the creature).
+ * each with one pixel of the same red beside it on its outer side at `glow`'s
+ * alpha, which is what reads as a glow in the dark of a hiding place. `hat` is
+ * how far down from the top of the wizard's cell the patch sits while the
+ * creature rides him (bug-quest.md, the creature); `CREATURE_SEAT` below is
+ * where it sits in everything else.
  */
-export const CREATURE_EYES = { patch: 8, eye: 2, colour: 0xff3b2f, hat: 6 } as const;
+export const CREATURE_EYES = {
+  patch: 8,
+  eye: 2,
+  colour: 0xff3b2f,
+  hat: 6,
+  /** One pixel of the render texture (ADR-003), at the share of the red it keeps. */
+  glow: { size: 1 / RENDER_DENSITY, alpha: 0.35 },
+} as const;
+
+/** Where the eyes sit in a hiding place, in world units of its sprite. */
+export interface CreatureSeat {
+  /** Right of the sprite's left edge. */
+  readonly x: number;
+  /** Up from the sprite's bottom edge, which stands `SPRITE_FOOT_OFFSET` below the prop's. */
+  readonly up: number;
+}
+
+/**
+ * The seat each hiding place gives the creature, read off the density 2 prop
+ * strips HWP-043 cut rather than off the trigger box: the middle of a cell is
+ * bark on the log, and eyes drawn there sit on it instead of in the hollow.
+ * The log's seat is the middle of the dark open end it is drawn with, the
+ * bush's the middle of its leaf mass above the grass it stands in, and the
+ * rock's the widest step of the crack that runs down it.
+ */
+export const CREATURE_SEAT: Readonly<Record<HidingPlace, CreatureSeat>> = {
+  bush: { x: 16, up: 13 },
+  log: { x: 9, up: 9 },
+  rock: { x: 14, up: 11 },
+};
 
 /** Ticks from one blink to the next, and how many of them the eyes are shut. */
 export const CREATURE_BLINK = { period: 96, shut: 6 } as const;

@@ -81,12 +81,50 @@ export function auraAt(state: WorldState, prop: Prop): Aura {
   return { x: thrown(ACROSS), y: thrown(DOWN), strength };
 }
 
-/** The two red eyes: squares at the ends of their patch, around their middle. */
-function drawEyes(into: Graphics): void {
-  const { patch, eye, colour } = CREATURE_EYES;
+/** One square the eyes are made of: its top-left corner, around their middle. */
+export interface EyeMark extends Vec2 {
+  readonly size: number;
+  /** The eyes' red, whole for an eye and `CREATURE_EYES.glow.alpha` for a glow. */
+  readonly fill: { readonly color: number; readonly alpha: number };
+}
 
-  into.rect(-patch / 2, -eye / 2, eye, eye).fill(colour);
-  into.rect(patch / 2 - eye, -eye / 2, eye, eye).fill(colour);
+/**
+ * The four squares the eyes are drawn as: an eye at each end of the patch, and
+ * one faint pixel of the same red just outside it, which is what reads as a
+ * glow when the eyes are deep in a hollow (HWP-089). Each glow pixel lands on
+ * the render texture's whole pixels the way the wisp's frames do, so
+ * nearest-neighbour keeps it a crisp single pixel (ADR-003). An eye is an
+ * even number of those pixels tall, so one pixel cannot be centred on it: the
+ * rounding seats the glow on the lower of the two middle rows, which is where
+ * the prototype's sat.
+ *
+ * Nothing here moves with the tick, so the squares are measured once rather
+ * than on every frame the eyes are drawn.
+ */
+export const EYE_MARKS: readonly EyeMark[] = [-1, 1].flatMap((side) => {
+  const { patch, eye, colour, glow } = CREATURE_EYES;
+
+  return [
+    {
+      x: (side * (patch - eye)) / 2 - eye / 2,
+      y: -eye / 2,
+      size: eye,
+      fill: { color: colour, alpha: 1 },
+    },
+    {
+      x: wholePixels((side * (patch + glow.size)) / 2 - glow.size / 2),
+      y: wholePixels(-glow.size / 2),
+      size: glow.size,
+      fill: { color: colour, alpha: glow.alpha },
+    },
+  ];
+});
+
+/** The two red eyes and the glow beside each, around their middle. */
+function drawEyes(into: Graphics): void {
+  for (const mark of EYE_MARKS) {
+    into.rect(mark.x, mark.y, mark.size, mark.size).fill(mark.fill);
+  }
 }
 
 /** Where on its circle the wisp stands on this tick, around its middle. */

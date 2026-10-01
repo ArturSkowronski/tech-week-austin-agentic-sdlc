@@ -15,16 +15,18 @@ import {
   CREATURE_AURA,
   CREATURE_BLINK,
   CREATURE_EYES,
+  CREATURE_SEAT,
   CREATURE_WISP,
   PROP_SHAKE,
+  RENDER_DENSITY,
+  SPRITE_FOOT_OFFSET,
 } from '../../game/render/config';
-import { auraAt, eyesOpen, wispAt } from '../../game/render/creature';
+import { auraAt, EYE_MARKS, eyesOpen, wispAt } from '../../game/render/creature';
 import { eyesAt } from '../../game/render/props';
 import type { WizardFrame } from '../../game/render/wizard';
 import {
   PLAYER_HEIGHT,
   PLAYER_WIDTH,
-  PROP_SIZE,
   type Creature,
   type Prop,
   type WorldState,
@@ -145,6 +147,43 @@ describe('the blink the eyes keep', () => {
   });
 });
 
+describe('the eyes and the glow beside them', () => {
+  const { patch, eye, colour, glow } = CREATURE_EYES;
+  const solid = EYE_MARKS.filter((mark) => mark.fill.alpha === 1);
+  const faint = EYE_MARKS.filter((mark) => mark.fill.alpha !== 1);
+
+  it('puts a solid eye at each end of the patch', () => {
+    expect(solid).toEqual([
+      { x: -patch / 2, y: -eye / 2, size: eye, fill: { color: colour, alpha: 1 } },
+      { x: patch / 2 - eye, y: -eye / 2, size: eye, fill: { color: colour, alpha: 1 } },
+    ]);
+  });
+
+  it('sets one faint pixel outside each eye, on whole pixels of the texture', () => {
+    // The glow the prototype had in the log's hollow: a pixel of the eyes'
+    // own red, beyond the far side of each of them and nowhere else.
+    expect(faint).toHaveLength(2);
+    expect(faint.map((mark) => mark.size)).toEqual([glow.size, glow.size]);
+    expect(faint.map((mark) => mark.fill)).toEqual([
+      { color: colour, alpha: glow.alpha },
+      { color: colour, alpha: glow.alpha },
+    ]);
+    // Beyond the patch entirely, on both sides: a glow that reached back over
+    // its own eye would only thicken it.
+    expect((faint[0]?.x ?? 0) + glow.size).toBeLessThanOrEqual(-patch / 2);
+    expect(faint[1]?.x ?? 0).toBeGreaterThanOrEqual(patch / 2);
+
+    for (const mark of faint) {
+      expect(Number.isInteger(mark.x * RENDER_DENSITY)).toBe(true);
+      expect(Number.isInteger(mark.y * RENDER_DENSITY)).toBe(true);
+      // An eye is an even number of texture pixels tall, so the glow cannot
+      // sit on its middle; it sits on the lower of the two rows that share it.
+      expect(mark.y).toBeGreaterThanOrEqual(-eye / 2);
+      expect(mark.y + glow.size).toBeLessThanOrEqual(eye / 2);
+    }
+  });
+});
+
 describe('the wisp on the hat', () => {
   it('turns on a circle of its own radius around the point it is placed at', () => {
     for (const tick of [0, 7, 19, 24, 601]) {
@@ -187,14 +226,17 @@ const WIZARD: WizardFrame = {
 };
 
 describe('where the creature shows itself', () => {
-  it('sits in the middle of the prop it hides in', () => {
+  it('sits on the seat its hiding place gives it, measured off the sprite', () => {
     const state = hidingIn();
     const bush = bushOf(state);
 
+    // Up from the bottom of the drawn bush, which stands a foot offset below
+    // the trigger box the room gave it — not in the middle of that box.
     expect(eyesAt(state, WIZARD)).toEqual({
-      x: bush.x + PROP_SIZE.bush.w / 2,
-      y: bush.y + (PROP_SIZE.bush.h ?? 0) / 2,
+      x: bush.x + CREATURE_SEAT.bush.x,
+      y: bush.y + bush.h + SPRITE_FOOT_OFFSET - CREATURE_SEAT.bush.up,
     });
+    expect(eyesAt(state, WIZARD)?.y).not.toBe(bush.y + bush.h / 2);
   });
 
   it('rides on the hat while it is carried', () => {
@@ -212,15 +254,15 @@ describe('where the creature shows itself', () => {
   it('shakes with the prop it hides in, so it keeps looking out of it', () => {
     const state = hidingIn();
     const bush = bushOf(state);
-    const middle = bush.x + bush.w / 2;
+    const seated = bush.x + CREATURE_SEAT.bush.x;
 
     bush.hitTick = 0;
     state.tick = 0;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle + PROP_SHAKE.units);
+    expect(eyesAt(state, WIZARD)?.x).toBe(seated + PROP_SHAKE.units);
     state.tick = 1;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle - PROP_SHAKE.units);
-    // And back in the untouched middle once the four ticks are over.
+    expect(eyesAt(state, WIZARD)?.x).toBe(seated - PROP_SHAKE.units);
+    // And back on the untouched seat once the four ticks are over.
     state.tick = PROP_SHAKE.ticks;
-    expect(eyesAt(state, WIZARD)?.x).toBe(middle);
+    expect(eyesAt(state, WIZARD)?.x).toBe(seated);
   });
 });
