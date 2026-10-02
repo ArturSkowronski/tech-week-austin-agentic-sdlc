@@ -99,8 +99,11 @@ function readJump(player: Player, input: InputFrame): void {
 }
 
 /** Spend a buffered jump if the ground or coyote time still allows one. */
-function tryJump(player: Player): void {
+function tryJump(state: WorldState): void {
+  const player = state.player;
+
   if (player.jumpBuffer > 0 && (player.onGround || player.coyote > 0)) {
+    state.events.push('jump');
     player.vy = JUMP_VELOCITY;
     player.onGround = false;
     player.coyote = 0;
@@ -278,9 +281,18 @@ function stepOnFoot(state: WorldState, input: InputFrame): PlayerState {
     player.fellFor += 1;
   }
 
-  tryJump(player);
+  tryJump(state);
 
-  return nextState(player, wanted !== 0);
+  const next = nextState(player, wanted !== 0);
+
+  // The tick he touches down on, not every tick of the `land` that follows:
+  // `land` holds for LAND_TICKS, and a sound belongs to the moment the feet
+  // meet the ground (docs/plan/03-assets/prompts/audio.md).
+  if (next === 'land' && player.state !== 'land') {
+    state.events.push('land');
+  }
+
+  return next;
 }
 
 /**

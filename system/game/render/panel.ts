@@ -488,6 +488,11 @@ export function createPanel(anchorY: number): Panel {
 /** A pressable label in the same chrome, gold behind charcoal letters. */
 export interface Button {
   readonly view: Container;
+  /**
+   * What it says. A button whose words never change is built with them; the
+   * music toggle changes its own, and the next `resize` draws what it set.
+   */
+  says: string;
   /** Draw it for a window this tall; its label decides how wide it is. */
   resize(windowH: number): void;
 }
@@ -496,6 +501,8 @@ export function createButton(label: string, onPress: () => void): Button {
   const view = new Container();
   const box = new Graphics();
   const text = createText(UI_COLOURS.chrome);
+
+  let says = label;
 
   view.addChild(box, text);
   view.eventMode = 'static';
@@ -507,12 +514,20 @@ export function createButton(label: string, onPress: () => void): Button {
   return {
     view,
 
+    get says(): string {
+      return says;
+    },
+
+    set says(next: string) {
+      says = next;
+    },
+
     resize(windowH: number): void {
       const scale = uiScale(windowH);
       const padding = UI_SIZES.padding * scale;
 
       text.style.fontSize = UI_SIZES.body * scale;
-      text.text = label;
+      text.text = says;
 
       const size = text.measure();
       const w = Math.round(size.w + padding * 2);

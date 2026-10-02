@@ -41,3 +41,20 @@ export function hold(input: Partial<InputFrame>, ticks: number): InputFrame[] {
 
   return Array.from({ length: ticks }, () => frame);
 }
+
+/**
+ * Every event of a replay, in the order the ticks emitted them. The reading
+ * has to happen inside the loop: `tick` clears `WorldState.events` at the top
+ * of the next one, so events belong to the tick that emitted them and to no
+ * other (game/sim/tick.ts).
+ */
+export function recordEvents(state: WorldState, frames: readonly InputFrame[]): string[] {
+  const heard: string[] = [];
+
+  for (const frame of frames) {
+    tick(state, frame);
+    heard.push(...state.events);
+  }
+
+  return heard;
+}

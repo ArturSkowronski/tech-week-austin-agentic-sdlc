@@ -1,7 +1,8 @@
 // The creature that carries the planted bug: hiding, riding, fleeing, letting
 // go (docs/plan/02-design/bug-quest.md, the creature). It changes nothing in
-// the world but its own record in `WorldState.creature` — the symptom is the
-// defect itself, and the module the manifest names is what reads the flag.
+// the world but its own record in `WorldState.creature` and the two events
+// that say it was heard — the symptom is the defect itself, and the module the
+// manifest names is what reads the flag.
 //
 // Its four situations are the four fields of `Creature`: hiding in a prop
 // (`at`), riding the hat (`carriedSince`), running between two hiding places
@@ -123,6 +124,7 @@ function stepHiding(state: WorldState, creature: Creature, hiding: Prop): void {
     const away = nearestHiding(state, hiding.id);
 
     if (away !== undefined) {
+      state.events.push('creature:out');
       runTo(creature, state.tick, away);
     }
 
@@ -136,6 +138,7 @@ function stepHiding(state: WorldState, creature: Creature, hiding: Prop): void {
   // 600-tick release still caps the ride, so a charge is a reprieve, not an
   // escape; walking away during the 30 is what makes it one.
   if (!charging(state.player) && overlaps(playerBox(state), hiding)) {
+    state.events.push('creature:caught');
     creature.at = -1;
     creature.carriedSince = state.tick;
     creature.firstCarried = true;

@@ -80,13 +80,21 @@ The layer stack is settled; reuse at density 1, regenerate at 2 px later only if
 
 ## Audio
 
-Generated with the prompts in [prompts/audio.md](prompts/audio.md); none exists yet.
+Done (HWP-063), generated with the prompts in [prompts/audio.md](prompts/audio.md) and recorded take by take in [assets/PROVENANCE.md](../../../assets/PROVENANCE.md). The kit copies all fourteen into `public/assets/audio/` unchanged and measures each one, so the lengths below are the files' own. The five effects the prompts sized under half a second are 0.5 s, the shortest the model generates.
 
-| Effect | Length |
-|---|---|
-| jump, land, charge, charge hit, charge wall | 0.2 to 0.4 s |
-| bush rustle, log chatter, rock crack | 0.5 to 0.6 s |
-| creature pop-out, creature caught, checkpoint | 0.3 to 0.8 s |
-| beacon lit | 2 s |
-| waterfall loop | 8 s |
-| music loop | one theme, behind a settings toggle |
+| Effect | File | Length |
+|---|---|---|
+| jump | `audio/jump.mp3` | 0.5 s |
+| land | `audio/land.mp3` | 0.5 s |
+| charge | `audio/charge.mp3` | 0.5 s |
+| charge hit | `audio/charge-hit.mp3` | 0.5 s |
+| charge wall | `audio/charge-wall.mp3` | 0.5 s |
+| bush rustle | `audio/bush-rustle.mp3` | 0.5 s |
+| log chatter | `audio/log-chatter.mp3` | 0.7 s |
+| rock crack | `audio/rock-crack.mp3` | 0.7 s |
+| creature pop-out | `audio/creature-pop-out.mp3` | 0.5 s |
+| creature caught | `audio/creature-caught.mp3` | 0.5 s |
+| checkpoint | `audio/checkpoint.mp3` | 0.9 s |
+| beacon lit | `audio/beacon-lit.mp3` | 2.1 s |
+| waterfall loop | `audio/waterfall-loop.mp3` | 8.1 s, looped |
+| music loop | `audio/music-loop.mp3` | 60.0 s, looped behind the settings toggle |

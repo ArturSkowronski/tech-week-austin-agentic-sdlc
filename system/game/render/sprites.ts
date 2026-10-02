@@ -47,6 +47,25 @@ export const CONSUMERS: readonly string[] = [
   'props/beacon',
   'props/torch',
   'props/sparks',
+  // The sounds. Twelve are what an event sounds like and the mapping in
+  // game/render/audio.ts says which; the waterfall's loop runs under the rock
+  // face and the music's behind the settings toggle. The names are written out
+  // here because this is the renderer's declaration of what it loads, and
+  // tests/render/audio.test.ts holds the mapping and the toggle to it.
+  'audio/jump',
+  'audio/land',
+  'audio/charge',
+  'audio/charge-hit',
+  'audio/charge-wall',
+  'audio/bush-rustle',
+  'audio/log-chatter',
+  'audio/rock-crack',
+  'audio/creature-pop-out',
+  'audio/creature-caught',
+  'audio/checkpoint',
+  'audio/beacon-lit',
+  'audio/waterfall-loop',
+  'audio/music-loop',
 ];
 
 /** Frames played in so many ticks at this rate. */
@@ -109,8 +128,20 @@ export interface PoseStripEntry extends StripEntry {
   crystal: readonly Point[];
 }
 
+/**
+ * What the kit records about one sound (pipeline.md, manifest entries). A
+ * sound is copied rather than built, so it has no size and no density; what it
+ * has is a length and whether the player repeats it or lets it end.
+ */
+export interface AudioEntry {
+  kind: 'audio';
+  /** How long the file plays, in seconds. */
+  seconds: number;
+  loop: boolean;
+}
+
 /** Every output the kit wrote, by name, as `public/assets/manifest.json`. */
-export type Manifest = Readonly<Record<string, Entry>>;
+export type Manifest = Readonly<Record<string, Entry | AudioEntry>>;
 
 /** An output measured in world units, whatever density it was drawn at. */
 export interface Measure {
@@ -143,8 +174,21 @@ function assetUrl(file: string): string {
   return `${import.meta.env.BASE_URL}assets/${file}`;
 }
 
-/** The kit's manifest, read from the site. */
-export async function loadManifest(): Promise<Manifest> {
+/**
+ * The kit's manifest, read from the site. Every view asks for its own, and
+ * they are all built at once, so the fetch is kept rather than made five
+ * times over: the file is written once per build and never changes under a
+ * running page.
+ */
+let manifest: Promise<Manifest> | undefined;
+
+export function loadManifest(): Promise<Manifest> {
+  manifest ??= fetchManifest();
+
+  return manifest;
+}
+
+async function fetchManifest(): Promise<Manifest> {
   const response = await fetch(assetUrl('manifest.json'));
 
   if (!response.ok) {
@@ -155,7 +199,7 @@ export async function loadManifest(): Promise<Manifest> {
 }
 
 /** What the kit recorded for one output, or a refusal that names the file. */
-function entryOf(manifest: Manifest, name: string): Entry {
+function entryOf(manifest: Manifest, name: string): Entry | AudioEntry {
   const entry = manifest[name];
 
   if (entry === undefined) {
@@ -163,6 +207,38 @@ function entryOf(manifest: Manifest, name: string): Entry {
   }
 
   return entry;
+}
+
+/** Whether the kit wrote this entry for a sound rather than for a picture. */
+function isAudio(entry: Entry | AudioEntry): entry is AudioEntry {
+  return 'kind' in entry;
+}
+
+/** What the kit recorded for one picture, or a refusal that names the file. */
+function artOf(manifest: Manifest, name: string): Entry {
+  const entry = entryOf(manifest, name);
+
+  if (isAudio(entry)) {
+    throw new Error(`the asset manifest's ${name} is a sound, not a picture`);
+  }
+
+  return entry;
+}
+
+/** What the kit recorded for one sound, or a refusal that names the file. */
+export function soundOf(manifest: Manifest, name: string): AudioEntry {
+  const entry = entryOf(manifest, name);
+
+  if (!isAudio(entry)) {
+    throw new Error(`the asset manifest's ${name} is a picture, not a sound`);
+  }
+
+  return entry;
+}
+
+/** The URL of one of the kit's sounds, under the site the game is served at. */
+export function soundUrl(name: string): string {
+  return assetUrl(`${name}.mp3`);
 }
 
 /**
@@ -181,7 +257,7 @@ async function loadTexture(name: string): Promise<Texture> {
 
 /** One named output, measured and loaded. */
 export async function loadArt(manifest: Manifest, name: string): Promise<Art> {
-  const measured = measure(entryOf(manifest, name));
+  const measured = measure(artOf(manifest, name));
 
   return { texture: await loadTexture(name), ...measured };
 }
@@ -258,7 +334,7 @@ function isStrip(entry: Entry): entry is StripEntry {
  * is a texture swap.
  */
 export async function loadStrip(manifest: Manifest, name: string): Promise<Strip> {
-  const entry = entryOf(manifest, name);
+  const entry = artOf(manifest, name);
 
   if (!isStrip(entry)) {
     throw new Error(`the asset manifest's ${name} is no strip of pose cells`);

@@ -17,8 +17,9 @@ import { dirname, join, relative } from 'node:path';
 
 import { TILE_ATLAS } from '../../game/content/tile-order';
 import { BASE_COLOURS, BUSHES_FRONT_ROWS, MOUNTAIN_ART_ROWS, MOUNTAIN_BASE_ROWS, RENDER_DENSITY, VIEW_H, VIEW_W } from '../../game/render/config';
-import { CONSUMERS, type Entry as ArtEntry } from '../../game/render/sprites';
+import { CONSUMERS, type AudioEntry, type Entry as ArtEntry } from '../../game/render/sprites';
 
+import { copyAudio } from './audio';
 import { consumerOf, roomNames } from './consumers';
 import {
   crop,
@@ -36,6 +37,7 @@ import {
 } from './lib';
 import { fitPanel, joinPanels, PAINTINGS, type Painting, type PaintingEntry } from './paintings';
 import { sliceProps } from './props';
+import { rawNames } from './provenance';
 import { cutStrip, type Sheet, type StripEntry } from './strips';
 import { sliceTiles } from './tiles';
 
@@ -66,6 +68,9 @@ const RGB = [0, 1, 2] as const;
 
 /** Every raw this build opened, which is what `checkRaws` holds assets/ to. */
 const opened = new Set<string>();
+
+/** Every file this build wrote, which is what `checkFiles` holds public/ to. */
+const written = new Set<string>(['manifest.json']);
 
 /** One raw of `assets/`, loaded and remembered as read. */
 async function loadRaw(file: string): Promise<Raster> {
@@ -180,7 +185,7 @@ async function main(): Promise<void> {
   await mkdir(join(OUT, 'paintings'), { recursive: true });
   await mkdir(join(OUT, 'props'), { recursive: true });
   await mkdir(join(OUT, dirname(TILE_ATLAS)), { recursive: true });
-  const manifest: Record<string, Entry | StripEntry | PaintingEntry> = {};
+  const manifest: Record<string, Entry | StripEntry | PaintingEntry | AudioEntry> = {};
   for (const output of outputs) {
     manifest[output.name] = await write(output);
   }
@@ -206,12 +211,18 @@ async function main(): Promise<void> {
     const name = `paintings/${painting.room}`;
     manifest[name] = await writePainting(painting, name);
   }
+  // The sounds are copied rather than built, so they go last and audio.ts does
+  // all of it; what comes back is what to record and what was written.
+  for (const sound of await copyAudio(RAWS, OUT)) {
+    manifest[sound.name] = sound.entry;
+    opened.add(sound.file);
+    written.add(sound.file);
+  }
   await writeFile(join(OUT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
-  const names = Object.keys(manifest);
   await checkRaws();
-  await checkConsumers(names);
-  await checkFiles(names);
+  await checkConsumers(Object.keys(manifest));
+  await checkFiles();
 }
 
 /**
@@ -222,7 +233,7 @@ async function main(): Promise<void> {
  * the record of where the raws came from rather than one of them.
  */
 async function checkRaws(): Promise<void> {
-  const skipped = (await readdir(RAWS)).filter((file) => file !== 'PROVENANCE.md' && !opened.has(file));
+  const skipped = (await rawNames()).filter((file) => !opened.has(file));
 
   if (skipped.length > 0) {
     throw new Error(`the kit read nothing from ${skipped.join(', ')} in ${RAWS}/: build it, or take it out of the repository`);
@@ -252,13 +263,12 @@ async function checkConsumers(names: readonly string[]): Promise<void> {
 
 /**
  * Nothing is under `public/assets` that the kit did not write, or the build
- * stops naming it: `pnpm assets` is the only way art may enter `public/`
- * (AGENTS.md rule 3). The directory is written over rather than emptied first,
+ * stops naming it: `pnpm assets` is the only way art and sound may enter
+ * `public/` (AGENTS.md rule 3). The directory is written over rather than emptied first,
  * so the other way to land here is an output of an earlier build that a rename
  * orphaned — which is why the message offers deleting the directory too.
  */
-async function checkFiles(names: readonly string[]): Promise<void> {
-  const written = new Set([...names.map((name) => `${name}.png`), 'manifest.json']);
+async function checkFiles(): Promise<void> {
   const entries = await readdir(OUT, { recursive: true, withFileTypes: true });
   const strays = entries
     .filter((entry) => entry.isFile())
@@ -326,6 +336,8 @@ async function write(output: Output): Promise<Entry> {
   const budget = output.colours ?? COLOURS;
   const image = output.colours === undefined ? stand(output) : output.art;
   const file = join(OUT, `${output.name}.png`);
+
+  written.add(`${output.name}.png`);
   await savePng(image, file, budget);
   const entry: Entry = {
     width: image.width,
@@ -368,6 +380,7 @@ function stand(output: Output): Raster {
  * names is a file the kit does not have yet.
  */
 async function writeStrip(name: string, image: Raster, entry: StripEntry): Promise<StripEntry> {
+  written.add(`${name}.png`);
   await savePng(image, join(OUT, `${name}.png`));
   process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.frames} frames\n`);
   return entry;
@@ -395,6 +408,7 @@ async function writePainting(painting: Painting, name: string): Promise<Painting
   if (count > COLOURS) {
     throw new Error(`${name} came out ${count} colours, over the ${COLOURS} it is reduced to`);
   }
+  written.add(`${name}.png`);
   await savePng(reduced, join(OUT, `${name}.png`));
   process.stdout.write(`${name} ${entry.width}x${entry.height}, ${entry.tiles} tiles, ${count} colours\n`);
   return entry;

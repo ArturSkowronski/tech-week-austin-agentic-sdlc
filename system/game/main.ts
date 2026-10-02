@@ -3,9 +3,11 @@
 // the run to browser tests (docs/plan/02-design/simulation-architecture.md).
 
 import { rooms } from './content/rooms';
+import { createAudio } from './render/audio';
 import { createHud } from './render/hud';
 import { issueBug, issueUrl } from './render/issue';
 import { createScene } from './render/scene';
+import { createSettings } from './render/settings';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
 import { createProps } from './render/props';
@@ -85,13 +87,14 @@ const roomBug = bugForRoom(roomName);
 const freshWorld = (): WorldState =>
   createWorld(roomText, { roomName, creature: roomBug !== undefined });
 
-// No load needs anything of the others, so all four chains are in flight at
+// No load needs anything of the others, so all five chains are in flight at
 // once and the wizard's sheets do not wait on the backdrops.
-const [scene, wizardView, propsView, title] = await Promise.all([
+const [scene, wizardView, propsView, title, audio] = await Promise.all([
   createScene(mount, roomName, atmosphere),
   createWizard(),
   createProps(),
   createTitle(),
+  createAudio(),
 ]);
 
 // The props behind the wizard, and the creature in front of him
@@ -115,6 +118,14 @@ const waterfallView = createWaterfall(roomBug?.logs ?? []);
 
 scene.actors.addChildAt(waterfallView.view, 0);
 
+// The one setting there is. The toggle is pressed, and that press is also the
+// gesture the browser wants before anything may be heard, so the two halves of
+// the music's rule can never disagree. What the last visit asked for is
+// applied here and still waits for a gesture.
+const settings = createSettings(audio.setMusic, window.localStorage);
+
+audio.setMusic(settings.music());
+
 const hud = createHud();
 const banner = createBanner();
 // The way out of the card: the prefilled issue, opened from the pointer press
@@ -137,7 +148,7 @@ const keyboard = createKeyboard({
   },
 });
 
-scene.ui.addChild(title.view, hud.view, card.view, banner.view);
+scene.ui.addChild(title.view, hud.view, card.view, banner.view, settings.view);
 
 function layout(): void {
   const { innerWidth, innerHeight } = window;
@@ -146,6 +157,7 @@ function layout(): void {
   hud.layout(innerWidth, innerHeight);
   card.layout(innerWidth, innerHeight);
   banner.layout(innerWidth, innerHeight);
+  settings.layout(innerWidth, innerHeight);
 }
 
 /**
@@ -164,6 +176,7 @@ function publishUi(): void {
   publish('uiCard', card.says());
   publish('uiCardText', card.report());
   publish('uiTitleText', title.report());
+  publish('uiMusic', settings.report());
 }
 
 /** What the player knows on this frame (bug-quest.md, the ticket card). */
@@ -213,6 +226,13 @@ const wizard: Wizard = {
 
     for (let i = 0; i < n; i += 1) {
       tick(world, frame);
+      // Inside the loop, for the same reason the draw loop below plays its
+      // catch-up ticks' sounds inside its own: a sound belongs to the tick
+      // that emitted it, and `events` is cleared at the top of the next one.
+      // Without this the documented automation surface (AGENTS.md rule 8)
+      // would advance the simulation silently, and a browser test could only
+      // reach the audio by racing the frame loop with a held key.
+      audio.update(world);
     }
   },
 
@@ -264,6 +284,9 @@ function frame(now: number): void {
 
     while (pending >= DT) {
       tick(world, input);
+      // Inside the loop, not after it: a frame that owes three ticks clears
+      // `events` three times, and a sound belongs to the tick that emitted it.
+      audio.update(world);
       pending -= DT;
     }
   }
@@ -288,11 +311,15 @@ function frame(now: number): void {
   // (AGENTS.md rule 9).
   scene.watch(world, debugHud, wizardView.read(world.player).light);
   waterfallView.update(world, scene.camera);
+  // The loops, once the camera has moved: what is in sight is a fact about the
+  // frame, not about each of the ticks it spent.
+  audio.watch(world, scene.camera);
   propsView.update(world, wizardView.update(world.player, scene.camera), scene.camera);
   scene.render();
   publish('wizard', wizardView.report());
   publish('props', propsView.report());
   publish('waterfall', waterfallView.report());
+  publish('audio', audio.report());
   publishUi();
 }
 
