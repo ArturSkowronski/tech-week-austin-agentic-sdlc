@@ -49,9 +49,9 @@ export const CONSUMERS: readonly string[] = [
   'props/sparks',
   // The sounds. Twelve are what an event sounds like and the mapping in
   // game/render/audio.ts says which; the waterfall's loop runs under the rock
-  // face and the music's behind the settings toggle. The names are written out
+  // face and the night forest's under everything. The names are written out
   // here because this is the renderer's declaration of what it loads, and
-  // tests/render/audio.test.ts holds the mapping and the toggle to it.
+  // tests/render/audio.test.ts holds the mapping to it.
   'audio/jump',
   'audio/land',
   'audio/charge',
@@ -65,7 +65,7 @@ export const CONSUMERS: readonly string[] = [
   'audio/checkpoint',
   'audio/beacon-lit',
   'audio/waterfall-loop',
-  'audio/music-loop',
+  'audio/ambience-loop',
 ];
 
 /** Frames played in so many ticks at this rate. */

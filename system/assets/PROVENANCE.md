@@ -55,21 +55,21 @@ Moved out of the repository on 2026-09-15 and kept outside it, so the tree carri
 
 ## Audio
 
-Generated with ElevenLabs on 2026-10-02 under the workspace's paid subscription, on the creative flow "Hobby Wizard audio (HWP-063), paid run" (https://elevenlabs.io/app/flows/5yzvSoLio67zobRb5p6I), which holds nothing but subscription-period generations so the licence origin of every take is certain (ElevenLabs grants content generated during a subscription a commercial licence that outlasts it; an earlier free-plan set and a mixed flow were discarded). Four takes per sound from the prompts in `docs/plan/03-assets/prompts/audio.md` with "no music, no voice, dry, single sound" appended to each effect; the owner listened and chose the take named in each row, numbered in the order the takes were generated. Effects: model `eleven_text_to_sound_v2`, prompt influence 0.5, MP3 128 kbps 44.1 kHz stereo; the five effects the plan sizes under half a second are 0.5 s, the model's shortest. Music: model `eleven_music_v2_5`, instrumental, 60 s, MP3 192 kbps 48 kHz stereo. The kit copies these into `public/assets/audio/` unchanged (HWP-063, Visdom part).
+Generated with ElevenLabs on 2026-10-02 by the owner in the Studio project https://elevenlabs.io/app/studio/BWEe0K13M3lHwy7TVbAZ, under the workspace's paid subscription (ElevenLabs grants content generated during a subscription a commercial licence that outlasts it). This set replaces the first HWP-063 set, generated the same day on the creative flow "Hobby Wizard audio (HWP-063), paid run" from the prompts in `docs/plan/03-assets/prompts/audio.md`, which the owner judged unusable after hearing it in the game; the prompts below are the ones actually used, which name the retro-platformer character the brief's did not. The owner exported the chosen take of each sound and the kit took the files unchanged. Effects: sound-effects model, MP3 128 kbps 44.1 kHz stereo; the effects the plan sizes under half a second are 0.5 s, the model's shortest. The ambience, a 30 s sound-effects generation, took the place of the brief's music loop the same day: the owner preferred the forest to a theme. The Studio take of it was generated from a prompt ending "low volume background bed" and came out effectively silent (peak -61 dBFS), so it was regenerated: first on the flow https://elevenlabs.io/app/flows/8d2hzPi34eDQESxJN3Do (two takes, kept briefly), then by the owner in the same Studio project with a prompt asking for a full, present bed, which is the take that ships; the player lifts it three times (-34 dBFS RMS as recorded, -10 dBFS peak). The kit copies these into `public/assets/audio/` unchanged and measures each one (HWP-063, Visdom part).
 
 | File | What it is | Becomes |
 |---|---|---|
-| audio/jump.mp3 | jump: "soft whoosh of cloth with a tiny magical chime", 0.5 s; take 1 of 4 | audio/jump.mp3, copied |
-| audio/land.mp3 | land: "a small soft thud on grass", 0.5 s; take 1 of 4 | audio/land.mp3, copied |
-| audio/charge.mp3 | charge: "a quick magical whoosh with a rising sparkle", 0.5 s; take 1 of 4 | audio/charge.mp3, copied |
-| audio/charge-hit.mp3 | charge hit: "a soft magical thump with a few sparks", 0.5 s; take 4 of 4 | audio/charge-hit.mp3, copied |
-| audio/charge-wall.mp3 | charge wall: "a short wooden clonk and a dizzy chime", 0.5 s; take 1 of 4 | audio/charge-wall.mp3, copied |
-| audio/bush-rustle.mp3 | bush rustle: "a leafy bush shaking briefly", 0.5 s; take 3 of 4 | audio/bush-rustle.mp3, copied |
-| audio/log-chatter.mp3 | log chatter: "a hollow wooden rattle like something small inside a log", 0.6 s; take 3 of 4 | audio/log-chatter.mp3, copied |
-| audio/rock-crack.mp3 | rock crack: "stone cracking sharply then crumbling", 0.6 s; take 4 of 4 | audio/rock-crack.mp3, copied |
-| audio/creature-pop-out.mp3 | creature pop-out: "a squeaky cartoon chirp, surprised", 0.5 s; take 3 of 4 | audio/creature-pop-out.mp3, copied |
-| audio/creature-caught.mp3 | creature caught: "a cheerful two-note chime", 0.5 s; take 2 of 4 | audio/creature-caught.mp3, copied |
-| audio/checkpoint.mp3 | checkpoint: "a short bright bell with a soft echo", 0.8 s; take 1 of 4 | audio/checkpoint.mp3, copied |
-| audio/beacon-lit.mp3 | beacon lit: "a rising magical swell ending in a warm bloom", 2 s; take 2 of 4 | audio/beacon-lit.mp3, copied |
-| audio/waterfall-loop.mp3 | waterfall: "a steady small waterfall, seamless loop", 8 s, generated with the model's loop setting; take 1 of 4 | audio/waterfall-loop.mp3, copied, looped by the player |
-| audio/music-loop.mp3 | music: "Gentle adventurous forest theme for a retro platformer, light chiptune-influenced instrumentation with a warm woodwind melody, moderate tempo, loops cleanly, playful and slightly mysterious", instrumental, 60 s; take 4 of 4 | audio/music-loop.mp3, copied, looped behind the settings toggle |
+| audio/jump.mp3 | jump: a second take the owner picked over the first, 0.5 s; its prompt was not exported with it | audio/jump.mp3, copied |
+| audio/land.mp3 | land: "Retro 8-bit platformer landing, soft short thud with small pixel blip, clean", 0.5 s | audio/land.mp3, copied |
+| audio/charge.mp3 | charge: "Magical wizard dash charge, quick rising whoosh with sparkling energy, retro game", 0.5 s | audio/charge.mp3, copied |
+| audio/charge-hit.mp3 | charge hit: "Punchy magical impact hit, short crunchy thump with energy burst, retro game", 0.5 s | audio/charge-hit.mp3, copied |
+| audio/charge-wall.mp3 | charge wall: "Heavy dull bonk of crashing into a stone wall, short thud with small rubble clatter", 0.5 s | audio/charge-wall.mp3, copied |
+| audio/bush-rustle.mp3 | bush rustle: "Quick leafy bush rustle, short shake of foliage", 0.5 s | audio/bush-rustle.mp3, copied |
+| audio/log-chatter.mp3 | log chatter: "Hollow wooden log knocking and rattling quickly, chattering clacks", 0.8 s | audio/log-chatter.mp3, copied |
+| audio/rock-crack.mp3 | rock crack: "Stone rock cracking and splitting, sharp crack with small debris crumble", 0.8 s | audio/rock-crack.mp3, copied |
+| audio/creature-pop-out.mp3 | creature pop-out: "Cartoon creature popping out suddenly, bouncy boing pop with tiny squeak", 0.5 s | audio/creature-pop-out.mp3, copied |
+| audio/creature-caught.mp3 | creature caught: "Cute magical capture jingle, sparkly chime with happy squeak, retro game", 0.5 s | audio/creature-caught.mp3, copied |
+| audio/checkpoint.mp3 | checkpoint: "Retro game checkpoint reached, bright rising two-note chime with soft sparkle", 0.9 s | audio/checkpoint.mp3, copied |
+| audio/beacon-lit.mp3 | beacon lit: "Magical beacon igniting, whooshing fire flare with triumphant shimmering chime swell", 2.1 s | audio/beacon-lit.mp3, copied |
+| audio/waterfall-loop.mp3 | waterfall: "Steady waterfall ambience, constant rushing water, no other sounds", 8.2 s | audio/waterfall-loop.mp3, copied, looped by the player |
+| audio/ambience-loop.mp3 | ambience: "Lively night forest ambience, clearly audible rustling leaves and swaying branches, steady crickets, frequent bird and owl calls, full and present, rich immersive background bed", 30 s | audio/ambience-loop.mp3, copied, looped from the first touch of the page at 3 times its level |

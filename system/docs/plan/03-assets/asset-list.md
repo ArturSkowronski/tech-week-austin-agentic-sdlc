@@ -80,7 +80,7 @@ The layer stack is settled; reuse at density 1, regenerate at 2 px later only if
 
 ## Audio
 
-Done (HWP-063), generated with the prompts in [prompts/audio.md](prompts/audio.md) and recorded take by take in [assets/PROVENANCE.md](../../../assets/PROVENANCE.md). The kit copies all fourteen into `public/assets/audio/` unchanged and measures each one, so the lengths below are the files' own. The five effects the prompts sized under half a second are 0.5 s, the shortest the model generates.
+Done (HWP-063), generated in an ElevenLabs Studio session from the revised prompts recorded sound by sound in [assets/PROVENANCE.md](../../../assets/PROVENANCE.md); the first set, made from the prompts in [prompts/audio.md](prompts/audio.md), was replaced on 2026-10-02 after the owner heard it in the game. The kit copies all fourteen into `public/assets/audio/` unchanged and measures each one, so the lengths below are the files' own. The five effects the prompts sized under half a second are 0.5 s, the shortest the model generates.
 
 | Effect | File | Length |
 |---|---|---|
@@ -90,11 +90,11 @@ Done (HWP-063), generated with the prompts in [prompts/audio.md](prompts/audio.m
 | charge hit | `audio/charge-hit.mp3` | 0.5 s |
 | charge wall | `audio/charge-wall.mp3` | 0.5 s |
 | bush rustle | `audio/bush-rustle.mp3` | 0.5 s |
-| log chatter | `audio/log-chatter.mp3` | 0.7 s |
-| rock crack | `audio/rock-crack.mp3` | 0.7 s |
+| log chatter | `audio/log-chatter.mp3` | 0.8 s |
+| rock crack | `audio/rock-crack.mp3` | 0.8 s |
 | creature pop-out | `audio/creature-pop-out.mp3` | 0.5 s |
 | creature caught | `audio/creature-caught.mp3` | 0.5 s |
 | checkpoint | `audio/checkpoint.mp3` | 0.9 s |
 | beacon lit | `audio/beacon-lit.mp3` | 2.1 s |
-| waterfall loop | `audio/waterfall-loop.mp3` | 8.1 s, looped |
-| music loop | `audio/music-loop.mp3` | 60.0 s, looped behind the settings toggle |
+| waterfall loop | `audio/waterfall-loop.mp3` | 8.2 s, looped; its volume follows the wizard's distance from the fall (game/render/audio.ts) |
+| ambience loop | `audio/ambience-loop.mp3` | 30.1 s, looped under everything from the first touch of the page, in place of the brief's music and its toggle |

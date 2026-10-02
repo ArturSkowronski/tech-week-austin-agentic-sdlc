@@ -7,7 +7,6 @@ import { createAudio } from './render/audio';
 import { createHud } from './render/hud';
 import { issueBug, issueUrl } from './render/issue';
 import { createScene } from './render/scene';
-import { createSettings } from './render/settings';
 import { createKeyboard } from './render/input';
 import { createBanner } from './render/panel';
 import { createProps } from './render/props';
@@ -118,14 +117,6 @@ const waterfallView = createWaterfall(roomBug?.logs ?? []);
 
 scene.actors.addChildAt(waterfallView.view, 0);
 
-// The one setting there is. The toggle is pressed, and that press is also the
-// gesture the browser wants before anything may be heard, so the two halves of
-// the music's rule can never disagree. What the last visit asked for is
-// applied here and still waits for a gesture.
-const settings = createSettings(audio.setMusic, window.localStorage);
-
-audio.setMusic(settings.music());
-
 const hud = createHud();
 const banner = createBanner();
 // The way out of the card: the prefilled issue, opened from the pointer press
@@ -148,7 +139,7 @@ const keyboard = createKeyboard({
   },
 });
 
-scene.ui.addChild(title.view, hud.view, card.view, banner.view, settings.view);
+scene.ui.addChild(title.view, hud.view, card.view, banner.view);
 
 function layout(): void {
   const { innerWidth, innerHeight } = window;
@@ -157,7 +148,6 @@ function layout(): void {
   hud.layout(innerWidth, innerHeight);
   card.layout(innerWidth, innerHeight);
   banner.layout(innerWidth, innerHeight);
-  settings.layout(innerWidth, innerHeight);
 }
 
 /**
@@ -176,7 +166,6 @@ function publishUi(): void {
   publish('uiCard', card.says());
   publish('uiCardText', card.report());
   publish('uiTitleText', title.report());
-  publish('uiMusic', settings.report());
 }
 
 /** What the player knows on this frame (bug-quest.md, the ticket card). */

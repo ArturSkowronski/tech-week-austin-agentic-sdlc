@@ -23,12 +23,12 @@ const EXTENSION = '.mp3';
 /**
  * The two sounds that repeat rather than play once
  * (docs/plan/03-assets/prompts/audio.md): the waterfall under the rock face,
- * and the music behind the settings toggle. Every other file is one event's
+ * and the forest ambience under everything. Every other file is one event's
  * worth of sound and ends by itself. This is the one place that decides;
  * game/render/audio.ts reads the flag back off the manifest rather than
  * keeping a list of its own (AGENTS.md rule 9).
  */
-const LOOPS: readonly string[] = ['waterfall-loop', 'music-loop'];
+const LOOPS: readonly string[] = ['waterfall-loop', 'ambience-loop'];
 
 /** One sound the kit copied: where it went, and what the manifest says of it. */
 export interface Sound {
@@ -86,7 +86,7 @@ const HEADER = 4;
  * How long an MP3 plays, in seconds, rounded to the millisecond: every audio
  * frame it holds, timed by the rate its own header gives and added up. Summing
  * frames rather than dividing the file's size by a bit rate is what makes the
- * answer right for the 192 kbit music as well as the 128 kbit effects, and
+ * answer right for a 192 kbit file as well as the 128 kbit effects, and
  * would stay right for a variable-rate file.
  */
 export function mp3Seconds(bytes: Uint8Array, name: string): number {

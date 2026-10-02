@@ -97,4 +97,4 @@ Code is Apache-2.0; the terms are in [LICENSE](LICENSE).
 
 The art is original work — original character, original geography, no borrowed compositions — and its clearance is the provenance record above, not the fact that a model drew it. "AI-generated" is not a licence.
 
-No audio ships yet. When the sound effects and the music loop land (HWP-063) they are original too and carry their provenance the same way.
+The sound effects and the forest ambience loop (HWP-063) are original too and carry their provenance the same way.

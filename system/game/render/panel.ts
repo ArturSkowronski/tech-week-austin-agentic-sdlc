@@ -489,8 +489,8 @@ export function createPanel(anchorY: number): Panel {
 export interface Button {
   readonly view: Container;
   /**
-   * What it says. A button whose words never change is built with them; the
-   * music toggle changes its own, and the next `resize` draws what it set.
+   * What it says. A button whose words never change is built with them; one
+   * that changes its own sets this, and the next `resize` draws what it set.
    */
   says: string;
   /** Draw it for a window this tall; its label decides how wide it is. */

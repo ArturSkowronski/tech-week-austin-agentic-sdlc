@@ -13,9 +13,10 @@
 // page that decoded two megabytes of MP3 on load would have spent them before
 // knowing whether anybody was listening.
 
-import type { Prop, WorldState } from '../sim';
+import { PLAYER_WIDTH, type Prop, type WorldState } from '../sim';
 
 import type { Camera } from './camera';
+import { VIEW_W } from './config';
 import { loadManifest, soundOf, soundUrl } from './sprites';
 import { onScreen } from './waterfall';
 
@@ -50,8 +51,43 @@ const CHARGE_HIT_SOUND = 'audio/charge-hit';
 /** The water under the rock face; its loop runs while the view holds any of it. */
 export const WATERFALL_SOUND = 'audio/waterfall-loop';
 
-/** The one theme, behind the settings toggle (game/render/settings.ts). */
-export const MUSIC_SOUND = 'audio/music-loop';
+/**
+ * The forest at night, under everything from the first touch of the page: a
+ * bed, not a theme, so there is no toggle for it — the owner removed the one
+ * the brief asked for along with the music it was for.
+ */
+export const AMBIENCE_SOUND = 'audio/ambience-loop';
+
+/**
+ * How loud the ambience plays, of the file's own level. The recording the
+ * owner chose is quiet (-34 dBFS RMS, -10 dBFS peak) and the forest is meant
+ * to be well forward, so it is lifted as far as its peak allows without
+ * clipping on its own: three times, to about -24 dBFS RMS.
+ */
+export const AMBIENCE_LEVEL = 3;
+
+/**
+ * How loud the one-shot effects play, of the files' own level. They are
+ * generated hot, so they come down to sit in the forest rather than over it.
+ */
+export const EFFECT_LEVEL = 0.6;
+
+/**
+ * How loud the waterfall is at its loudest, with the wizard in the column, of
+ * the file's own level. The recording is a steady roar mastered hot (-14 dBFS
+ * RMS) that drowned the effects when played flat, and a third of it still sat
+ * on top of the forest; at this it is a presence under the room rather than a
+ * wall in front of it.
+ */
+export const WATERFALL_PEAK = 0.18;
+
+/**
+ * How far from the fall's edge, in world units, its sound has faded to nothing.
+ * One view's width: the fall is heard from the moment it could be seen, swells
+ * on the approach and dies away again once passed, by distance alone — the
+ * camera's dead zone has no say in it.
+ */
+export const WATERFALL_RANGE = VIEW_W;
 
 /**
  * What one event sounds like, or nothing when it is one of the silent two. A
@@ -88,6 +124,9 @@ export function soundsFor(events: readonly string[]): string[] {
  */
 export const REPEAT_GAP_TICKS = 15;
 
+/** How long a loop's volume takes to settle on a new level, in seconds. */
+const GLIDE_SECONDS = 0.1;
+
 /**
  * Which of a tick's sounds actually start, given the tick they are asked on.
  * The gate remembers the tick each name was last started on; a tick at or
@@ -110,10 +149,12 @@ export function createRepeatGate(): (name: string, tick: number) => boolean {
   };
 }
 
-/** One sound that runs until it is stopped: the waterfall's, and the music's. */
+/** One sound that runs until it is stopped: the waterfall's, and the ambience. */
 interface Loop {
   /** Ask for it, or take the ask back. */
   set(on: boolean): void;
+  /** How loud, of the file's own level; it glides there rather than jumping. */
+  level(gain: number): void;
   /** Ask again for whatever was last asked for, now that a context exists. */
   retry(): void;
   /** Is it running, or on its way to running? */
@@ -141,16 +182,34 @@ export function waterfallHeard(state: WorldState, camera: Camera): boolean {
   return water !== undefined && onScreen(water, camera);
 }
 
+/**
+ * How loud the waterfall should be for this state, of the file's own level: at
+ * `WATERFALL_PEAK` while the wizard's centre is inside the column, and falling
+ * off in a straight line with his distance from the nearer edge until it is
+ * gone at `WATERFALL_RANGE`. Distance alone decides, so a replay swells and
+ * fades the same way every time, and leaving is arriving played backwards.
+ */
+export function waterfallGain(state: WorldState): number {
+  const water = waterfallOf(state);
+
+  if (water === undefined) {
+    return 0;
+  }
+
+  const centre = state.player.x + PLAYER_WIDTH / 2;
+  const distance = Math.max(water.x - centre, centre - (water.x + water.w), 0);
+
+  return WATERFALL_PEAK * Math.max(1 - distance / WATERFALL_RANGE, 0);
+}
+
 export interface Audio {
   /**
    * Play what this tick's events call for, in the order they came, a repeat of
    * a sound still ringing apart (`REPEAT_GAP_TICKS`).
    */
   update(state: WorldState): void;
-  /** Run the loops this frame's view calls for, which is the waterfall's. */
+  /** Run the loops this frame's view calls for, which is the waterfall's, at the volume his distance calls for. */
   watch(state: WorldState, camera: Camera): void;
-  /** Ask for the music loop, or for silence; it waits for a gesture to start. */
-  setMusic(on: boolean): void;
   /** The loops running right now, for the browser tests to read. */
   report(): string;
 }
@@ -185,16 +244,32 @@ export async function createAudio(): Promise<Audio> {
     return sound;
   }
 
-  /** Start one sound now, through to its end or round again if it loops. */
-  function start(sound: Sound, ready: AudioContext): AudioBufferSourceNode {
+  /**
+   * Start one sound now, through to its end or round again if it loops, into
+   * `into`: the context's own output for an effect, a loop's gain for a loop.
+   */
+  function start(sound: Sound, ready: AudioContext, into: AudioNode): AudioBufferSourceNode {
     const source = ready.createBufferSource();
 
     source.buffer = sound.buffer;
     source.loop = sound.loop;
-    source.connect(ready.destination);
+    source.connect(into);
     source.start();
 
     return source;
+  }
+
+  /** The one gain every effect plays through, made once the context exists. */
+  let effectsOut: GainNode | undefined;
+
+  function effects(ready: AudioContext): GainNode {
+    if (effectsOut === undefined) {
+      effectsOut = ready.createGain();
+      effectsOut.gain.value = EFFECT_LEVEL;
+      effectsOut.connect(ready.destination);
+    }
+
+    return effectsOut;
   }
 
   /** Play one sound. Before the gesture there is nothing to play it with. */
@@ -202,19 +277,44 @@ export async function createAudio(): Promise<Audio> {
     const ready = context;
 
     if (ready !== undefined) {
-      void load(name, ready).then((sound) => start(sound, ready));
+      void load(name, ready).then((sound) => start(sound, ready, effects(ready)));
     }
   }
 
   /**
-   * One sound that runs until it is asked to stop. What it was asked for is
-   * remembered whether or not there is a context yet, so a loop wanted before
-   * the gesture starts itself on the gesture that finally allows it.
+   * One sound that runs until it is asked to stop, through a gain of its own
+   * that starts at `loudness`. What it was asked for is remembered whether or
+   * not there is a context yet, so a loop wanted before the gesture starts
+   * itself on the gesture that finally allows it, at the level last asked for.
    */
-  function createLoop(name: string): Loop {
+  function createLoop(name: string, loudness: number): Loop {
     let wanted = false;
     let loading = false;
     let source: AudioBufferSourceNode | undefined;
+    let gain: GainNode | undefined;
+
+    /** The loop's own volume knob, made once the context exists. */
+    function knob(ready: AudioContext): GainNode {
+      if (gain === undefined) {
+        gain = ready.createGain();
+        gain.gain.value = loudness;
+        gain.connect(ready.destination);
+      }
+
+      return gain;
+    }
+
+    function level(value: number): void {
+      loudness = value;
+
+      const ready = context;
+
+      if (ready !== undefined) {
+        // A glide of a tenth of a second: a frame's worth of walking changes
+        // the volume by a hair, and this keeps even that from clicking.
+        knob(ready).gain.setTargetAtTime(value, ready.currentTime, GLIDE_SECONDS);
+      }
+    }
 
     function set(on: boolean): void {
       wanted = on;
@@ -241,21 +341,26 @@ export async function createAudio(): Promise<Audio> {
         loading = false;
 
         if (wanted) {
-          source = start(sound, ready);
+          source = start(sound, ready, knob(ready));
         }
       });
     }
 
     return {
       set,
+      level,
       /** Ask again for whatever was last asked for. */
       retry: () => set(wanted),
       running: () => wanted && (loading || source !== undefined),
     };
   }
 
-  const loops = [createLoop(WATERFALL_SOUND), createLoop(MUSIC_SOUND)] as const;
-  const [waterfall, music] = loops;
+  const loops = [createLoop(WATERFALL_SOUND, 0), createLoop(AMBIENCE_SOUND, AMBIENCE_LEVEL)] as const;
+  const [waterfall, ambience] = loops;
+
+  // The ambience is wanted from the start; like every loop it waits for the
+  // gesture and starts itself on it.
+  ambience.set(true);
   /** One sound per event, the brief's repeats apart; see `REPEAT_GAP_TICKS`. */
   const allows = createRepeatGate();
 
@@ -291,14 +396,11 @@ export async function createAudio(): Promise<Audio> {
 
     watch(state: WorldState, camera: Camera): void {
       waterfall.set(waterfallHeard(state, camera));
-    },
-
-    setMusic(on: boolean): void {
-      music.set(on);
+      waterfall.level(waterfallGain(state));
     },
 
     report(): string {
-      return [waterfall.running() && 'waterfall', music.running() && 'music'].filter(Boolean).join(' ');
+      return [waterfall.running() && 'waterfall', ambience.running() && 'ambience'].filter(Boolean).join(' ');
     },
   };
 }
