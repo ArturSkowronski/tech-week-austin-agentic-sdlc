@@ -4,10 +4,11 @@
 
 import { readFile } from 'node:fs/promises';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import sharp from 'sharp';
 
-import { TICKET_DISMISS_TICKS, UI_COLOURS, UI_SIZES, VIEW_H, VIEW_W } from '../../game/render/config';
+import { RENDER_DENSITY, TICKET_DISMISS_TICKS, UI_COLOURS, UI_SIZES, VIEW_H, VIEW_W } from '../../game/render/config';
+import type { Entry } from '../../game/render/sprites';
 import { VICTORY_CAST_HIT_TICKS } from '../../game/sim/index';
 
 /**
@@ -246,6 +247,21 @@ test('the banner goes up at the beacon and comes down on a restart', async ({ pa
 /** Scale 4, the smaller of the two windows above: 1280 by 720 of the view. */
 const SPLASH_SCALE = 4;
 
+/**
+ * Keep a frame with the run, so the title screen can be looked at: written to
+ * the test's own output directory and attached by path, because
+ * `playwright.config.ts` reports with `list` and a body-only attachment is
+ * dropped by it, leaving nothing on disk (tests/smoke/props.spec.ts).
+ */
+async function shot(page: Page, info: TestInfo, name: string): Promise<Buffer> {
+  const path = info.outputPath(name);
+  const frame = await page.screenshot({ path });
+
+  await info.attach(name, { path, contentType: 'image/png' });
+
+  return frame;
+}
+
 /** How far off the art's own colour a pixel may be, per channel, and still be it. */
 const SPLASH_TOLERANCE = 8;
 
@@ -262,7 +278,7 @@ const SPLASH_SHARE = 0.9;
 // blown up the same way rather than against a second copy of its palette
 // (AGENTS.md rule 9), and it holds the fit as well as the drawing: art shown at
 // the wrong scale, or off the box, would match nothing.
-test('the title screen draws the splash the asset kit built', async ({ page }) => {
+test('the title screen draws the splash the asset kit built', async ({ page }, info) => {
   await page.setViewportSize({ width: VIEW_W * SPLASH_SCALE, height: VIEW_H * SPLASH_SCALE });
   await open(page);
 
@@ -271,7 +287,7 @@ test('the title screen draws the splash the asset kit built', async ({ page }) =
   await expect(canvas).toHaveAttribute('data-ui', 'title');
   await settle(page);
 
-  const frame = await sharp(await page.screenshot())
+  const frame = await sharp(await shot(page, info, 'title-screen.png'))
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -298,6 +314,67 @@ test('the title screen draws the splash the asset kit built', async ({ page }) =
   }
 
   expect(shown / (VIEW_W * SPLASH_SCALE * VIEW_H * SPLASH_SCALE)).toBeGreaterThan(SPLASH_SHARE);
+});
+
+/** How far the built splash's mean saturation may sit from the raw's. */
+const SPLASH_SATURATION = 0.01;
+
+/**
+ * The mean HSV saturation of an image: how vivid it reads, on a scale where 0
+ * is grey and 1 is a pure hue. Reducing a full illustration to a small palette
+ * averages its colours together and pulls this number down, which is how the
+ * title screen lost its colours before HWP-098.
+ */
+async function saturation(file: string): Promise<number> {
+  const data = await sharp(await readFile(file)).removeAlpha().raw().toBuffer();
+  let total = 0;
+
+  for (let at = 0; at < data.length; at += 3) {
+    const high = Math.max(data[at] ?? 0, data[at + 1] ?? 0, data[at + 2] ?? 0);
+    const low = Math.min(data[at] ?? 0, data[at + 1] ?? 0, data[at + 2] ?? 0);
+
+    total += high === 0 ? 0 : (high - low) / high;
+  }
+
+  return total / (data.length / 3);
+}
+
+// What the kit wrote for the splash (asset-list.md): a full frame of the view
+// at the density everything but the backgrounds draws at, with its colours
+// left alone. The claim is made against the raw the kit built it from, so a
+// palette creeping back over the splash shows here as the picture going grey.
+// This is a browser test rather than a kit unit test because `pnpm test` runs
+// before `pnpm build`, and public/assets only exists after the build.
+test('the kit builds the splash at density 2 and keeps its colours', async () => {
+  // The entry shape is declared once, on the renderer's side, and read from
+  // there rather than copied here (AGENTS.md rule 9); only the colour count the
+  // kit writes for a reduced output is missing from it.
+  const manifest = JSON.parse(await readFile('public/assets/manifest.json', 'utf8')) as Record<
+    string,
+    Entry & { colours?: number }
+  >;
+
+  expect(manifest['splash']).toMatchObject({
+    width: VIEW_W * RENDER_DENSITY,
+    height: VIEW_H * RENDER_DENSITY,
+    density: RENDER_DENSITY,
+  });
+
+  // More colours than a background layer is reduced to, read off the manifest
+  // rather than written here again (AGENTS.md rule 9). The layer is anchored
+  // first so that renaming or dropping it fails here loudly, instead of leaving
+  // the comparison to read 'more than nothing' and pass for ever.
+  const layer = manifest['bg/mountains-big']?.colours;
+
+  expect(layer).toEqual(expect.any(Number));
+  expect(manifest['splash']?.colours).toBeGreaterThan(layer ?? 0);
+
+  const [built, raw] = await Promise.all([
+    saturation('public/assets/splash.png'),
+    saturation('assets/splash-textless.png'),
+  ]);
+
+  expect(Math.abs(built - raw)).toBeLessThan(SPLASH_SATURATION);
 });
 
 // Enter is pressed all over this file; the other two keys the title answers to

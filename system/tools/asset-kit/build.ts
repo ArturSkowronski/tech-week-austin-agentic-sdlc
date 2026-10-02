@@ -6,7 +6,9 @@
 // wizard's five pose sheets, and the room paintings. A background is a whole
 // generated frame, so the work reads the same every time: resample the raw to
 // the view's density, key the magenta sky away, cut the drawn rows off the
-// bottom, reduce them to 32 colours, and stand them on their base. A pose
+// bottom, reduce them to 32 colours, and stand them on their base. The splash
+// is a whole frame too, but a full illustration rather than a hazed backdrop,
+// so it is read at the density the game draws at and keeps its colours. A pose
 // sheet is many small frames instead, and strips.ts cuts it into them; a
 // painting is a row of whole panels, and paintings.ts joins them.
 
@@ -47,6 +49,15 @@ const OUT = 'public/assets';
  */
 const COLOURS = 32;
 
+/**
+ * Colours the splash may show instead. The 32 suit a hazed, tinted backdrop
+ * standing behind the game; on a full illustration they merge the stars, the
+ * sky's blues and the highlights into muddier averages, and the title screen
+ * came out duller than the raw it was drawn from (HWP-098). 256 is as many as
+ * an indexed PNG can hold, and it costs the picture nothing visible.
+ */
+const SPLASH_COLOURS = 256;
+
 /** Every layer that has a base stands on as many rows as the mountains do. */
 const BASE_ROWS = MOUNTAIN_BASE_ROWS;
 
@@ -78,6 +89,8 @@ interface Output {
   base?: Rgb;
   /** Pixels per world unit, where that is not the 1x the backgrounds are. */
   density?: number;
+  /** Colours the file may show, where that is not the `COLOURS` a layer keeps. */
+  colours?: number;
 }
 
 /**
@@ -152,7 +165,14 @@ async function main(): Promise<void> {
     // one file and one manifest entry, cut back into its eleven tiles by
     // game/render/tiles.ts, which draws the rooms that have no painting.
     { name: TILE_ATLAS, art: hstack(sliceTiles(await loadRaw('tileset.png'))), density: RENDER_DENSITY },
-    { name: 'splash', art: await frame('splash-textless.png') },
+    // The title art, read at the density everything but the backgrounds has
+    // drawn at since HWP-043 and left its own colours (HWP-098).
+    {
+      name: 'splash',
+      art: await frame('splash-textless.png', RENDER_DENSITY),
+      density: RENDER_DENSITY,
+      colours: SPLASH_COLOURS,
+    },
   ];
 
   await mkdir(join(OUT, 'bg'), { recursive: true });
@@ -253,22 +273,25 @@ async function checkFiles(names: readonly string[]): Promise<void> {
 }
 
 /**
- * A raw resampled to the density the game draws at. Every background and the
- * splash is one frame of the whole view, so its pitch is what its width is
- * over the view's, and `estimatePitch` is not asked: a dithered canopy reads
- * as no block structure at all. Both halves of that are checked, because a raw
- * regenerated at some other size would otherwise resample to a quietly wrong
- * frame and the manifest would agree with it.
+ * A raw resampled to a density, which is one pixel per world unit for the
+ * backgrounds and `RENDER_DENSITY` for the splash (ADR-003). Every background
+ * and the splash is one frame of the whole view, so its pitch is what its
+ * width is over the frame's, and `estimatePitch` is not asked: a dithered
+ * canopy reads as no block structure at all. Both halves of that are checked,
+ * because a raw regenerated at some other size would otherwise resample to a
+ * quietly wrong frame and the manifest would agree with it.
  */
-async function frame(raw: string): Promise<Raster> {
+async function frame(raw: string, density = 1): Promise<Raster> {
+  const width = VIEW_W * density;
+  const height = VIEW_H * density;
   const raster = await loadRaw(raw);
-  const pitch = raster.width / VIEW_W;
+  const pitch = raster.width / width;
   if (!Number.isInteger(pitch)) {
-    throw new Error(`${raw} is ${raster.width} px wide, which is no whole number of blocks across the ${VIEW_W} px view`);
+    throw new Error(`${raw} is ${raster.width} px wide, which is no whole number of blocks across the ${width} px frame`);
   }
   const resampled = resampleBlocks(raster, pitch);
-  if (resampled.height !== VIEW_H) {
-    throw new Error(`${raw} resamples to ${resampled.width}x${resampled.height}, not the whole ${VIEW_W}x${VIEW_H} view it has to be a frame of`);
+  if (resampled.height !== height) {
+    throw new Error(`${raw} resamples to ${resampled.width}x${resampled.height}, not the whole ${width}x${height} view it has to be a frame of`);
   }
   return resampled;
 }
@@ -292,7 +315,37 @@ async function art(raw: string, rows: number): Promise<Raster> {
 }
 
 /**
- * One output reduced, saved as an indexed PNG, and its manifest entry.
+ * One output saved as an indexed PNG of the colours it is allowed, and its
+ * manifest entry.
+ *
+ * An output that names a budget of its own is handed straight to `savePng`,
+ * which quantises to it; the 32 a layer keeps cannot be asked of `savePng`
+ * (see `palette`), so those are picked here instead.
+ */
+async function write(output: Output): Promise<Entry> {
+  const budget = output.colours ?? COLOURS;
+  const image = output.colours === undefined ? stand(output) : output.art;
+  const file = join(OUT, `${output.name}.png`);
+  await savePng(image, file, budget);
+  const entry: Entry = {
+    width: image.width,
+    height: image.height,
+    ...(output.density === undefined ? {} : { density: output.density }),
+    artRows: output.art.height,
+    // The budget is a requirement on the file, not on the reduction asked for,
+    // so the file is read back and counted: anything that adds a colour on the
+    // way out stops the build here instead of shipping one over.
+    colours: colours(await loadPng(file)).length,
+  };
+  if (entry.colours > budget) {
+    throw new Error(`${output.name} came out ${entry.colours} colours, over the ${budget} asset-list.md gives it`);
+  }
+  process.stdout.write(`${output.name} ${entry.width}x${entry.height}, ${entry.colours} colours\n`);
+  return entry;
+}
+
+/**
+ * A background layer reduced to `COLOURS` and standing on its base.
  *
  * A base is a colour the finished file shows, so it takes one of the 32 seats
  * instead of a 33rd outside them: the art is reduced against a palette that
@@ -302,26 +355,11 @@ async function art(raw: string, rows: number): Promise<Raster> {
  * layer stack), and art pixels that were that colour already land on it
  * rather than on a near miss.
  */
-async function write(output: Output): Promise<Entry> {
-  const chosen = output.base === undefined ? palette(output.art, COLOURS) : [output.base, ...palette(output.art, COLOURS - 1)];
+function stand(output: Output): Raster {
+  const base = output.base;
+  const chosen = base === undefined ? palette(output.art, COLOURS) : [base, ...palette(output.art, COLOURS - 1)];
   const reduced = toPalette(output.art, chosen);
-  const image = output.base === undefined ? reduced : extendBottom(reduced, BASE_ROWS, output.base);
-  await savePng(image, join(OUT, `${output.name}.png`));
-  const entry: Entry = {
-    width: image.width,
-    height: image.height,
-    ...(output.density === undefined ? {} : { density: output.density }),
-    artRows: output.art.height,
-    colours: colours(image).length,
-  };
-  // The 32 are a requirement on the file, not on the reduction, so the file
-  // is what is counted: anything that adds a colour after the palette is
-  // picked stops the build here instead of shipping a 33rd.
-  if (entry.colours > COLOURS) {
-    throw new Error(`${output.name} came out ${entry.colours} colours, over the ${COLOURS} asset-list.md gives it`);
-  }
-  process.stdout.write(`${output.name} ${entry.width}x${entry.height}, ${entry.colours} colours\n`);
-  return entry;
+  return base === undefined ? reduced : extendBottom(reduced, BASE_ROWS, base);
 }
 
 /**

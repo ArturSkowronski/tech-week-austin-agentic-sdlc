@@ -75,7 +75,7 @@ The layer stack is settled; reuse at density 1, regenerate at 2 px later only if
 
 | Asset | Status |
 |---|---|
-| splash, textless; wordmark drawn in code | done, `splash-textless.png` |
+| splash, textless; wordmark drawn in code | done, `splash-textless.png`; 640 by 360, density 2 from the 1x raw, written at 256 colours rather than reduced to the backgrounds' 32 — a palette that small averages a whole illustration grey (HWP-098) |
 | ornamental frame for the card and banner | drawn in code in Season 1; a nine-slice sheet is optional |
 
 ## Audio
