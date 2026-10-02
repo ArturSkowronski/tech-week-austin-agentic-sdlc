@@ -159,6 +159,16 @@ describe('the eyes and the glow beside them', () => {
     ]);
   });
 
+  it('draws each eye one unit square, the two of them three apart', () => {
+    // The mark the prototype drew and HWP-097 came back to. Every number here
+    // is written out rather than read off the config, because the config is
+    // what they pin: the 2-unit eyes before them read as too big and too hard,
+    // and a glow of half a unit is the one texture pixel ADR-003 asks for.
+    expect(eye).toBe(1);
+    expect((solid[1]?.x ?? 0) - (solid[0]?.x ?? 0)).toBe(3);
+    expect(glow).toEqual({ size: 0.5, alpha: 0.35 });
+  });
+
   it('sets one faint pixel outside each eye, on whole pixels of the texture', () => {
     // The glow the prototype had in the log's hollow: a pixel of the eyes'
     // own red, beyond the far side of each of them and nowhere else.

@@ -91,12 +91,14 @@ export interface EyeMark extends Vec2 {
 /**
  * The four squares the eyes are drawn as: an eye at each end of the patch, and
  * one faint pixel of the same red just outside it, which is what reads as a
- * glow when the eyes are deep in a hollow (HWP-089). Each glow pixel lands on
- * the render texture's whole pixels the way the wisp's frames do, so
- * nearest-neighbour keeps it a crisp single pixel (ADR-003). An eye is an
- * even number of those pixels tall, so one pixel cannot be centred on it: the
- * rounding seats the glow on the lower of the two middle rows, which is where
- * the prototype's sat.
+ * glow when the eyes are deep in a hollow (HWP-089). An eye stands half of
+ * itself either side of the middle, so a patch and an eye of any whole number
+ * of units put its corners on whole pixels of the render texture; each glow
+ * pixel is rounded onto them the way the wisp's frames are, so
+ * nearest-neighbour keeps it a crisp single pixel (ADR-003). An eye is a whole
+ * number of units and so an even number of those pixels tall, which one pixel
+ * cannot be centred on: the rounding seats the glow on the lower of the two
+ * middle rows, which is where the prototype's sat.
  *
  * Nothing here moves with the tick, so the squares are measured once rather
  * than on every frame the eyes are drawn.

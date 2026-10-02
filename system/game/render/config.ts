@@ -411,18 +411,22 @@ export const SPRITE_FOOT_OFFSET = 2;
  * (bug-quest.md, the creature); `CREATURE_SEAT` below is where it sits in
  * everything else.
  *
- * The patch is as wide as the narrowest hiding place can take. The whole mark
- * spans `patch` and one glow pixel beyond each eye, and the log's hollow is
- * the tightest of the three: measured off the strip `pnpm assets` cuts, the
- * dark around its seat is 13 pixels across on the rows the eyes cover, and it
- * is not centred on the seat. The mark at 5 is 12 of those pixels, so it fits
- * with the one spare pixel falling on its right and none on its left; 6 would
- * be 14 and hang over the bark. tests/smoke/props.spec.ts asserts that off
- * those pixels rather than off this number (HWP-091).
+ * An eye is a single unit and the two of them stand `patch - eye` apart
+ * centre to centre, which is the mark the prototype drew: on a screenshot of
+ * the deployed build the 2-unit squares HWP-089 gave them read as too big and
+ * too hard for the hollow they look out of (HWP-097).
+ *
+ * The whole mark spans `patch` and one glow pixel beyond each eye, 10 pixels
+ * of the render texture, and the log's hollow is the tightest of the three it
+ * has to fit: measured off the strip `pnpm assets` cuts, the dark around its
+ * seat is 13 of those pixels across on the rows the eyes cover. An even mark
+ * cannot be centred on an odd run, so of the three pixels to spare one falls
+ * on its left and two on its right. tests/smoke/props.spec.ts asserts that
+ * off those pixels rather than off this number (HWP-091).
  */
 export const CREATURE_EYES = {
-  patch: 5,
-  eye: 2,
+  patch: 4,
+  eye: 1,
   colour: 0xff3b2f,
   hat: 6,
   /** One pixel of the render texture (ADR-003), at the share of the red it keeps. */
@@ -444,11 +448,17 @@ export interface CreatureSeat {
  * The log's seat is the middle of the dark open end it is drawn with, the
  * bush's the middle of its leaf mass above the grass it stands in, and the
  * rock's the widest step of the crack that runs down it.
+ *
+ * Each is measured again whenever the mark changes size, because a narrower
+ * mark reaches a feature a wider one could not. HWP-097's covers 10 pixels by
+ * 2: the log's hollow and the bush's leaf mass hold it where they held the
+ * old one, and the rock's seat moved onto the six dark pixels of the crack's
+ * widest step, which the 4-row mark before it could only straddle.
  */
 export const CREATURE_SEAT: Readonly<Record<HidingPlace, CreatureSeat>> = {
   bush: { x: 16, up: 13 },
   log: { x: 9, up: 9 },
-  rock: { x: 14, up: 11 },
+  rock: { x: 15.5, up: 10.5 },
 };
 
 /** Ticks from one blink to the next, and how many of them the eyes are shut. */

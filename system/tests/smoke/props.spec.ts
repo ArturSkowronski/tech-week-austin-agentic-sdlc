@@ -17,6 +17,7 @@ import forestGlade from '../../game/content/rooms/forest-glade';
 import {
   CREATURE_EYES,
   CREATURE_SEAT,
+  CREATURE_WISP,
   PROP_SHAKE,
   SPRITE_FOOT_OFFSET,
   VIEW_H,
@@ -177,21 +178,26 @@ async function eyePoint(page: Page): Promise<Vec2> {
 /** How far off the eyes' own red, per channel, a pixel may be and still be one. */
 const EYE_TOLERANCE = 60;
 
+/** The box the eyes' own mark is read in: world units out from the point. */
+const EYE_SAMPLE: Vec2 = { x: CREATURE_EYES.patch, y: CREATURE_EYES.eye * 2 };
+
 /**
- * How many pixels of the eyes' red are on screen around a point of the view.
- * The eyes are drawn in code in one flat colour, so counting that colour is
- * the only way to tell eyes that were drawn from eyes some other layer
- * painted over — which a report of where they were put cannot say.
+ * How many pixels of the eyes' red are on screen around a point of the view,
+ * inside a box `reach` units out from it on each axis. The creature is drawn
+ * in code in one flat colour — the wisp on the hat in the same red as the
+ * eyes — so counting that colour is the only way to tell a mark that was
+ * drawn from one some other layer painted over, which a report of where it
+ * was put cannot say.
  */
-async function eyeRedAround(page: Page, at: Vec2): Promise<number> {
-  const { patch, eye, colour } = CREATURE_EYES;
+async function eyeRedAround(page: Page, at: Vec2, reach: Vec2 = EYE_SAMPLE): Promise<number> {
+  const { colour } = CREATURE_EYES;
   const { data, info } = await sharp(
     await page.screenshot({
       clip: {
-        x: Math.round((at.x - patch) * SCALE),
-        y: Math.round((at.y - eye * 2) * SCALE),
-        width: Math.round(patch * 2 * SCALE),
-        height: Math.round(eye * 4 * SCALE),
+        x: Math.round((at.x - reach.x) * SCALE),
+        y: Math.round((at.y - reach.y) * SCALE),
+        width: Math.round(reach.x * 2 * SCALE),
+        height: Math.round(reach.y * 2 * SCALE),
       },
     }),
   )
@@ -213,6 +219,26 @@ async function eyeRedAround(page: Page, at: Vec2): Promise<number> {
 
 /** Window pixels of the eyes' red two whole eyes come to at this scale. */
 const BOTH_EYES = CREATURE_EYES.eye ** 2 * SCALE ** 2 * 2;
+
+/**
+ * What rides the hat is the wisp and never the eyes: `createCreatureMark`
+ * draws `CREATURE_WISP` for as long as `carriedSince` is set, at its own size
+ * and independently of the patch (atmosphere-and-audio.md, the creature aura).
+ * So the hat's readings below are keyed to the wisp, and the box they are read
+ * in holds the whole circle it turns on rather than the eyes' narrow mark.
+ */
+const WISP_REACH: Vec2 = {
+  x: CREATURE_WISP.radius + CREATURE_WISP.size,
+  y: CREATURE_WISP.radius + CREATURE_WISP.size,
+};
+
+/**
+ * Window pixels of that red half a wisp comes to at this scale. Half, because
+ * what the hat case asks is that most of the wisp survives to the screen and
+ * not that all of it does: it is painted over its own fading trail, and a
+ * pixel of its edge goes to the wizard's hat in any case.
+ */
+const HALF_THE_WISP = ((CREATURE_WISP.size * SCALE) ** 2) / 2;
 
 /** Where the creature sits in the glade's first prop of a kind, in world units. */
 function seatIn(kind: HidingPlace): Vec2 {
@@ -448,15 +474,13 @@ function rowOf(frame: IdleFrame, seat: CreatureSeat): number {
   return Math.round(frame.h - seat.up * frame.density);
 }
 
-/** How far the eyes alone reach from their middle, in world units. */
-const EYE_REACH: Vec2 = { x: CREATURE_EYES.patch / 2, y: CREATURE_EYES.eye / 2 };
-
 /**
- * The same for everything the creature draws there, the glow pixels included.
- * Read off `EYE_MARKS`, which is what the renderer puts on the screen, so the
- * extent cannot drift from the mark. Each side of every square is measured
- * from the middle, so the box holds the whole mark whether or not the marks
- * come out symmetric, which nothing asserts (issue #127 review).
+ * How far everything the creature draws reaches from its middle, in world
+ * units, the glow pixels included. Read off `EYE_MARKS`, which is what the
+ * renderer puts on the screen, so the extent cannot drift from the mark. Each
+ * side of every square is measured from the middle, so the box holds the whole
+ * mark whether or not the marks come out symmetric, which nothing asserts
+ * (issue #127 review).
  */
 const MARK_REACH: Vec2 = {
   x: Math.max(...EYE_MARKS.flatMap((mark) => [-mark.x, mark.x + mark.size])),
@@ -464,28 +488,26 @@ const MARK_REACH: Vec2 = {
 };
 
 /**
- * The art a box of a seat covers: how bright it is on average, how bright its
- * brightest pixel is, and how many of its pixels the sprite draws nothing on.
- * `reach` is how far the box goes out from the seat and up and down from its
- * row. A pixel off the sprite altogether counts as the brightest there is,
- * which is as far from a hollow as a pixel can be.
+ * The art the whole mark covers at a seat: how bright it is on average, how
+ * bright its brightest pixel is, and how many of its pixels the sprite draws
+ * nothing on. A pixel off the sprite altogether counts as the brightest there
+ * is, which is as far from a hollow as a pixel can be.
  */
 function artUnder(
   frame: IdleFrame,
   seat: CreatureSeat,
-  reach: Vec2 = EYE_REACH,
 ): { mean: number; brightest: number; blank: number } {
   const at = (unit: number): number => Math.round(unit * frame.density);
   const row = rowOf(frame, seat);
-  const right = at(seat.x + reach.x);
-  const bottom = row + at(reach.y);
+  const right = at(seat.x + MARK_REACH.x);
+  const bottom = row + at(MARK_REACH.y);
   let sum = 0;
   let drawn = 0;
   let blank = 0;
   let brightest = 0;
 
-  for (let y = row - at(reach.y); y < bottom; y += 1) {
-    for (let x = at(seat.x - reach.x); x < right; x += 1) {
+  for (let y = row - at(MARK_REACH.y); y < bottom; y += 1) {
+    for (let x = at(seat.x - MARK_REACH.x); x < right; x += 1) {
       const lum = frame.lumAt(x, y);
 
       if (lum === null) {
@@ -539,10 +561,11 @@ const SEAT_SITS_ON: Readonly<Record<HidingPlace, (frame: IdleFrame) => void>> = 
   // eyes and their glow cover, over every row they cover, clears the bark by
   // the same margin (issue #127), which is what says the hollow is wide
   // enough for them. Wide enough is all it is: the dark run is 13 pixels and
-  // the mark 12, so the spare pixel falls on one side only, and the check is
-  // for the mark being on the dark rather than for a gap around it.
+  // HWP-097's mark 10, so its three spare pixels fall one to the left and two
+  // to the right, and the check is for the mark being on the dark rather than
+  // for an even gap around it.
   log: (frame) => {
-    expect(artUnder(frame, CREATURE_SEAT.log, MARK_REACH).brightest * 2).toBeLessThan(
+    expect(artUnder(frame, CREATURE_SEAT.log).brightest * 2).toBeLessThan(
       artUnder(frame, cellMiddle('log')).mean,
     );
   },
@@ -554,7 +577,10 @@ const SEAT_SITS_ON: Readonly<Record<HidingPlace, (frame: IdleFrame) => void>> = 
 
     expect(Math.abs(middle - CREATURE_SEAT.bush.x)).toBeLessThanOrEqual(1);
   },
-  // The widest step of the crack, which is darker than the lit face around it.
+  // The widest step of the crack, which is darker than the lit face around
+  // it. The whole mark is measured, the way the log's is: the step is six
+  // pixels across and the mark ten, so the glow pixels hang over the lit rock
+  // either side of it and the mark is still the darker reading of the two.
   rock: (frame) => {
     expect(artUnder(frame, CREATURE_SEAT.rock).mean).toBeLessThan(
       artUnder(frame, cellMiddle('rock')).mean,
@@ -566,8 +592,8 @@ test('every seat is on the feature of its strip it was measured off', async () =
   for (const kind of HIDING_PLACES) {
     const frame = await idleFrameOf(kind);
 
-    // Wherever the feature is, the eyes themselves are on the drawn prop:
-    // a seat that slid off its silhouette would hang them in the air.
+    // Wherever the feature is, the whole mark is on the drawn prop: a seat
+    // that slid off its silhouette would hang the eyes in the air.
     expect(artUnder(frame, CREATURE_SEAT[kind]).blank, kind).toBe(0);
     SEAT_SITS_ON[kind](frame);
   }
@@ -579,8 +605,13 @@ test('every seat is on the feature of its strip it was measured off', async () =
  * the prop strips, so what it is worth can only be seen in pixels — the
  * report says where the eyes were put, not what is around them — and the
  * close-up is attached for the hollow and the glow to be looked at.
+ *
+ * Every hiding place is shot rather than those two, because HWP-097's
+ * acceptance asks to look at the rock as well, and the rock's is the seat it
+ * moved: the narrower mark reaches the crack's widest step, which the wider
+ * one could only straddle.
  */
-for (const kind of ['bush', 'log'] as const) {
+for (const kind of HIDING_PLACES) {
   test(`the eyes are drawn in the ${kind}, not on it`, async ({ page }, info) => {
     await open(page);
     await hideIn(page, kind);
@@ -607,7 +638,7 @@ for (const kind of ['bush', 'log'] as const) {
   });
 }
 
-test('the eyes ride on the hat in front of the wizard, not behind him', async ({ page }, info) => {
+test('the wisp rides on the hat in front of the wizard, not behind him', async ({ page }, info) => {
   await open(page);
 
   const hat = await hatOf(page);
@@ -615,14 +646,14 @@ test('the eyes ride on the hat in front of the wizard, not behind him', async ({
   // The hat's own aged gold falls inside the eye-red tolerance in a pixel or
   // two at any density; which of the sheet's pixels the kit samples is what
   // moved. So the reading before a creature is carried is the baseline the
-  // eyes have to clear, and it stays under one eye's worth of the patch.
-  const onTheArt = await eyeRedAround(page, hat);
+  // wisp has to clear, and it stays well under the wisp's own worth.
+  const onTheArt = await eyeRedAround(page, hat, WISP_REACH);
 
-  expect(onTheArt).toBeLessThan(CREATURE_EYES.eye ** 2 * SCALE ** 2);
+  expect(onTheArt).toBeLessThan(HALF_THE_WISP);
 
   // HWP-051 is what hands the creature to the wizard; until it lands, the
   // test carries it, the way it hides it in a prop above. HWP-052 owns the
-  // hat case proper — this asserts only that the eyes are not painted over.
+  // hat case proper — this asserts only that the wisp is not painted over.
   await page.evaluate(() => {
     window.wizard.state().creature = {
       at: -1,
@@ -636,7 +667,8 @@ test('the eyes ride on the hat in front of the wizard, not behind him', async ({
   expect(await eyesAt(page)).toBe(`${hat.x},${hat.y}`);
   await shot(page, info, 'eyes-on-the-hat.png');
 
-  // Two eyes of CREATURE_EYES.eye units square, drawn over the wizard rather
-  // than under him: most of their pixels survive to the screen.
-  expect(await eyeRedAround(page, hat)).toBeGreaterThan(onTheArt + CREATURE_EYES.eye ** 2 * SCALE ** 2);
+  // The wisp of CREATURE_WISP.size units square, drawn over the wizard rather
+  // than under him: most of its pixels survive to the screen. The shot above
+  // is the untouched wisp HWP-097 left alone, not the eyes' mark.
+  expect(await eyeRedAround(page, hat, WISP_REACH)).toBeGreaterThan(onTheArt + HALF_THE_WISP);
 });
