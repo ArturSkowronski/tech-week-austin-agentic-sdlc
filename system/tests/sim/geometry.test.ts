@@ -137,7 +137,7 @@ function reachedFrom(room: Room, spawn: Vec2, ledges: readonly Vec2[]): Set<Vec2
   return reached;
 }
 
-/** The ledge the wizard spawns on; `spawnFrom` in game/sim/room.ts put his feet below it. */
+/** The ledge the wizard spawns on; `tileToWorld` put his feet below it. */
 function spawnTile(room: Room): Vec2 {
   return {
     x: Math.floor((room.spawn.x + PLAYER_WIDTH / 2) / TILE),

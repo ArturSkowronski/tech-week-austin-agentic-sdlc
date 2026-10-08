@@ -175,8 +175,8 @@ describe('the room parser', () => {
     const { room } = parseRoom(roomText('forest-glade'));
 
     // To the unit, so a centring that drifted inside tile 2 still fails. The
-    // spawn is placed by game/sim/room.ts, never by the planted checkpoint
-    // module, so this asserts nothing HW-002's paired test owns (AGENTS.md rule 5).
+    // spawn is placed by game/sim/room.ts through the one tile-to-world
+    // conversion, `tileToWorld` of game/sim/checkpoint.ts (AGENTS.md rule 9).
     expect(room.spawn.x).toBe(2 * TILE + (TILE - PLAYER_WIDTH) / 2);
     expect(room.spawn.y + PLAYER_HEIGHT).toBe(18 * TILE);
   });
@@ -245,8 +245,8 @@ describe('props, deaths and respawn', () => {
     expect(propOfKind(world.props, 'flag').active).toBe(true);
     expect(world.player.state).toBe('hurt');
     expect(world.player.invuln).toBeGreaterThan(0);
-    // The respawn position to the unit belongs to the paired test of HW-002;
-    // this suite only asks that it is the checkpoint and not the spawn.
+    // The respawn position to the unit is checkpoint-carried.test.ts; this
+    // suite only asks that it is the checkpoint and not the spawn.
     expect({ x: world.player.x, y: world.player.y }).toEqual(world.player.checkpoint);
     expect(world.player.checkpoint.x).not.toBe(spawn.x);
   });

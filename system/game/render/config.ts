@@ -342,8 +342,8 @@ export const WATERFALL = {
  *
  * `margin` is the water a row leaves standing at each end of the parting, and
  * with it the 84.5-unit gap holds 40 characters — the length the ticket sizes
- * the font for. The manifest carries longer lines than that: HW-002's are 45
- * and 48 characters, and 48 of them take the whole 96-unit face, so no
+ * the font for. The manifest may carry longer lines than that: HW-002's were
+ * 45 and 48 characters, and 48 of them take the whole 96-unit face, so no
  * parting could show one whole. They are wrapped at a word onto the next row
  * of the roll instead of being set tighter, because three-pixel glyphs with
  * no column between them run into each other and stop being letters, and

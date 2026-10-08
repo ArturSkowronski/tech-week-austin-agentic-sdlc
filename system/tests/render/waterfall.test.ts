@@ -308,10 +308,10 @@ describe('the roll the lines come by on', () => {
 
   it('shows every line of every planted bug whole inside the band', () => {
     // The manifest, not a fixture: `bugForRoom` shows the first entry for the
-    // room and fixing that one on main reveals the next (ADR-009), so a line
-    // of any entry can end up on this face. HW-002's are 45 and 48 characters
-    // against the 40 a row holds, and are wrapped onto a second row rather
-    // than cut or set tighter — the whole of a line is drawn either way.
+    // room, so a line of any entry can end up on this face. Lines longer than
+    // the 40 a row holds (HW-002's were 45 and 48 characters) are wrapped onto
+    // a second row rather than cut or set tighter — the whole of a line is
+    // drawn either way.
     for (const bug of PLANTED_BUGS) {
       for (const text of bug.logs) {
         const rows = wrapLine(GLADE_FALL, text);

@@ -2,26 +2,26 @@
 // The last flag he raised is his checkpoint; before any flag it is the room's
 // spawn, which game/sim/state.ts sets when it builds the world.
 //
-// The flag's tile is converted at the death rather than at the raising, so the
-// conversion sees what the wizard is carrying; the spawn is placed by
-// game/sim/room.ts and is taken as it stands. The creature only rides the hat
-// and takes up no ground of its own, so the tile he comes back on is the same
-// one whether or not it is aboard.
-//
-// This module is where HW-002 is planted, and a planted bug must stay out of
-// what the main suite asserts (AGENTS.md rule 5).
+// The flag's tile is converted at the death rather than at the raising; the
+// spawn is placed by game/sim/room.ts and is taken as it stands. The creature
+// only rides the hat and takes up no ground of its own, so the tile he comes
+// back on is the same one whether or not it is aboard: HW-002, the planted
+// shift of one tile while it rode, was healed on main when Season 1 settled on
+// one planted bug (ADR-009, amended 2026-10-08), and
+// tests/sim/checkpoint-carried.test.ts keeps it healed.
 
 import { HURT_INVULN_TICKS, PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
 import type { Prop, Vec2, WorldState } from './state';
 
-/** A respawn point in world units: the hitbox centred on the tile, feet on the tile below. */
-export function tileToWorld(tile: Vec2, carried: boolean): Vec2 {
-  // The rider hangs off his left, so while it is aboard he is set down a tile
-  // over and the tile itself is left clear for it.
-  const x = carried ? tile.x - 1 : tile.x;
-
+/**
+ * A standing point in world units: the hitbox centred on the tile, feet on the
+ * tile below. The one place the conversion lives (AGENTS.md rule 9) — a death
+ * sends him back through it, and game/sim/room.ts places the room's spawn with
+ * it, so the spawn and a checkpoint cannot drift apart.
+ */
+export function tileToWorld(tile: Vec2): Vec2 {
   return {
-    x: x * TILE + (TILE - PLAYER_WIDTH) / 2,
+    x: tile.x * TILE + (TILE - PLAYER_WIDTH) / 2,
     y: (tile.y + 1) * TILE - PLAYER_HEIGHT,
   };
 }
@@ -33,7 +33,7 @@ function flagTile(flag: Prop): Vec2 {
 
 /** The respawn point a raised flag becomes, as game/sim/props.ts records it on the raise. */
 export function checkpointAt(flag: Prop): Vec2 {
-  return tileToWorld(flagTile(flag), false);
+  return tileToWorld(flagTile(flag));
 }
 
 /**
@@ -63,10 +63,10 @@ function lastFlag(state: WorldState): Prop | undefined {
  * him hurt and briefly invulnerable, so the hazard he landed on cannot take
  * him again on the next tick.
  */
-export function respawn(state: WorldState, carried: boolean): void {
+export function respawn(state: WorldState): void {
   const player = state.player;
   const flag = lastFlag(state);
-  const back = flag === undefined ? player.checkpoint : tileToWorld(flagTile(flag), carried);
+  const back = flag === undefined ? player.checkpoint : tileToWorld(flagTile(flag));
 
   state.deaths += 1;
   player.x = back.x;

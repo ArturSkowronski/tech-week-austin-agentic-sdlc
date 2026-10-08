@@ -88,10 +88,16 @@ Opened in the repository named by `VITE_GITHUB_REPO`, inside the key or pointer 
 | Id | Room | Hides in | Symptom | Real defect, hidden from the player | Paired test asserts |
 |---|---|---|---|---|---|
 | HW-001 | glade | bush | left and right swap while the creature rides | the input axis is read in the creature's backward-facing orientation in `game/sim/input-map.ts` | holding right while carried moves right |
-| HW-002 | glade, moved from the ruin gate by HWP-084 | log | respawn lands one tile left of the flag | off-by-one in tile-to-world conversion in `game/sim/checkpoint.ts` | respawn position equals the flag's |
-| HW-004 | glade, planted by HWP-073 once HW-002 is fixed | rock | the second death after a flag respawns at the room spawn | the checkpoint is cleared when a respawn consumes it in `game/sim/checkpoint.ts` | two deaths after one flag both respawn at the flag |
 
-Each defect is written as a plausible mistake with a comment stating the intended behaviour, in its own small module, so the fix is one file. HW-003, the charge through a thin wall in the cliff ruins, was dropped with that room. HW-002 shares its module with HW-004, the scripted engineering-memory demonstration of [HWP-073](../tickets/HWP-073.md).
+Season 1 plants one bug. The visitor raises HW-001 from `main` and plays its fix on a branch; a second bug would only ever surface on that fix preview, and its fix would branch from a `main` that still carries HW-001, so nobody in a demo could clear both ([ADR-009](../01-decisions/ADR-009-one-room.md), amended 2026-10-08). The two that were planned after HW-001 went as follows:
+
+| Id | Was | Outcome |
+|---|---|---|
+| HW-002 | log; respawn lands one tile left of the flag while the creature rides, an off-by-one in `game/sim/checkpoint.ts` | planted by HWP-055, moved to the glade by HWP-084, healed on `main` on 2026-10-08; its paired test lives on as `tests/sim/checkpoint-carried.test.ts` |
+| HW-003 | the charge through a thin wall in the cliff ruins | dropped with that room (ADR-009) |
+| HW-004 | rock; the second death after a flag respawns at the room spawn, the engineering-memory demonstration of [HWP-073](../tickets/HWP-073.md) | not planned; it was gated on HW-002 being fixed |
+
+Each defect is written as a plausible mistake with a comment stating the intended behaviour, in its own small module, so the fix is one file.
 
 ## Backlog from the original catalogue
 

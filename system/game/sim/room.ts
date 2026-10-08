@@ -10,8 +10,16 @@
 // Tile ids are looked up inside a function on purpose: game/sim/state.ts
 // imports this module, so reading `Tile` while this module's body evaluates
 // would depend on which of the two was loaded first.
+//
+// The spawn tile is put into world units by `tileToWorld` of
+// game/sim/checkpoint.ts, the one place that conversion lives (AGENTS.md rule
+// 9). It was written out a second time here while HW-002 was planted in that
+// function, to keep a planted bug out of the spawn the main suite asserts
+// (rule 5); the plant was healed on 2026-10-08 (ADR-009, amendment) and the
+// copy went with it.
 
-import { PLAYER_HEIGHT, PLAYER_WIDTH, TILE } from './constants';
+import { tileToWorld } from './checkpoint';
+import { TILE } from './constants';
 import { Tile, type Prop, type PropKind, type Room, type Vec2 } from './state';
 
 /** A prop cell in world units. */
@@ -78,20 +86,6 @@ function collisionTile(char: string): Tile {
 }
 
 /**
- * The hitbox centred on the spawn tile, feet on the tile below it.
- *
- * game/sim/checkpoint.ts computes a respawn point the same way and stays a
- * separate function on purpose: it is where HW-002 is planted, and a planted
- * bug must not move the spawn this suite asserts (AGENTS.md rule 5).
- */
-function spawnFrom(tile: Vec2): Vec2 {
-  return {
-    x: tile.x * TILE + (TILE - PLAYER_WIDTH) / 2,
-    y: (tile.y + 1) * TILE - PLAYER_HEIGHT,
-  };
-}
-
-/**
  * Place a prop on the tile below its letter. A prop with no fixed height — the
  * waterfall — hangs from its own tile instead, which is how the legend anchors
  * it by the surface tile at the water's left edge.
@@ -153,5 +147,5 @@ export function parseRoom(text: string): ParsedRoom {
     }
   }
 
-  return { room: { width, height, tiles, spawn: spawnFrom(spawnTile) }, props };
+  return { room: { width, height, tiles, spawn: tileToWorld(spawnTile) }, props };
 }

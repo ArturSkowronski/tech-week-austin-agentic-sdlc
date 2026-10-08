@@ -104,7 +104,8 @@ One file per rule group under `tests/sim/`, using a helper that builds a world f
 
 | File | Proves |
 |---|---|
-| `world.test.ts` | same inputs and seed give identical state after 600 ticks; parser places spawn and props; spikes and out-of-room kill; a death after raising a flag respawns at the checkpoint, not the spawn (the respawn position to the unit is asserted only by the paired test of HW-002) |
+| `world.test.ts` | same inputs and seed give identical state after 600 ticks; parser places spawn and props; spikes and out-of-room kill; a death after raising a flag respawns at the checkpoint, not the spawn |
+| `checkpoint-carried.test.ts` | a death after a flag puts him back on the flag to the unit, alone and while the creature rides (the paired test of HW-002, kept as a regression test since its heal on 2026-10-08) |
 | `physics.test.ts` | swept X then Y; one-way from above only; half-height surface; ceiling bump |
 | `jump.test.ts` | jump height about three and a third tiles held, shorter when cut; coyote within 6 ticks; buffer lands and jumps; the take-off height is kept for the whole jump |
 | `fall.test.ts` | long-fall threshold; landing pose selection value; a walk off a ledge records the ledge as the height the drop began at |
@@ -114,4 +115,4 @@ One file per rule group under `tests/sim/`, using a helper that builds a world f
 | `creature.test.ts` | hiding, riding, fleeing, ten-second release |
 | `forest-room.test.ts` | a scripted playthrough of each Season 1 room reaches its beacon |
 
-The whole suite runs in under a second. Nothing in `tests/sim` asserts what a paired test under `bugs/tests/` asserts: the respawn position to the unit belongs to HW-002 and the one-tile wall to HW-003.
+The whole suite runs in under a second. Nothing in `tests/sim` asserts what a paired test under `bugs/tests/` asserts; the only paired test left is HW-001's.

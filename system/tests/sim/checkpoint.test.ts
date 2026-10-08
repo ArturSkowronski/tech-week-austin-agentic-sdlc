@@ -6,10 +6,10 @@
 // rather than reading the position `game/sim/props.ts` recorded at the raise,
 // and this is the replay test that change ships with (AGENTS.md rule 1).
 //
-// Every world here is built without a creature, so HW-002's carried-only shift
-// cannot fire: these are the positions the game is meant to have whether or
-// not the entry is in bugs/manifest.json, and nothing below asserts planted
-// behaviour (AGENTS.md rule 5).
+// Every world here is built without a creature. The position with the creature
+// aboard, to the unit, is checkpoint-carried.test.ts, the regression test
+// HW-002's heal left behind; nothing below asserts planted behaviour
+// (AGENTS.md rule 5).
 
 import { describe, expect, it } from 'vitest';
 import { NO_INPUT, PLAYER_HEIGHT, tick, TILE } from '../../game/sim/index';
@@ -84,7 +84,7 @@ describe('the checkpoint a death puts him back on', () => {
     expect(nearTheSpikes.hitTick).toBeGreaterThan(nearTheSpawn.hitTick);
 
     // On that flag's own tile, feet on the ground it stands on. The tile
-    // rather than the unit: the position to the unit is HW-002's paired test.
+    // rather than the unit: the position to the unit is checkpoint-carried.test.ts.
     expect(Math.floor(world.player.x / TILE)).toBe(nearTheSpikes.x / TILE);
     expect(world.player.y + PLAYER_HEIGHT).toBe(nearTheSpikes.y + nearTheSpikes.h);
     expect({ x: world.player.x, y: world.player.y }).toEqual(world.player.checkpoint);

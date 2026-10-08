@@ -31,7 +31,7 @@ export function tick(state: WorldState, input: InputFrame): void {
   // weigh what he touched: a charge the water ended is over by the time the
   // hazards ask whether the wand still carries him.
   stepWater(state);
-  stepProps(state, carried);
+  stepProps(state);
 
   // The creature last, so a death this tick has already put the wizard back
   // before it decides where to let go (bug-quest.md).
