@@ -4,7 +4,7 @@ name: CI
 
 on:
   push:
-    branches: [main, stable, seed]
+    branches: [main]
   pull_request:
 
 # One run per ref: a new push supersedes the old one so a pull request never

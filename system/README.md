@@ -6,12 +6,12 @@ A browser pixel-art platformer whose codebase is the sandbox for Visdom. Real de
 
 ## What happens when you find a bug
 
-1. Land on the seed world, where every planted bug is still intact. The premise is the whole game: this one has bugs, real ones — find them, hand them to Visdom, watch it fix them.
+1. Land on the game, where the planted bug is still intact. The premise is the whole game: this one has bugs, real ones — find them, hand them to Visdom, watch it fix them.
 2. Play the forest. Something is off.
 3. Meet the creature and feel the symptom. A card names it in plain words, with a clue to where it lives but never a file.
 4. Find the evidence at the waterfall of logs. The card now names the bug and offers to raise a ticket.
 5. Raise it. Within two minutes Visdom has refined the ticket and has a hypothesis about the cause; within twenty it has opened a pull request, reviewed by a second model, with a preview you can play.
-6. Play the preview. The symptom is gone, the creature is gone, the beacon burns. On merge the fix lands in the shared world, and the trace of how it got there stays browsable.
+6. Play the preview. The symptom is gone, the creature is gone, the beacon burns. That is the whole loop: the pull request stays open as the record of how the fix got there, and the shared world keeps its bug for the next visitor.
 
 ## Play a preview
 
@@ -70,7 +70,7 @@ The plan under `docs/plan/` is complete: the vision, nine decision records, the 
 | M4 Season 1 content | one room, the glade, tile-drawn and complete; the run reaches its beacon |
 | M5 Bug Quest | the planted bugs proven both ways; the world heals per branch |
 | M6 Atmosphere and audio | 60 fps; sounds follow simulation events |
-| M7 Visdom integration | each planted bug goes from issue to merged PR through Visdom alone |
+| M7 Visdom integration | the planted bug goes from issue to a reviewed PR with a preview through Visdom alone |
 | M8 Launch hygiene | ten trial visitors complete the loop unassisted |
 
 ## Art
@@ -79,7 +79,7 @@ The art is generated from written prompts, kept in `docs/plan/03-assets/prompts/
 
 ## Where things stand
 
-8 October 2026. Season 1 is one room — the forest glade, drawn in tiles ([ADR-009](docs/plan/01-decisions/ADR-009-one-room.md)) — and it plays from the title screen to the beacon: the deterministic simulation with a replay test for every movement rule, the dusk look, the asset kit and the trace tool, the waterfall of logs and the ticket card, particles and the creature's glitch aura, and now sound — effects that follow simulation events, a night forest under everything, a waterfall that swells as the wizard nears it (HWP-063, then the owner's rework in #145). One bug is planted, HW-001, paired with a test that fails while it is there; HW-002 was healed on 8 October so that the HW-001 fix preview shows a clean world (ADR-009, amendment). M0 to M6 are closed. Still to come: the rest of the Visdom loop — the merge policy and the engineering-memory demonstration (M7) — and M8, the `seed`, `main` and `stable` branches on their own domains and ten trial visitors who have to finish the loop unassisted. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
+9 October 2026. Season 1 is one room — the forest glade, drawn in tiles ([ADR-009](docs/plan/01-decisions/ADR-009-one-room.md)) — and it plays from the title screen to the beacon: the deterministic simulation with a replay test for every movement rule, the dusk look, the asset kit and the trace tool, the waterfall of logs and the ticket card, particles and the creature's glitch aura, and now sound — effects that follow simulation events, a night forest under everything, a waterfall that swells as the wizard nears it (HWP-063, then the owner's rework in #145). One bug is planted, HW-001, paired with a test that fails while it is there; HW-002 was healed on 8 October so that the HW-001 fix preview shows a clean world (ADR-009, amendment). M0 to M7 are closed: on 9 October the owner settled the story to its core — find the bug, raise the ticket, wait, play the fix on its pull request's preview — with one deployed world and no merge policy or branch ladder ([ADR-010](docs/plan/01-decisions/ADR-010-the-loop-is-issue-to-pull-request.md)); the planted-bug flow has run that loop end to end twice. Left in M8: ten trial visitors who have to finish the loop unassisted. The plan is written before the code and committed in the order it is written, so the history of this repository is the history of its decisions.
 
 ## Read more
 

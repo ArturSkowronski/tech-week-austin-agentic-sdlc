@@ -21,7 +21,7 @@ kind: reference
 | raw | a generated image in `assets/`, the kit's input |
 | replay test | a Vitest test that steps the simulation with recorded input frames and asserts on state |
 | room | a text map, one character per tile, optionally with a painting |
-| seed branch | the branch with every planted bug intact that visitors branch from |
+| shared world | `main` as deployed: the game with its planted bug intact, which every visitor plays and no fix PR changes (ADR-010) |
 | symptom | what the player feels while the creature rides; it is the defect itself |
 | tick | one 60 Hz simulation step |
 | trace | painting collision onto a text map in the browser tool |

@@ -24,4 +24,4 @@ The owner decided on 2026-09-29 that the demo needs one good room, not a level. 
 
 - [ADR-008](ADR-008-season-one-scope.md) keeps its selection rule and its backlog; its three beats are superseded here. "Beat" now means the glade.
 - HWP-040, HWP-042, HWP-056 and HWP-062 are closed as not planned. HWP-043, HWP-045, HWP-073 and HWP-081 are reworded for one room. HWP-084 does the code work.
-- The `seed` branch of HWP-081 shows the first creature, and each fix reveals the next. With one bug planted (amendment above), the fix preview shows the healed world the vision promises: no creature, clean logs, the beacon burning.
+- The shared world shows the first creature, and each fix reveals the next on its own preview. With one bug planted (amendment above), the fix preview shows the healed world the vision promises: no creature, clean logs, the beacon burning. (The `seed` branch this line once named was dropped with the branch ladder, ADR-010.)

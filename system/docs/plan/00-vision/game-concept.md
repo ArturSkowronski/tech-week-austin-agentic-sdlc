@@ -55,7 +55,7 @@ From a bounce, pressing attack launches the wizard slightly higher, he swings th
 
 Attackable scenery hides creatures: bushes, hollow logs and cracked rocks. Each has a tell that is the defect itself: a bush rustles without wind, a log chatters, a crack glows. A fireball that hits a hiding place flushes the creature out; it scurries away and can be caught.
 
-Catching a creature **discovers** its quest. It does not fix anything. A ticket card appears with the symptom in plain words and a module-level clue, never a file or a line. Only a merged fix through Visdom removes the creature from the shared world.
+Catching a creature **discovers** its quest. It does not fix anything. A ticket card appears with the symptom in plain words and a module-level clue, never a file or a line. Only a fix through Visdom removes the creature, and only on that fix's own preview: the shared world keeps it for the next visitor (ADR-010).
 
 Three creature types map to three kinds of engineering work:
 
@@ -71,7 +71,7 @@ A forest waterfall that, from a distance, is ordinary water with faint green fli
 
 ## 7. The beacon
 
-The level ends at a stone beacon. It lights when the region has no living creatures on the current branch. On a fix branch's preview, the beacon burns and the fixed creature is gone. On the seed world it stays dark.
+The level ends at a stone beacon. It lights when the region has no living creatures on the current branch. On a fix branch's preview, the beacon burns and the fixed creature is gone. In the shared world it stays dark.
 
 ## 8. MVP scope
 

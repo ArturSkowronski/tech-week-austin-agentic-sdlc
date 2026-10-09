@@ -15,7 +15,7 @@ The reference implementation is the prototype at `visdom-sandbox` (VirtusLab/vis
 | Path | What | Read when |
 |---|---|---|
 | [00-vision/](00-vision/) | the game concept and the visitor journey with its metrics | first |
-| [01-decisions/](01-decisions/) | ADR-001 to ADR-008, the settled decisions; on any conflict the newest ADR wins | before any design doc |
+| [01-decisions/](01-decisions/) | ADR-001 to ADR-010, the settled decisions; on any conflict the newest ADR wins | before any design doc |
 | [02-design/](02-design/) | movement and physics, architecture, rendering, level design, bug quest, CI, the rules for agents | per ticket, as listed in its `docs` |
 | [03-assets/](03-assets/) | art direction, the asset list, the pipeline, prompts, provenance | art tickets |
 | [04-glossary.md](04-glossary.md) | terms | any time |
@@ -41,7 +41,7 @@ The reference implementation is the prototype at `visdom-sandbox` (VirtusLab/vis
 | M4 Season 1 content | HWP-040 to 046, 083, 084 | one room, the glade, tile-drawn and complete; the other rooms retired |
 | M5 Bug Quest | HWP-050 to 057 | the planted bugs proven both ways by `bugs:check`; the world heals per branch |
 | M6 Atmosphere and audio | HWP-060 to 064 | 60 fps; sounds follow simulation events |
-| M7 Visdom integration | HWP-070 to 073 | each seed bug goes from issue to merged PR through Visdom alone |
+| M7 Visdom integration | HWP-070 to 073 | the planted bug goes from issue to a reviewed PR with a preview through Visdom alone |
 | M8 Launch hygiene | HWP-080 to 082 | ten trial visitors complete the loop unassisted |
 
 ## Conventions in these documents

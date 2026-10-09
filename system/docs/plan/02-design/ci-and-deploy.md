@@ -34,7 +34,7 @@ The build then fails on any asset output nothing consumes and on any file in `pu
 
 ## Workflow
 
-`.github/workflows/ci.yml`, on push to `main`, `stable`, `seed` and on every pull request:
+`.github/workflows/ci.yml`, on push to `main` and on every pull request (ADR-010: one world, so `main` is the only long-lived branch):
 
 1. `build` job on Ubuntu, Node 22, pnpm from `packageManager`, `pnpm install --frozen-lockfile`, the four gates, `pnpm build`, `pnpm exec playwright install --with-deps chromium`, `pnpm test:browser`, upload `dist` as an artifact.
 2. `deploy` job, needs `build`, runs for pushes and for PRs from the same repository: downloads `dist`, and if `CLOUDFLARE_API_TOKEN` is set runs `wrangler deploy` on `main` or `wrangler versions upload --preview-alias <branch>` elsewhere, then comments the preview URL on the PR. The alias is the branch name lower-cased, non-alphanumerics to dashes, cut to 40 characters.
