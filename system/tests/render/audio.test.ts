@@ -18,6 +18,7 @@ import {
   AMBIENCE_LEVEL,
   AMBIENCE_SOUND,
   EFFECT_LEVEL,
+  MASTER_LEVEL,
   REPEAT_GAP_TICKS,
   soundFor,
   soundsFor,
@@ -137,6 +138,15 @@ describe('the balance', () => {
     expect(AMBIENCE_LEVEL).toBeGreaterThan(1);
     expect(EFFECT_LEVEL).toBeLessThan(1);
     expect(EFFECT_LEVEL).toBeGreaterThan(WATERFALL_PEAK);
+  });
+
+  it('takes the whole mix down through one master level, well under unity', () => {
+    // The owner found the mix far too loud twice over; the balance above is
+    // kept and the one number scales everything on its way out, so the next
+    // step either way is one edit. A quarter or less, and never off.
+    expect(MASTER_LEVEL).toBeGreaterThan(0);
+    expect(MASTER_LEVEL).toBeLessThanOrEqual(0.25);
+    expect(AMBIENCE_LEVEL * MASTER_LEVEL).toBeLessThan(1);
   });
 });
 

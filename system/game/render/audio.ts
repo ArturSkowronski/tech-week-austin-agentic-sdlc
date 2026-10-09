@@ -61,16 +61,29 @@ export const AMBIENCE_SOUND = 'audio/ambience-loop';
 /**
  * How loud the ambience plays, of the file's own level. The recording the
  * owner chose is quiet (-34 dBFS RMS, -10 dBFS peak) and the forest is meant
- * to be well forward, so it is lifted as far as its peak allows without
- * clipping on its own: three times, to about -24 dBFS RMS.
+ * to be well forward, so it is lifted: a little over twice, to about -27 dBFS
+ * RMS before `MASTER_LEVEL`. It was three times, as far as its peak allows
+ * without clipping, until the owner asked for the whole mix a step quieter on
+ * 2026-10-09; the three levels here came down together by the same 0.7, about
+ * 3 dB, so the balance between them is as it was.
  */
-export const AMBIENCE_LEVEL = 3;
+export const AMBIENCE_LEVEL = 2.1;
+
+/**
+ * What the whole mix is scaled by on its way out: every effect and every loop
+ * passes through it, so the balance the three levels above set is kept and
+ * the one number here says how loud the game is. A fifth, about -14 dB, on
+ * top of the 0.7 above: the owner played the mix after that first step and
+ * found it still far too loud, then again at a half (2026-10-09). Turn this,
+ * not the three, for the next step either way.
+ */
+export const MASTER_LEVEL = 0.2;
 
 /**
  * How loud the one-shot effects play, of the files' own level. They are
  * generated hot, so they come down to sit in the forest rather than over it.
  */
-export const EFFECT_LEVEL = 0.6;
+export const EFFECT_LEVEL = 0.42;
 
 /**
  * How loud the waterfall is at its loudest, with the wizard in the column, of
@@ -79,7 +92,7 @@ export const EFFECT_LEVEL = 0.6;
  * on top of the forest; at this it is a presence under the room rather than a
  * wall in front of it.
  */
-export const WATERFALL_PEAK = 0.18;
+export const WATERFALL_PEAK = 0.13;
 
 /**
  * How far from the fall's edge, in world units, its sound has faded to nothing.
@@ -265,7 +278,7 @@ export async function createAudio(): Promise<Audio> {
   function effects(ready: AudioContext): GainNode {
     if (effectsOut === undefined) {
       effectsOut = ready.createGain();
-      effectsOut.gain.value = EFFECT_LEVEL;
+      effectsOut.gain.value = EFFECT_LEVEL * MASTER_LEVEL;
       effectsOut.connect(ready.destination);
     }
 
@@ -293,11 +306,11 @@ export async function createAudio(): Promise<Audio> {
     let source: AudioBufferSourceNode | undefined;
     let gain: GainNode | undefined;
 
-    /** The loop's own volume knob, made once the context exists. */
+    /** The loop's own volume knob, made once the context exists; `MASTER_LEVEL` is applied here. */
     function knob(ready: AudioContext): GainNode {
       if (gain === undefined) {
         gain = ready.createGain();
-        gain.gain.value = loudness;
+        gain.gain.value = loudness * MASTER_LEVEL;
         gain.connect(ready.destination);
       }
 
@@ -312,7 +325,7 @@ export async function createAudio(): Promise<Audio> {
       if (ready !== undefined) {
         // A glide of a tenth of a second: a frame's worth of walking changes
         // the volume by a hair, and this keeps even that from clicking.
-        knob(ready).gain.setTargetAtTime(value, ready.currentTime, GLIDE_SECONDS);
+        knob(ready).gain.setTargetAtTime(value * MASTER_LEVEL, ready.currentTime, GLIDE_SECONDS);
       }
     }
 

@@ -1,6 +1,6 @@
 // Slicing the forest tileset into the atlas (docs/plan/03-assets/pipeline.md,
-// tile atlas). assets/tileset.png draws nine ground tiles on a known grid,
-// five across its top row and four across its second, with the plank and the
+// tile atlas). assets/tileset.png draws twelve ground tiles on a known grid,
+// six across its top row and six across its second, with the plank and the
 // spike trap below the grid at their own sizes; PROVENANCE.md records the
 // grid. Each is cut out and resampled to one 32 px tile, in the order of the
 // shared tile-order module the renderer reads as well (AGENTS.md rule 9). The
@@ -16,7 +16,7 @@ import { connectedComponents, crop, resampleTo, type Box, type Raster } from './
 /** One tile of the atlas in pixels: a 16-unit tile at the drawn density. */
 const TILE_PX = TILE * RENDER_DENSITY;
 
-/** The grid the nine ground tiles are drawn on (assets/PROVENANCE.md). */
+/** The grid the twelve ground tiles are drawn on (assets/PROVENANCE.md). */
 const ORIGIN = 39;
 const CELL_W = 205;
 const CELL_H = 202;
@@ -53,6 +53,10 @@ const PLACES: Readonly<Record<TileName, Box>> = {
   'mossy-stone': cell(3, 1),
   plank: { x: 40, y: 535, width: 300, height: 85 },
   spike: { x: 385, y: 527, width: 107, height: 96 },
+  // The sixth column, added to the sheet on 2026-10-02 (PROVENANCE.md).
+  'earth-stones': cell(5, 0),
+  'stone-earth': cell(4, 1),
+  'earth-boulder': cell(5, 1),
 };
 
 /**

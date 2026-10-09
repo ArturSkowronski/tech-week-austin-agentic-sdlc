@@ -37,9 +37,11 @@ function grid(column: number, row: number): Box {
 }
 
 /**
- * Where assets/tileset.png draws its eleven tiles (assets/PROVENANCE.md), in
- * `TILE_ORDER`: five ground tiles across the top row, four across the second,
- * then the plank and the spike trap in their own boxes below the grid. The
+ * Where assets/tileset.png draws its fourteen tiles (assets/PROVENANCE.md), in
+ * `TILE_ORDER`: the first five ground tiles across the top row, the next four
+ * across the second, then the plank and the spike trap in their own boxes
+ * below the grid, and last the sixth column added on 2026-10-02, top row then
+ * second, with the stone-earth piece in the fifth cell of the second row. The
  * fixture is painted from here and not from the slicer's own table, so which
  * name takes which box is what the colours below prove.
  */
@@ -55,6 +57,9 @@ const TILE_PLACES: readonly Box[] = [
   grid(3, 1),
   { x: 40, y: 535, width: 300, height: 85 },
   { x: 385, y: 527, width: 107, height: 96 },
+  grid(5, 0),
+  grid(4, 1),
+  grid(5, 1),
 ];
 
 /** The colour the fixture paints the nth tile, distinct for every tile. */
@@ -66,7 +71,7 @@ function tileColour(tile: number): Rgba {
 function tileset(tiles: number): Raster {
   return TILE_PLACES.slice(0, tiles).reduce(
     (sheet, box, tile) => fillRect(sheet, box, tileColour(tile)),
-    createRaster(1259, 662),
+    createRaster(1503, 662),
   );
 }
 
@@ -91,7 +96,7 @@ describe('the tile slicer', () => {
   });
 
   it('refuses a sheet that draws a different number of tiles', () => {
-    expect(() => sliceTiles(tileset(TILE_ORDER.length - 1))).toThrow(/10 objects, not the 11/);
+    expect(() => sliceTiles(tileset(TILE_ORDER.length - 1))).toThrow(/13 objects, not the 14/);
   });
 
   it('cuts the real tileset, every tile over its art', async () => {

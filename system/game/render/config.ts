@@ -165,17 +165,33 @@ export const PAINTING_TINT = mix(0xffffff, 0x9fb0c8, 0.35);
 export const DEBUG_TILE_ALPHA = 0.5;
 
 /**
- * Share of the earth tiles drawn with roots in them, and of the stone tiles
- * drawn mossy (rendering-and-look.md, tiles). game/render/tiles.ts picks which
- * ones by a hash of the tile's position, so the shares are how much of the
- * ground carries them, not a chance rolled per frame.
+ * Share of the ground offered each scattered feature (rendering-and-look.md,
+ * tiles): roots and stones set in the earth, and mossy blocks in the stone.
+ * game/render/tiles.ts picks which cells by a hash
+ * of the tile's position, so the shares are how much of the ground carries
+ * them, not a chance rolled per frame. No two cells of one feature ever
+ * touch: of two neighbours both under the share, the lower roll wins. That
+ * costs a cell here and there, so over a long enough stretch of ground less
+ * is drawn than the share named here — a tendency, not a guarantee the
+ * renderer makes of any one room. The glade draws roots at 0.052 and moss at
+ * 0.067, both under, and the stones at 22 of their 121 cells = 0.182; while
+ * the stones' bed was the lower earth row alone they drew 5 of its 61, just
+ * over their share: a bed that small lands either side of it.
  *
- * A twelfth of each, so that both read as the occasional feature of ground
- * rather than as its pattern: a quarter and a fifth put roots and moss in
- * touching cells all down the plateau and the beacon tower, which the owner
- * read as paving rather than as ground (HWP-094).
+ * A twelfth of the roots and the moss, so that they read as the occasional
+ * feature of ground rather than as its pattern: a quarter and a fifth put
+ * roots and moss in touching cells all down the plateau and the beacon tower,
+ * which the owner read as paving rather than as ground (HWP-094). A fifth
+ * of the stones, both earth rows, which is as dense as the no-touching rule
+ * lets them get: at a twelfth of the lower row alone the owner found the big
+ * masses of earth bare of them, an eighth and a seventh of both rows left the
+ * plateau, the stretch they look at first, with one and then two, and they
+ * asked for more; at a fifth it draws five, and past that the rule drops
+ * nearly every extra winner (2026-10-09). Stones are set in the ground rather
+ * than growing out of it, so a fifth of them still reads as earth with
+ * stones in it where a fifth of roots read as paving.
  */
-export const TILE_SCATTER = { roots: 0.08, moss: 0.08 } as const;
+export const TILE_SCATTER = { roots: 0.08, stones: 0.2, moss: 0.08 } as const;
 
 /**
  * How far round a cell of each tile may be turned from the way the atlas drew
@@ -204,6 +220,13 @@ export const TILE_TURN = {
   'mossy-stone': 'rotate',
   plank: 'fixed',
   spike: 'fixed',
+  // The stones set in the earth are lit from above, so these two are flipped
+  // and no further, like the roots. The transition piece has the earth in its
+  // upper corner, which is where the earth is: mirrored, the corner swaps
+  // sides, and the row mixes the two at random (rendering-and-look.md, tiles).
+  'earth-stones': 'mirror',
+  'stone-earth': 'mirror',
+  'earth-boulder': 'mirror',
 } as const satisfies Record<TileName, 'fixed' | 'mirror' | 'rotate'>;
 
 // The width of a waterfall's water column is not here: PROP_SIZE in

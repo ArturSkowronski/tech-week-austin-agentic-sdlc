@@ -32,8 +32,54 @@ page colour when it is not.
 | wizard-jump.png | jump arc, 7 labelled poses; second of four variants, the one without dust puffs | sprites/wizard-jump.png, 7 px pitch |
 | wizard-fall.png | long fall, 3 flailing poses and a dusty landing; second of four variants | sprites/wizard-fall.png, 7 px pitch, 40 × 32 cells |
 | wizard-victory.png | the victory cast, 8 labelled poses: idle, a spin over four, the burst, the beam, idle; generated 2026-09-10, one variant; the figure stands about 200 px tall against the idle sheet's 253 | sprites/wizard-victory.png, built by HWP-044: 8 frames, a wider cell for the burst and the beam, the crystal pinned by hand where the effects hide it |
-| tileset.png | forest tileset, eleven tiles on a transparent sheet in a known grid (205 x 202 cells from 39,39 with 39 px gaps, then the plank and the spike trap); cleaned by hand on 2026-09-16 from the fourth of four generated variants | tiles/forest.png, sliced by grid in tools/asset-kit/tiles.ts |
+| tileset.png | forest tileset, fourteen tiles on a transparent sheet in a known grid (205 x 202 cells from 39,39 with 39 px gaps, six across each of two rows, then the plank and the spike trap); cleaned by hand on 2026-09-16 from the fourth of four generated variants, and extended on 2026-10-02 with a sixth column drawn by hand by the owner, no generator (earth with a cluster of stones, stone the earth shows through, earth with one boulder), and re-exported by the owner on 2026-10-08 as truecolour RGBA with the mossy stone redrawn by hand, then once more on 2026-10-09 with the mossy stone redrawn again (the moss sits in the joints between lighter stones). No pixel of the other thirteen was redrawn, but their bytes did move: see the note under the table | tiles/forest.png, sliced by grid in tools/asset-kit/tiles.ts |
 | props-sheet.png | bush, log, rock, flag, beacon, torch, sparks with frames; second of four variants, re-exported on 2026-09-15 with a real alpha channel instead of the dark page | props/*.png, cut through the region mapping in tools/asset-kit/props.ts. torch and sparks are built but no room places a torch and the sparks are not drawn yet |
+
+### The tileset's sixth column and the palette
+
+Adding the sixth column on 2026-10-02 changed the bytes of the eleven tiles
+that had already shipped, although none of their art was touched. `tileset.png`
+is an 8-bit indexed PNG (colour type 3) and its 256-entry palette was already
+full, so the owner's new colours forced the whole palette to be recomputed and
+the old colours to be remapped onto it. Decoded against the sheet as it stood
+at `a34d56a`, every one of the eleven boxes differs: 270,531 of their 408,462
+pixels, by a mean of 0.62 of 255 per channel and at worst 43 on one channel of
+the mossy stone. Alpha is bit-exact everywhere, and nothing moved on the grid.
+
+That carries into `public/assets/tiles/forest.png`, where the eleven tiles'
+352 x 32 region differs from the one `main` builds at 65.3 % of its pixels, by
+a mean of 3.05 of 255 per channel and at worst 35, again with alpha unchanged.
+Growing the strip is not the cause: slicing the same sheet into an eleven-tile
+strip gives a region bit-identical to the fourteen-tile atlas's, so the
+32-colour reduction pipeline.md describes behaved the same either way and all
+of the drift is the raw's.
+
+Copying the eleven old boxes into the sheet byte for byte does not undo it. The
+indexed sheet has no spare palette entry, so such a sheet has to be saved as
+truecolour RGBA (colour type 6); built, its eleven tiles come out 89.3 %
+different from the ones `main` ships, mean 3.82 and worst 21 — further off than
+leaving the sheet as the owner exported it, because the strip's 32 colours are
+then picked from different inputs. Bit-exactness of already-shipped tiles is
+not something this pipeline can offer once the sheet is redrawn at all. What
+this record does promise is that the eleven were not redrawn, recoloured by
+hand or moved, and that their shapes and their alpha are unchanged.
+
+On 2026-10-08 the owner redrew the mossy stone (cell 3,1) and exported the
+whole sheet again, this time as truecolour RGBA (colour type 6), so the palette
+has room from here on. Against the indexed sheet of 2026-10-02 the mossy stone
+differs at 99.8 % of its pixels, mean 17.3 of 255 and at worst 118; the other
+thirteen boxes differ by a mean of 1.0 to 1.4 and at worst 52 on one channel of
+the grass top — the indexed export's quantisation undone, not a redraw. Alpha
+is bit-exact across the sheet and nothing moved on the grid. In the atlas the
+mossy stone differs at every pixel (mean 16.9, worst 105) and the other
+thirteen tiles by a mean of 2.4 to 5.7, worst 27, as the strip's 32 colours
+were picked again from the new inputs; alpha unchanged.
+
+On 2026-10-09 the owner redrew the mossy stone once more and exported the
+sheet again. Being truecolour now, every other cell is byte-identical to the
+sheet of the day before; the mossy stone differs at 99.6 % of its pixels, mean
+19.9 of 255, worst 93, alpha unchanged.
+
 
 ## Tried and set aside
 
@@ -55,7 +101,7 @@ Moved out of the repository on 2026-09-15 and kept outside it, so the tree carri
 
 ## Audio
 
-Generated with ElevenLabs on 2026-10-02 by the owner in the Studio project https://elevenlabs.io/app/studio/BWEe0K13M3lHwy7TVbAZ, under the workspace's paid subscription (ElevenLabs grants content generated during a subscription a commercial licence that outlasts it). This set replaces the first HWP-063 set, generated the same day on the creative flow "Hobby Wizard audio (HWP-063), paid run" from the prompts in `docs/plan/03-assets/prompts/audio.md`, which the owner judged unusable after hearing it in the game; the prompts below are the ones actually used, which name the retro-platformer character the brief's did not. The owner exported the chosen take of each sound and the kit took the files unchanged. Effects: sound-effects model, MP3 128 kbps 44.1 kHz stereo; the effects the plan sizes under half a second are 0.5 s, the model's shortest. The ambience, a 30 s sound-effects generation, took the place of the brief's music loop the same day: the owner preferred the forest to a theme. The Studio take of it was generated from a prompt ending "low volume background bed" and came out effectively silent (peak -61 dBFS), so it was regenerated: first on the flow https://elevenlabs.io/app/flows/8d2hzPi34eDQESxJN3Do (two takes, kept briefly), then by the owner in the same Studio project with a prompt asking for a full, present bed, which is the take that ships; the player lifts it three times (-34 dBFS RMS as recorded, -10 dBFS peak). The kit copies these into `public/assets/audio/` unchanged and measures each one (HWP-063, Visdom part).
+Generated with ElevenLabs on 2026-10-02 by the owner in the Studio project https://elevenlabs.io/app/studio/BWEe0K13M3lHwy7TVbAZ, under the workspace's paid subscription (ElevenLabs grants content generated during a subscription a commercial licence that outlasts it). This set replaces the first HWP-063 set, generated the same day on the creative flow "Hobby Wizard audio (HWP-063), paid run" from the prompts in `docs/plan/03-assets/prompts/audio.md`, which the owner judged unusable after hearing it in the game; the prompts below are the ones actually used, which name the retro-platformer character the brief's did not. The owner exported the chosen take of each sound and the kit took the files unchanged. Effects: sound-effects model, MP3 128 kbps 44.1 kHz stereo; the effects the plan sizes under half a second are 0.5 s, the model's shortest. The ambience, a 30 s sound-effects generation, took the place of the brief's music loop the same day: the owner preferred the forest to a theme. The Studio take of it was generated from a prompt ending "low volume background bed" and came out effectively silent (peak -61 dBFS), so it was regenerated: first on the flow https://elevenlabs.io/app/flows/8d2hzPi34eDQESxJN3Do (two takes, kept briefly), then by the owner in the same Studio project with a prompt asking for a full, present bed, which is the take that ships; the player lifts it a little over twice and then takes the whole mix down to a fifth through one master level, so it plays about 8 dB under its recorded level, around -41 dBFS RMS (-34 dBFS RMS as recorded, -10 dBFS peak; it was three times until the owner asked for the whole mix quieter, twice, on 2026-10-09). The kit copies these into `public/assets/audio/` unchanged and measures each one (HWP-063, Visdom part).
 
 | File | What it is | Becomes |
 |---|---|---|

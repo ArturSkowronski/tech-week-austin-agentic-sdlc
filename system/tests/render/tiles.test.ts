@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import forestGlade from '../../game/content/rooms/forest-glade';
 import { TILE_ORDER, type TileName } from '../../game/content/tile-order';
 import { TILE_SCATTER, TILE_TURN } from '../../game/render/config';
-import { EARTH_ROWS, EDGE_QUARTER, tileArt, tileTurn } from '../../game/render/tiles';
+import { EARTH_ROWS, EDGE_QUARTER, scatterBed, tileArt, tileTurn, type Scatter } from '../../game/render/tiles';
 import { parseRoom, Tile, tileAt, type Room } from '../../game/sim';
 import { worldFrom } from '../sim/helpers';
 
@@ -22,6 +22,16 @@ const GLADE = parseRoom(forestGlade).room;
  * top of this band, which is the report HWP-094 answers.
  */
 const OCCASIONAL = { least: 0.04, most: 0.15 };
+
+/**
+ * The band for the stones set in the earth, which the owner asked for denser
+ * than the roots and the moss: set in the ground rather than growing out of
+ * it, a fifth of them still reads as earth with stones in it. The top is
+ * where the no-touching rule stops the drawn share rising at all — a quarter
+ * and a third of the bed draw within a cell or two of a fifth — so a share
+ * past it is asking for what the rule cannot give (config.ts, TILE_SCATTER).
+ */
+const SET_IN = { least: 0.1, most: 0.25 };
 
 /**
  * Digits a drawn share has to match the configured one to, which vitest reads
@@ -65,6 +75,31 @@ function scattered(drawn: Map<string, number>, few: string, many: string): numbe
   const count = drawn.get(few) ?? 0;
 
   return count / (count + (drawn.get(many) ?? 0));
+}
+
+/**
+ * How many cells of a room a feature was offered: its bed, which is what a
+ * drawn share is a share of. Counted off the renderer's own rule rather than
+ * off a second copy of it here, so this measures the share and not the bed.
+ */
+function bedSize(room: Room, kind: Scatter): number {
+  let count = 0;
+
+  for (const { x, y } of cells(room)) {
+    if (scatterBed(room, x, y, kind)) count += 1;
+  }
+
+  return count;
+}
+
+/**
+ * The share of its bed that a feature was drawn on. The stones take two
+ * pieces out of one bed, so they are counted together.
+ */
+function ofBed(room: Room, drawn: Map<string, number>, kind: Scatter, ...pieces: string[]): number {
+  const count = pieces.reduce((total, piece) => total + (drawn.get(piece) ?? 0), 0);
+
+  return count / bedSize(room, kind);
 }
 
 describe('the tile a cell of a map shows', () => {
@@ -136,9 +171,98 @@ describe('the tile a cell of a map shows', () => {
       'grass-top',
       expect.stringMatching(/^earth/),
       expect.stringMatching(/^earth/),
-      expect.stringMatching(/^(stone|mossy-stone)$/),
+      'stone-earth',
       expect.stringMatching(/^(stone|mossy-stone)$/),
     ]);
+  });
+
+  it('meets the stone with the transition piece the whole way along, flipped at random', () => {
+    // The first row of stone under the earth is the piece the earth shows
+    // through, on every cell that is not an edge. Which way round each cell
+    // is flipped comes off the hash and not off the cell's parity: the owner
+    // found a strict alternation read as a zigzag, and two of the piece side
+    // by side the same way round are fine (rendering-and-look.md, tiles).
+    // The map's first line is the air the wizard stands in, so the surface is
+    // row 1 and the first stone row is one past the earth rows under it.
+    const slab = stoneSlab(64);
+    const row = 1 + EARTH_ROWS + 1;
+    const ways = new Set<string>();
+    let alike = 0;
+
+    for (let x = 1; x < 63; x += 1) {
+      expect(tileArt(slab, x, row)).toBe('stone-earth');
+      expect(tileArt(slab, x, row + 1)).toMatch(/^(stone|mossy-stone)$/);
+      ways.add(turned(slab, x, row, 'stone-earth'));
+      if (turned(slab, x, row, 'stone-earth') === turned(slab, x + 1, row, 'stone-earth')) alike += 1;
+    }
+
+    // Both ways round are drawn, and some neighbours share one: a flip that
+    // alternated would give none, a flip that never happened would give all.
+    expect(ways).toEqual(new Set(ALLOWED.mirror));
+    expect(alike).toBeGreaterThan(0);
+    expect(alike).toBeLessThan(61);
+
+    expect(tileArt(slab, 0, row)).toBe('stone-edge-left');
+    expect(tileArt(slab, 63, row)).toBe('stone-edge-right');
+
+    // The glade as well: every stone cell with earth over it is the piece.
+    for (const { x, y, tile } of cells(GLADE)) {
+      if (tile !== Tile.Solid || tileArt(GLADE, x, y)?.startsWith('stone-edge')) continue;
+
+      const underEarth = /^earth/.test(tileArt(GLADE, x, y - 1) ?? '');
+
+      if (underEarth && /^(stone|mossy-stone|stone-earth)$/.test(tileArt(GLADE, x, y) ?? '')) {
+        expect(tileArt(GLADE, x, y)).toBe('stone-earth');
+      }
+    }
+  });
+
+  it('sets the stones in either earth row and nowhere else', () => {
+    // The stones first went into the lower earth row alone, over the
+    // transition; the owner then asked for them across the big masses of
+    // earth, so both rows carry them now. Never the surface, never the stone,
+    // and never a cell drawing the fringe at an open side.
+    const slab = earthSlab(512);
+    const rows = new Set<number>();
+
+    for (const { x, y } of cells(slab)) {
+      if (!/^earth-(stones|boulder)$/.test(tileArt(slab, x, y) ?? '')) continue;
+
+      rows.add(y);
+      expect(tileArt(slab, x, y - 1)).toMatch(/^(grass-top|earth|earth-roots|earth-stones|earth-boulder)$/);
+      expect(tileArt(slab, x, y + 1)).toMatch(/^(earth|earth-roots|earth-stones|earth-boulder|stone-earth)$/);
+    }
+
+    // The surface is row 1 of the slab, so the earth rows are the two under it.
+    expect([...rows].sort()).toEqual([2, 3]);
+    // Both pieces are drawn, and in the glade too: a second roll once gave
+    // the shipped room five boulders and no cluster, which the owner read as
+    // the cluster missing from the atlas. The pieces take turns along a row
+    // instead, so any row with two stones in it shows both.
+    expect(tally(slab).get('earth-stones') ?? 0).toBeGreaterThan(0);
+    expect(tally(slab).get('earth-boulder') ?? 0).toBeGreaterThan(0);
+    expect(tally(GLADE).get('earth-stones') ?? 0).toBeGreaterThan(0);
+    expect(tally(GLADE).get('earth-boulder') ?? 0).toBeGreaterThan(0);
+  });
+
+  it('gives the cluster and the boulder turns along a row of stones', () => {
+    // Read along each row of the slab: the pieces alternate in the order the
+    // stones stand, so no row of them is all one piece.
+    const slab = earthSlab(512);
+
+    for (let y = 0; y < slab.height; y += 1) {
+      const pieces: string[] = [];
+
+      for (let x = 0; x < slab.width; x += 1) {
+        const name = tileArt(slab, x, y);
+
+        if (name === 'earth-stones' || name === 'earth-boulder') pieces.push(name);
+      }
+
+      for (let at = 1; at < pieces.length; at += 1) {
+        expect(pieces[at]).not.toBe(pieces[at - 1]);
+      }
+    }
   });
 
   it('fringes an earth row that stands open at a side with the moss surface', () => {
@@ -175,21 +299,47 @@ describe('the tile a cell of a map shows', () => {
     expect(tileArt(room, 2, 4)).toBe('stone-edge-right');
   });
 
-  it('scatters the roots through the earth and the mossy blocks through the stone', () => {
+  it('scatters the roots, the stones and the mossy blocks, each near its configured share', () => {
     const glade = tally(GLADE);
     const plateau = tally(GLADE, PLATEAU);
 
-    // Both shares are asked for twice over: that they are occasional at all,
-    // which is the band and is what the quarter and the fifth failed, and
-    // that what the glade really draws is the share config.ts names, give or
-    // take what a room this size rounds it to.
-    for (const share of [TILE_SCATTER.roots, TILE_SCATTER.moss]) {
-      expect(share).toBeGreaterThan(OCCASIONAL.least);
-      expect(share).toBeLessThan(OCCASIONAL.most);
+    // Each share is asked for twice over: that it sits in its feature's band,
+    // which for the roots and the moss is "occasional" and is what the
+    // quarter and the fifth failed, and that what the glade really draws is
+    // the share config.ts names, give or take what a room this size rounds it
+    // to.
+    for (const [share, band] of [
+      [TILE_SCATTER.roots, OCCASIONAL],
+      [TILE_SCATTER.stones, SET_IN],
+      [TILE_SCATTER.moss, OCCASIONAL],
+    ] as const) {
+      expect(share).toBeGreaterThan(band.least);
+      expect(share).toBeLessThan(band.most);
     }
 
-    expect(scattered(glade, 'earth-roots', 'earth')).toBeCloseTo(TILE_SCATTER.roots, SHARE_DIGITS);
-    expect(scattered(glade, 'mossy-stone', 'stone')).toBeCloseTo(TILE_SCATTER.moss, SHARE_DIGITS);
+    // What the glade really draws is held near the configured share, and
+    // inside the band, rather than to the number itself. Each of the three is
+    // measured against its own bed — the cells the feature was offered — so
+    // the stones, whose bed leaves out the fringe cells the roots' also does
+    // but which the roots then also leave to the stones, are compared with
+    // their own share and not with a denominator that counts cells they were
+    // never offered.
+    //
+    // It is not held from below. Dropping one of two touching winners lowers
+    // the share in expectation, not in every room: when the stones' bed was
+    // the lower earth row alone they drew 5 of its 61 cells, over the
+    // configured twelfth, while the roots and the moss came out under theirs
+    // (config.ts, TILE_SCATTER). A `drawn <= share` here would have reddened
+    // on that glade.
+    for (const [drawn, share, band] of [
+      [ofBed(GLADE, glade, 'roots', 'earth-roots'), TILE_SCATTER.roots, OCCASIONAL],
+      [ofBed(GLADE, glade, 'stones', 'earth-stones', 'earth-boulder'), TILE_SCATTER.stones, SET_IN],
+      [ofBed(GLADE, glade, 'moss', 'mossy-stone'), TILE_SCATTER.moss, OCCASIONAL],
+    ] as const) {
+      expect(drawn).toBeCloseTo(share, SHARE_DIGITS);
+      expect(drawn).toBeGreaterThan(band.least);
+      expect(drawn).toBeLessThan(band.most);
+    }
 
     // The plateau is taken on its own as well, because it is the stretch the
     // owner read as a pattern and a share met over the whole room could miss
@@ -292,44 +442,26 @@ function earthSlab(width: number): Room {
   return worldFrom(['P', row, row, row, row].join('\n')).room;
 }
 
-/** Every pair of touching cells that a room draws the roots in both of. */
-function rootPairs(room: Room): Pair[] {
+/** A slab of ground this many columns across and eight deep: earth rows, the transition row and four of stone, the moss's bed. */
+function stoneSlab(width: number): Room {
+  const row = '#'.repeat(width);
+
+  return worldFrom(['P', row, row, row, row, row, row, row, row].join('\n')).room;
+}
+
+/** Every pair of touching cells that a room draws the same feature in both of. */
+function touchingPairs(room: Room, feature: RegExp): Pair[] {
   const pairs: Pair[] = [];
 
   for (const { x, y } of cells(room)) {
-    if (tileArt(room, x, y) !== 'earth-roots') continue;
+    if (!feature.test(tileArt(room, x, y) ?? '')) continue;
 
     for (const [dx, dy] of NEIGHBOURS) {
-      if (tileArt(room, x + dx, y + dy) === 'earth-roots') pairs.push({ x, y, dx, dy });
+      if (feature.test(tileArt(room, x + dx, y + dy) ?? '')) pairs.push({ x, y, dx, dy });
     }
   }
 
   return pairs;
-}
-
-/** Widths tried for a slab with a touching pair of roots in it, narrowest first. */
-const SLAB_WIDTHS = [64, 128, 256, 512];
-
-/**
- * The narrowest of those the scatter does draw a touching pair of roots in.
- * Found by search rather than written down as the width that works today: the
- * thinner the share, the more ground it takes before two roots land beside
- * each other, so a number read off this TILE_SCATTER would re-break on the
- * next one. The widths grow until some of the slab holds a pair, and running
- * out is an error that says why rather than a test that quietly stops testing.
- */
-function slabWithRootPair(): { width: number; room: Room; pairs: Pair[] } {
-  for (const width of SLAB_WIDTHS) {
-    const room = earthSlab(width);
-    const pairs = rootPairs(room);
-
-    if (pairs.length > 0) return { width, room, pairs };
-  }
-
-  throw new Error(
-    `no slab up to ${SLAB_WIDTHS[SLAB_WIDTHS.length - 1]} columns across drew two roots touching: ` +
-      'TILE_SCATTER is now too thin to read the parity rule off cells that really carry roots',
-  );
 }
 
 describe('which way round a cell draws the tile it shows', () => {
@@ -347,62 +479,52 @@ describe('which way round a cell draws the tile it shows', () => {
     // A room drawn twice, and a replay run again, have to come out the same,
     // so what is pinned here is what the ground actually looks like rather
     // than the fact that a pure function is one. The first two are the hash
-    // the rotating tiles roll; the last two are the parity the mirrored ones
-    // read off the cell, which is why they alternate down the column.
+    // the rotating tiles roll; the last two are the hash the mirrored ones
+    // roll with their own salt.
     expect(turned(AIR, 0, 0, 'earth')).toBe('3');
     expect(turned(AIR, 2, 0, 'earth')).toBe('1 mirrored');
     expect(turned(AIR, 0, 0, 'earth-roots')).toBe('0');
-    expect(turned(AIR, 0, 1, 'earth-roots')).toBe('0 mirrored');
+    expect(turned(AIR, 0, 1, 'earth-roots')).toBe('0');
   });
 
-  it('leaves no root cell standing beside its own copy', () => {
-    // The roots are flipped by the parity of the cell's own coordinates and
-    // not by the hash, so two cells that touch are never the same way round.
-    // That holds of every pair of the patch, however thinly TILE_SCATTER
-    // spreads the roots over a real room, which is why the rule itself is
-    // read here and not off a room's drawn roots. That the cells really
-    // drawn with roots obey it is the test below.
-    const pairs = PATCH.flatMap(({ x, y }) =>
-      NEIGHBOURS.map(([dx, dy]) => [
-        turned(AIR, x, y, 'earth-roots'),
-        turned(AIR, x + dx, y + dy, 'earth-roots'),
-      ]),
-    );
-
-    expect(pairs.filter(([one, other]) => one === other)).toEqual([]);
-    // Both ways round are drawn, so "no pair the same" is not being met by a
-    // tile that has stopped being mirrored at all.
-    expect(new Set(pairs.flat())).toEqual(new Set(ALLOWED.mirror));
-  });
-
-  it('draws the two cells of a touching pair of roots the opposite ways round', () => {
-    // The rule above is read off coordinates, which proves the rule but not
-    // that `tileArt` and `tileTurn` are talking about the same cell: a drift
-    // between which cells carry roots and which cells get mirrored would pass
-    // it. So the roots are read here off ground that really draws them — a
-    // slab wide enough for the thin share of HWP-094 to put two of them side
-    // by side, which is the fixture the ticket's Work asks for, and the glade
-    // as well, whose one surviving pair is the shipped room's own case.
-    const slab = slabWithRootPair();
-
-    // The slab is the half of this that is guaranteed to assert something:
-    // `slabWithRootPair` throws rather than return none, and this says so at
-    // the place the pairs are read. The glade may hold none and still pass.
-    expect(slab.pairs.length).toBeGreaterThan(0);
-
-    const drawn = [
-      { what: `a slab ${slab.width} columns across`, room: slab.room, pairs: slab.pairs },
-      { what: 'the glade', room: GLADE, pairs: rootPairs(GLADE) },
-    ];
-
-    for (const { what, room, pairs } of drawn) {
-      const same = pairs.filter(
-        ({ x, y, dx, dy }) =>
-          turned(room, x, y, 'earth-roots') === turned(room, x + dx, y + dy, 'earth-roots'),
+  it('flips a mirrored tile both ways over a patch, and not in stripes', () => {
+    // The mirrored tiles — the roots, the stones set in earth and the
+    // transition piece — take their flip from the hash, like the turned ones
+    // take their quarter. They used to take it from the parity of the cell so
+    // that no two touching cells matched; the roots and the stones never
+    // touch at all now (the scatter rule below), and on the transition row,
+    // which does run on, the owner found the alternation read as a zigzag.
+    // So what is asked here is that both ways round are drawn and that the
+    // flip is not a stripe: neither every pair alike nor every pair unlike.
+    for (const name of ['earth-roots', 'earth-stones', 'stone-earth'] as const) {
+      const pairs = PATCH.flatMap(({ x, y }) =>
+        NEIGHBOURS.map(([dx, dy]) => [turned(AIR, x, y, name), turned(AIR, x + dx, y + dy, name)]),
       );
+      const alike = pairs.filter(([one, other]) => one === other).length;
 
-      expect([what, same]).toEqual([what, []]);
+      expect(new Set(pairs.flat())).toEqual(new Set(ALLOWED.mirror));
+      expect(alike).toBeGreaterThan(pairs.length / 4);
+      expect(alike).toBeLessThan((pairs.length * 3) / 4);
     }
+  });
+
+  it('never draws two roots, two stones or two mossy blocks in cells that touch', () => {
+    // The rule the owner set for the fourteen-tile atlas: of two touching
+    // cells both rolling under a share, the lower roll takes the feature and
+    // the other stays plain ground. Read off ground that really draws them, a
+    // slab wide enough that the thin share would put pairs side by side many
+    // times over, and off the glade, the shipped room's own case.
+    const slabs = [earthSlab(512), stoneSlab(256), GLADE];
+
+    for (const room of slabs) {
+      expect(touchingPairs(room, /^earth-roots$/)).toEqual([]);
+      expect(touchingPairs(room, /^earth-(stones|boulder)$/)).toEqual([]);
+      expect(touchingPairs(room, /^mossy-stone$/)).toEqual([]);
+    }
+
+    // And the rule is biting rather than vacuous: each feature is drawn.
+    expect(tally(earthSlab(512)).get('earth-roots') ?? 0).toBeGreaterThan(0);
+    expect(tally(stoneSlab(256)).get('mossy-stone') ?? 0).toBeGreaterThan(0);
   });
 
   it('breaks up the mossy stone of the glade rather than stamping one of it', () => {

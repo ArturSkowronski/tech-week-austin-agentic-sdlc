@@ -22,6 +22,6 @@ Sprite style block first. One sheet per family, each prop's frames left to right
 
 ## Tileset
 
-> [style block] A tileset for a forest platformer on a 32 pixel grid: grass top surface, grass corner left, grass corner right, earth fill, earth with roots, stone block, stone edge left, stone edge right, mossy stone, a wooden plank platform, a spike trap. Arranged on a grid with clear separation, consistent lighting from the top left, transparent background.
+> [style block] A tileset for a forest platformer on a 32 pixel grid: grass top surface, grass corner left, grass corner right, earth fill, earth with roots, stone block, stone edge left, stone edge right, mossy stone, a wooden plank platform, a spike trap, earth fill with a cluster of small stones set in it, stone block with earth showing through its upper left corner, earth fill with one large stone set in it. Arranged on a grid with clear separation, consistent lighting from the top left, transparent background.
 
-The kit slices the sheet by its known grid in the order of the shared tile-order module; a sheet with a different tile count fails the build.
+The kit slices the sheet by its known grid in the order of the shared tile-order module; a sheet with a different tile count fails the build. The last three subjects are the sixth column the owner drew by hand on 2026-10-02, after the first eleven had shipped, and are listed here so the prompt describes the whole sheet; they were appended to the order so that nothing already cut moved.

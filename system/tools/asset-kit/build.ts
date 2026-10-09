@@ -167,7 +167,7 @@ async function main(): Promise<void> {
     // layer in front does not read as the layer behind a second time.
     { name: 'bg/foreground', art: flip(crop(undergrowth, { x: 0, y: 0, width: undergrowth.width, height: BUSHES_FRONT_ROWS })) },
     // The forest atlas as one strip, in the order of game/content/tile-order.ts:
-    // one file and one manifest entry, cut back into its eleven tiles by
+    // one file and one manifest entry, cut back into its fourteen tiles by
     // game/render/tiles.ts, which draws the rooms that have no painting.
     { name: TILE_ATLAS, art: hstack(sliceTiles(await loadRaw('tileset.png'))), density: RENDER_DENSITY },
     // The title art, read at the density everything but the backgrounds has

@@ -4,7 +4,11 @@
 // (docs/plan/02-design/rendering-and-look.md, tiles by context), so neither
 // side carries a copy of the other's numbering.
 
-/** The eleven tiles of the forest atlas, in the order the kit writes them. */
+/**
+ * The fourteen tiles of the forest atlas, in the order the kit writes them.
+ * The last three were added to the sheet after the first eleven shipped and
+ * are appended, so the earlier indices did not move.
+ */
 export const TILE_ORDER = [
   'grass-top',
   'grass-corner-left',
@@ -17,6 +21,13 @@ export const TILE_ORDER = [
   'mossy-stone',
   'plank',
   'spike',
+  // Earth with a cluster of small stones set in it.
+  'earth-stones',
+  // Stone with the earth above showing through its upper corner: the piece
+  // the earth rows meet the stone with.
+  'stone-earth',
+  // Earth with one large stone set in it.
+  'earth-boulder',
 ] as const;
 
 /** One tile of the atlas, by name. */

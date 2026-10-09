@@ -31,7 +31,7 @@ Hand edits to raws are code: declared in `tools/asset-kit/paintings.ts`, never m
 "bg/mountains-big": { "width": 640, "height": 223, "artRows": 103, "colours": 3064 },
 "sprites/wizard-idle": { "cell": 32, "cellW": 32, "frames": 4, "crystal": [[51, 18], [48, 17], [51, 18], [49, 18]] },
 "sprites/wizard-victory": { "cell": 32, "cellW": 64, "anchor": 16, "frames": 8, "crystal": [[49, 24], "..."] },
-"tiles/forest": { "width": 352, "height": 32, "density": 2, "artRows": 32, "colours": 32 }
+"tiles/forest": { "width": 448, "height": 32, "density": 2, "artRows": 32, "colours": 32 }
 ```
 
 ## Invariants

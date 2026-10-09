@@ -50,7 +50,7 @@ The sheet `props-sheet.png` is not laid out in rows: the bushes, logs, rocks and
 
 | Asset | Content | Status |
 |---|---|---|
-| forest tileset | eleven tiles: grass surface, grass corners left and right, earth, earth with roots, stone, stone edges left and right, mossy stone, plank (one-way), spike trap | density 2 from the 1x raw, `tileset.png`, cleaned to a transparent sheet on 2026-09-16; its 205 px cells cut to 32 px tiles by HWP-043 |
+| forest tileset | fourteen tiles: grass surface, grass corners left and right, earth, earth with roots, stone, stone edges left and right, mossy stone, plank (one-way), spike trap, earth with a cluster of stones, stone the earth shows through, earth with one boulder | density 2 from the 1x raw, `tileset.png`, cleaned to a transparent sheet on 2026-09-16 and given its sixth column, drawn by hand by the owner, on 2026-10-02; its 205 px cells cut to 32 px tiles by HWP-043 |
 
 ## Backgrounds
 
