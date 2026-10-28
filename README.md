@@ -103,6 +103,7 @@ Check in the terminal:
 
 ```bash
 factory                        # prints the list of commands: start, lesson, map, check, solve, autopilot
+factory le<Tab>                # Tab completes commands, lessons (1-10, final), agents and branches
 git tag -l 'lesson-*' | wc -l  # 10
 ```
 
