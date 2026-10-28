@@ -1,5 +1,6 @@
-# The factory's production line (lesson 5). One run = one attempt at one work order:
+# The factory's production line (lesson 6). One run = one attempt at one work order:
 #   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
+#   → 🧱 quality control (build with the architecture rules + test weakening ‖ secrets, then mutation) → result
 # Run it: make order O=hw-001 [AGENT=replay]. The graph and the logs: the floor (Argo UI).
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
@@ -40,6 +41,82 @@ spec:
             template: change
             when: "{{steps.intake.outputs.parameters.accepted}} == true"
             arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: agent, value: "{{inputs.parameters.agent}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        - - name: quality
+            template: quality
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        - - name: result
+            template: result
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+
+    # Quality control: deterministic, no model, out of the agent's reach. A red gate does not stop the others:
+    # the factory wants the full picture before it decides. Mutation runs after the build.
+    - name: quality
+      inputs:
+        parameters: [{name: order}, {name: attempt}]
+      dag:
+        tasks:
+          - name: build
+            template: step
+            continueOn: {failed: true}
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    set +e; bash sdlc/build.sh system > .sdlc/build.log 2>&1; code=$?; set -e
+                    tail -n 30 .sdlc/build.log
+                    python3 sdlc/gates.py report --log .sdlc/build.log --exit-code $code > "$OUT/quality-1-build.md"
+                    set +e; python3 sdlc/gates.py weakening --base main --head HEAD > "$OUT/quality-2-weakening.md"; weak=$?; set -e
+                    cat "$OUT/quality-1-build.md" "$OUT/quality-2-weakening.md"
+                    echo "$code" > "$OUT/quality-1-build.exit"; echo "$weak" > "$OUT/quality-2-weakening.exit"
+                    exit $((code + weak))
+          - name: secrets
+            template: step
+            continueOn: {failed: true}
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    set +e; gitleaks git --log-opts="main..HEAD" --redact --no-banner --no-color . > .sdlc/gitleaks.log 2>&1; code=$?; set -e
+                    cat .sdlc/gitleaks.log
+                    if [ $code -eq 0 ]; then printf '### 🔑 Secrets: ✅ gitleaks found nothing\n' > "$OUT/quality-3-secrets.md"
+                    else printf '### 🔑 Secrets: ❌ gitleaks found a secret in the commits of the change\n' > "$OUT/quality-3-secrets.md"; fi
+                    echo "$code" > "$OUT/quality-3-secrets.exit"; exit $code
+          - name: mutation
+            template: step
+            dependencies: [build]
+            continueOn: {failed: true}
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    set +e; python3 sdlc/mutation.py --base main --head HEAD --threshold "$(jq -r '.gates.mutation_threshold // 50' sdlc/policy.json 2>/dev/null || echo 50)" > .sdlc/mutation.log 2>&1; code=$?; set -e
+                    sed -n '/^### 🧬/,$p' .sdlc/mutation.log > "$OUT/quality-4-mutation.md"
+                    [ -s "$OUT/quality-4-mutation.md" ] || { tail -n 20 .sdlc/mutation.log; printf '### 🧬 Mutation: ⚠️ no result\n' > "$OUT/quality-4-mutation.md"; }
+                    cat "$OUT/quality-4-mutation.md"; echo "$code" > "$OUT/quality-4-mutation.exit"; exit $code
+
+    - name: result
+      inputs:
+        parameters: [{name: order}, {name: attempt}]
+      steps:
+        - - name: run
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    red=0; for f in "$OUT"/quality-*.exit; do c=$(cat "$f"); n=$(basename "$f" .exit); [ "$c" = "0" ] && echo "✅ $n" || { echo "❌ $n (exit $c)"; red=1; }; done
+                    cat "$OUT"/quality-*.md > "$OUT/quality.md"
+                    [ $red = 0 ] && echo "Quality control: green" || { echo "Quality control: red. Reports: $OUT/quality.md"; exit 1; }
 
     # Every step is the same image and the same disk. Only the script differs. The step that builds and tests the agent's
     # code has no secret: only the ledger (step-sign) sees the cosign key, only step-github sees the GitHub token.
