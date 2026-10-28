@@ -14,8 +14,9 @@ import type { PlantedBug, WorldState } from '../sim';
 
 /**
  * The repository that receives tickets, as `owner/name`, from the build
- * variable of `.env.example`. A build given none falls back to the game's own
- * repository, which is where a ticket raised from a preview belongs anyway.
+ * variable of `.env.example`; vite.config.ts fills it from the clone's
+ * `origin`, so a fork raises tickets on the fork. A build with neither falls
+ * back to the game's own repository.
  */
 const REPO: string = import.meta.env.VITE_GITHUB_REPO || 'VirtusLab/visdom-sandbox-hobby-wizard';
 

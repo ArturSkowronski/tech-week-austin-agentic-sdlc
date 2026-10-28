@@ -50,6 +50,24 @@ repo() {
   cd "$top"
 }
 
+# The participant's fork as owner/name, from origin.
+fork_name() {
+  local f; f=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p')
+  printf '%s' "${f%.git}"
+}
+
+# A fork starts with Issues off, and the codespace's token cannot turn them on. Without them the game's "Raise ticket
+# on GitHub" and the finale go nowhere, so every factory start, lesson, sync and play says it out loud until it is fixed.
+issues_warn() {
+  local f s; f=$(fork_name); [ -n "$f" ] || return 0
+  s=$(gh api "repos/$f" --jq .has_issues 2>/dev/null) || s=$(curl -fsS -m 5 "https://api.github.com/repos/$f" 2>/dev/null | jq -r .has_issues 2>/dev/null)
+  [ "$s" = false ] || return 0
+  printf '\n\033[1;33m  ⚠  Issues are OFF on your fork %s\033[0m\n' "$f"
+  printf '\033[33m     "Raise ticket on GitHub" in the game and the finale need them. One click, once:\033[0m\n'
+  printf '\033[1;33m     https://github.com/%s/settings  →  General  →  Features  →  tick Issues\033[0m\n\n' "$f"
+}
+
+
 lesson_no() {
   case "${1:-}" in
     final|11) echo final ;;
@@ -78,10 +96,14 @@ tags() {
 # put the fixes on branch work as one commit, so make a2a, make intake, make floor and the line's images use them:
 #   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
 #   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
+#   system/vite.config.ts   "Raise ticket on GitHub" on the fork (origin), not on the game's closed upstream repository
 tags_fix() {
   local changed=""
+  if [ -f "$DATA/system/vite.config.ts" ] && [ -f system/vite.config.ts ] && ! cmp -s "$DATA/system/vite.config.ts" system/vite.config.ts; then
+    cp "$DATA/system/vite.config.ts" system/vite.config.ts; changed="$changed system/vite.config.ts"
+  fi
   if [ -f "$DATA/sdlc/a2a.py" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$DATA/sdlc/a2a.py" sdlc/a2a.py; then
-    cp "$DATA/sdlc/a2a.py" sdlc/a2a.py; changed="sdlc/a2a.py"
+    cp "$DATA/sdlc/a2a.py" sdlc/a2a.py; changed="$changed sdlc/a2a.py"
   fi
   if grep -q '^	@\. scripts/workshop\.env; open http://localhost' Makefile 2>/dev/null; then
     sed -i.factory 's#^	@\. scripts/workshop\.env; open http://localhost.*#	@factory urls#' Makefile && rm -f Makefile.factory
@@ -150,6 +172,7 @@ cmd_start() {
   make -s doctor || true
   cmd_urls
   info "Done. Next: open the floor (link above), factory map, then factory lesson 1 (or any number)."
+  issues_warn
 }
 
 cmd_lesson() {
@@ -181,6 +204,7 @@ cmd_lesson() {
     echo "$g" | sed 's/^/    /'
     case "$g" in *commands-f*) ;; *) echo "    swap it in with one command: factory solve $n (prints every step)" ;; esac
   fi
+  issues_warn
 }
 
 cmd_reset() {
@@ -596,14 +620,14 @@ cmd_play() {
   (cd "$dir/system" && PATH="$PWD/node_modules/.bin:$PATH" sh -c "$assets" >"$log" 2>&1) \
     || { tail -5 "$log" >&2; die "Building the game's assets failed (log: $log)."; }
   # "Raise ticket on GitHub" (T) opens a prefilled issue: on your fork, not on the game's own repository.
-  local fork; fork=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p'); fork=${fork%.git}
-  [ -n "$fork" ] && export VITE_GITHUB_REPO="$fork"
+  local fork; fork=$(fork_name)
   echo
   echo "  🎮 Hobby Wizard: $label"
   echo "     $(url "$port" /)"
   echo
   echo "  Keys: arrows walk, Z jumps, X charges, T raises a ticket. HW-001: walk through the bush on the plateau, hold right."
-  [ -n "${VITE_GITHUB_REPO:-}" ] && echo "  Tickets go to https://github.com/$VITE_GITHUB_REPO/issues (Issues must be on: the fork's Settings → Features → Issues)."
+  [ -n "$fork" ] && echo "  T and \"Raise ticket on GitHub\" open an issue on your fork: https://github.com/$fork/issues"
+  issues_warn
   echo "  Ctrl+C stops the game."
   echo
   cd "$dir/system" && __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.app.github.dev,.github.dev exec ./node_modules/.bin/vite --host 0.0.0.0 --port "$port" --strictPort --clearScreen false
@@ -626,7 +650,7 @@ cmd_doctor() {
   info "Repo"
   ok "$(git describe --tags --match 'lesson-*' 2>/dev/null || echo '?'), branch $(git branch --show-current)"
   local origin fork; origin=$(git remote get-url origin 2>/dev/null)
-  fork=$(printf '%s' "$origin" | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p'); fork=${fork%.git}
+  fork=$(fork_name)
   case "$fork" in
     ArturSkowronski/*|VirtusLab/*|"") no "origin is not your fork ($origin): fork the repo and create the codespace on the fork" ;;
     *) ok "origin: your fork $fork" ;;
@@ -709,7 +733,7 @@ cmd_key() {
 
 cmd_update() {
   # Always from the instructor's repo: origin is the participant's fork, and a fork does not get new commits by itself.
-  local tmp files="lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt"
+  local tmp files="lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
   tmp=$(mktemp -d)
   git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD $files | tar -x -C "$tmp" \
     || die "Could not fetch the tools from $UPSTREAM."
@@ -737,6 +761,6 @@ case "${1:-help}" in
   ask) cmd_ask "${2:-}" "${3:-}" ;;
   doctor) cmd_doctor ;;
   update) cmd_update ;;
-  sync) repo; sync ;;
+  sync) repo; issues_warn; sync ;;
   *) help ;;
 esac

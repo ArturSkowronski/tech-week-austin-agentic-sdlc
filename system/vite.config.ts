@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { join } from 'node:path';
 
-import { defineConfig, type Connect, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 
 // The game is a static site; the built dist/ is what Cloudflare Workers serves
 // (ADR-007, docs/plan/02-design/ci-and-deploy.md).
@@ -124,7 +125,28 @@ function traceSaver(): Plugin {
   };
 }
 
-export default defineConfig({
+/**
+ * The repository "Raise ticket on GitHub" opens an issue on, as `owner/name`:
+ * the clone's own `origin`. A fork raises tickets on the fork, which is where
+ * the factory reads them (ADR-006); a build with no git falls back to the
+ * default in game/render/issue.ts.
+ */
+function originRepo(): string | undefined {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+    return /github\.com[/:]([^/]+\/[^/]+?)(\.git)?$/.exec(url)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  // An explicit VITE_GITHUB_REPO (the environment, .env files) still wins.
+  if (!loadEnv(mode, process.cwd(), 'VITE_').VITE_GITHUB_REPO) {
+    const repo = originRepo();
+    if (repo !== undefined) process.env.VITE_GITHUB_REPO = repo;
+  }
+  return {
   plugins: [traceSaver()],
   build: {
     outDir: 'dist',
@@ -141,4 +163,5 @@ export default defineConfig({
   },
   // No preview.port here on purpose: playwright.config.ts passes
   // `--port <PORT> --strictPort` and is the single source for the preview port.
+  };
 });

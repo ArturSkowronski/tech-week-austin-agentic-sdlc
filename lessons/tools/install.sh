@@ -18,6 +18,8 @@ rm -rf "$data/solutions"; [ -d "$src/solutions" ] && cp -R "$src/solutions" "$da
 [ -f "$src/../../scripts/key.sh" ] && cp "$src/../../scripts/key.sh" "$data/key.sh"
 # The A2A client from main (factory ask, factory check 1): the lesson tags carry an older one.
 mkdir -p "$data/sdlc"; for f in a2a.py tracing.py lib.py; do [ -f "$src/../../sdlc/$f" ] && cp "$src/../../sdlc/$f" "$data/sdlc/"; done
+# The game's config from main ("Raise ticket on GitHub" on the fork): factory lesson puts it on the old tags.
+mkdir -p "$data/system"; [ -f "$src/../../system/vite.config.ts" ] && cp "$src/../../system/vite.config.ts" "$data/system/"
 # The welcome lives outside the repo too: lesson tags are older than .devcontainer, so after factory lesson N the file may be gone.
 [ -f "$src/../../.devcontainer/welcome.txt" ] && cp "$src/../../.devcontainer/welcome.txt" "$data/welcome.txt"
 # Tab completion: factory <Tab>, factory lesson <Tab>, factory ask <Tab>. A new terminal picks it up.
