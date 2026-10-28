@@ -14,7 +14,8 @@ curl -fsSL -o "$tmp/cosign" "https://github.com/sigstore/cosign/releases/downloa
 sudo install -m 0755 "$tmp/kind" "$tmp/argo" "$tmp/cosign" /usr/local/bin/
 sudo apt-get update -qq && sudo apt-get install -y -qq jq gettext-base python3 rsync >/dev/null   # python3: factory and sdlc/ (standard library only); gettext-base: envsubst
 rm -rf "$tmp"
-# pnpm for the game's gate (make test, make oracle). Node 22 comes from the devcontainer feature.
+# pnpm for the game's gate (make test, make oracle). Node 22 and pnpm (pinned to system/package.json) come from the
+# devcontainer feature; this is the fallback.
 command -v pnpm >/dev/null || npm install -g "pnpm@$PNPM_VERSION" >/dev/null 2>&1 || { corepack enable && corepack prepare "pnpm@$PNPM_VERSION" --activate; }
 git config --global --add safe.directory '*'   # the workspace is mounted with another owner
 bash lessons/tools/install.sh

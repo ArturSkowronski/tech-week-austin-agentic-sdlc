@@ -749,6 +749,7 @@ The issues and PRs from the finale stay on your fork. If you got a model key in 
 | `factory: command not found` | Wait for the codespace's build to finish, then open a new terminal |
 | `factory start`: not enough memory | The codespace must be the 4-core/16 GB machine: create it again from the fork's **Code** → **Codespaces** |
 | Not sure what is wrong | `factory doctor`: every red line says what to run |
+| `factory play fix`: "Building the game's assets failed" (`ERR_PNPM_UNSAFE_MODULES_DIR`) | Old tools: `factory update` (the row below if it does not help), then `factory play fix` again |
 | `factory update` brings old tools (no `factory doctor`, no `factory ask`) | Once: `t=$(mktemp -d) && git clone -q --depth 1 https://github.com/ArturSkowronski/tech-week-austin-agentic-sdlc $t && bash $t/lessons/tools/install.sh`, then a new terminal |
 | `make a2a A=intake …`: "the agent returned no text (task state: input-required)" | `factory update`, then `factory sync` (the fixed A2A client on your branch), or ask with `factory ask intake "…"` |
 | `factory start` fails on a timeout | Run it again; then `factory reset` |

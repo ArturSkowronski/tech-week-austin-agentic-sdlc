@@ -581,7 +581,12 @@ cmd_play() {
   else
     [ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile) || die "pnpm install failed in system/."
   fi
-  (cd "$dir/system" && pnpm run assets >/dev/null 2>&1) || die "Building the game's assets failed (pnpm assets in system/)."
+  # The binaries straight from node_modules/.bin, not pnpm run: in the copy node_modules is a link to your repo's, and
+  # pnpm's check before run tries to reinstall it there and refuses (ERR_PNPM_UNSAFE_MODULES_DIR).
+  local log="${TMPDIR:-/tmp}/factory-play-assets.log" assets
+  assets=$(cd "$dir/system" && node -p 'require("./package.json").scripts.assets')
+  (cd "$dir/system" && PATH="$PWD/node_modules/.bin:$PATH" sh -c "$assets" >"$log" 2>&1) \
+    || { tail -5 "$log" >&2; die "Building the game's assets failed (log: $log)."; }
   # "Raise ticket on GitHub" (T) opens a prefilled issue: on your fork, not on the game's own repository.
   local fork; fork=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p'); fork=${fork%.git}
   [ -n "$fork" ] && export VITE_GITHUB_REPO="$fork"
@@ -593,7 +598,7 @@ cmd_play() {
   [ -n "${VITE_GITHUB_REPO:-}" ] && echo "  Tickets go to https://github.com/$VITE_GITHUB_REPO/issues (Issues must be on: the fork's Settings → Features → Issues)."
   echo "  Ctrl+C stops the game."
   echo
-  cd "$dir/system" && __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.app.github.dev,.github.dev exec pnpm exec vite --host 0.0.0.0 --port "$port" --strictPort --clearScreen false
+  cd "$dir/system" && __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.app.github.dev,.github.dev exec ./node_modules/.bin/vite --host 0.0.0.0 --port "$port" --strictPort --clearScreen false
 }
 
 cmd_welcome() {
