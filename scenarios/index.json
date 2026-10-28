@@ -1,0 +1,11 @@
+{
+  "_comment": "The factory's oracle. Working scenarios: their names go back to the agent in the rework loop. The vault: a decision only, no feedback, a failure pulls the andon. A work order without scenarios of its own never goes lights-out. Scenarios are vitest files run from main against the change (sdlc/scenarios.py stages them in system/.oracle/).",
+  "scenarios": [
+    {"id": "regression", "always": true, "title": "Regression: behaviour that already works"},
+    {"id": "controls", "match": ["swap"], "title": "Controls while the creature rides (HW-001)", "owner": "Hobby Wizard product"},
+    {"id": "vault-controls", "match": ["swap"], "vault": true, "title": "Vault: controls", "owner": "Hobby Wizard gameplay"},
+    {"id": "startle", "match": ["startled", "startle"], "title": "The startle", "owner": "Hobby Wizard product"},
+    {"id": "vault-startle", "match": ["startled", "startle"], "vault": true, "title": "Vault: the startle", "owner": "Hobby Wizard gameplay"},
+    {"id": "hud-speed", "match": ["speed"], "title": "The F1 line shows the speed", "owner": "Hobby Wizard product"}
+  ]
+}
