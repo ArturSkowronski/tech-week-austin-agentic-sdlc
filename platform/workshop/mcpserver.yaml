@@ -24,8 +24,8 @@ spec:
       EVENTS_FILE: /work/events.jsonl
       # The solution of lesson 2: the gates, the line, the paired tests and the oracle are out of write reach.
       PROTECTED_PATHS: "sdlc platform scenarios system/architecture system/bugs/tests .github .factory"
-      # TODO(lesson 7): the paths the agent must not even read: the oracle.
-      HIDDEN_PATHS: ""
+      # The solution of lesson 7: the oracle is out of read reach; an attempt stays in the trace as holdout.peek.
+      HIDDEN_PATHS: "scenarios"
     volumeMounts: [{name: work, mountPath: /work}]
     volumes:
       - name: work

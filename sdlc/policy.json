@@ -1,0 +1,60 @@
+{
+  "_comment": "The factory's policy. You change it in a PR like any other code: where the lights go out is decided by a versioned file, not by a reviewer's mood.",
+  "autonomy": {
+    "_comment": "lights-out = accepted without a human, but only when the work order has scenarios of its own and all of them passed.",
+    "low": "lights-out",
+    "medium": "lights-out",
+    "high": "human",
+    "critical": "human"
+  },
+  "line": {
+    "wip_limit": 3,
+    "max_attempts": 2
+  },
+  "critical_paths": [
+    "system/game/sim/"
+  ],
+  "gate_paths": [
+    ".github/",
+    "scenarios/",
+    "sdlc/",
+    "system/architecture/",
+    "system/bugs/tests/",
+    "system/tools/bugs/",
+    "system/eslint.config.js",
+    "system/package.json",
+    "system/tsconfig.json",
+    "system/vitest.config.ts",
+    "system/vitest.bugs.config.ts"
+  ],
+  "sensitive_paths": [
+    "system/bugs/manifest.json",
+    "system/game/content/rooms/"
+  ],
+  "risk": {
+    "medium_diff_lines": 80,
+    "large_diff_lines": 250,
+    "unstable_churn_30d": 3,
+    "levels": {
+      "low": 0,
+      "medium": 2,
+      "high": 5,
+      "critical": 8
+    }
+  },
+  "review": {
+    "llm_from_level": "medium",
+    "lenses": [
+      "correctness",
+      "security",
+      "tests"
+    ],
+    "max_findings": 5,
+    "min_confidence": 0.6,
+    "certain_confidence": 0.8
+  },
+  "gates": {
+    "_comment": "Mutation threshold (sdlc/mutation.py, changed lines only). Below it the gate is red.",
+    "mutation_threshold": 50
+  }
+}

@@ -13,6 +13,7 @@ setup: ## Build the factory images, load them into kind, deploy the workshop (di
 	@kubectl apply -f platform/workshop/pvc.yaml -f platform/workshop/depot.yaml -f platform/workshop/mcpserver.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-intake.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-builder.yaml >/dev/null
+	@kubectl apply -f platform/kagent/agent-reviewer.yaml >/dev/null
 	@kubectl rollout status -n factory deploy/depot --timeout=120s >/dev/null
 	@kubectl wait --for=condition=Ready mcpserver/workshop -n factory --timeout=180s >/dev/null
 	@kubectl wait --for=condition=Ready agent/builder -n factory --timeout=180s >/dev/null

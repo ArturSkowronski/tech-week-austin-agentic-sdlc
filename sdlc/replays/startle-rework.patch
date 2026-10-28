@@ -1,0 +1,162 @@
+diff --git a/system/game/sim/tick.ts b/system/game/sim/tick.ts
+index b9cd2b8..c029fc3 100644
+--- a/system/game/sim/tick.ts
++++ b/system/game/sim/tick.ts
+@@ -3,8 +3,9 @@
+ // that matters: everything it reads comes from the state and the input frame,
+ // so the same state and the same frames always give the same next state.
+ 
++import { CREATURE_STARTLE_TICKS } from './constants';
+ import { stepCreature } from './creature';
+-import type { InputFrame } from './input';
++import { NO_INPUT, type InputFrame } from './input';
+ import { mapInput } from './input-map';
+ import { stepPlayer } from './player';
+ import { stepProps } from './props';
+@@ -26,7 +27,7 @@ export function tick(state: WorldState, input: InputFrame): void {
+   // replays; game/sim/input-map.ts turns it into the one the wizard acts on.
+   const carried = state.creature !== null && state.creature.carriedSince >= 0;
+ 
+-  stepPlayer(state, mapInput(input, carried));
++  stepPlayer(state, startled(state) ? NO_INPUT : mapInput(input, carried));
+   // The water has the tick after the movement it changes and before the props
+   // weigh what he touched: a charge the water ended is over by the time the
+   // hazards ask whether the wand still carries him.
+@@ -37,3 +38,16 @@ export function tick(state: WorldState, input: InputFrame): void {
+   // before it decides where to let go (bug-quest.md).
+   stepCreature(state);
+ }
++
++/**
++ * Is the wizard startled this tick: within CREATURE_STARTLE_TICKS of the tick
++ * the creature climbed on. The startle holds his buttons only. The player step
++ * still runs with an empty frame, so gravity, the water and the props go on
++ * and a startle that begins in the air still lands him (ADR-011,
++ * INC-2026-09-30).
++ */
++export function startled(state: WorldState): boolean {
++  const since = state.creature?.carriedSince ?? -1;
++
++  return since >= 0 && state.tick - since <= CREATURE_STARTLE_TICKS;
++}
+diff --git a/system/tests/sim/input-map.test.ts b/system/tests/sim/input-map.test.ts
+index 61be509..9e14e16 100644
+--- a/system/tests/sim/input-map.test.ts
++++ b/system/tests/sim/input-map.test.ts
+@@ -7,6 +7,7 @@
+ // to the horizontal axis; that is the paired test's alone (AGENTS.md rule 5).
+ 
+ import { describe, expect, it } from 'vitest';
++import { CREATURE_STARTLE_TICKS } from '../../game/sim/index';
+ import type { WorldState } from '../../game/sim/index';
+ import { hold, run, worldFrom } from './helpers';
+ 
+@@ -42,6 +43,8 @@ describe('the input map', () => {
+     expect(carriedSince(world), 'the creature never climbed on').toBeGreaterThanOrEqual(0);
+     expect(world.player.onGround).toBe(true);
+ 
++    // The startle holds every button for a moment after it climbs on.
++    run(world, hold({}, CREATURE_STARTLE_TICKS));
+     run(world, hold({ jump: true }, 1));
+ 
+     expect(world.player.onGround).toBe(false);
+diff --git a/system/tests/sim/startle.test.ts b/system/tests/sim/startle.test.ts
+new file mode 100644
+index 0000000..95cc580
+--- /dev/null
++++ b/system/tests/sim/startle.test.ts
+@@ -0,0 +1,94 @@
++// The startle (orders/startle.md): for CREATURE_STARTLE_TICKS after the
++// creature climbs on, the wizard's buttons do nothing, and the world goes on.
++// Nothing here asks which way left and right go while it rides; that is
++// HW-001's paired test alone (AGENTS.md rule 5).
++
++import { describe, expect, it } from 'vitest';
++
++import { CREATURE_STARTLE_TICKS, NO_INPUT, tick } from '../../game/sim/index';
++import type { InputFrame, WorldState } from '../../game/sim/index';
++import { hold, run, worldFrom } from './helpers';
++
++/** Floor the whole way and a bush to walk into. */
++const ROOM = `
++
++  P  B
++  #################
++`;
++
++/** A ledge, then a bush hanging over the drop, then the floor far below. */
++const DROP = `
++  P
++  ###
++       B
++
++
++
++  ##################
++`;
++
++const RIGHT: InputFrame = { ...NO_INPUT, right: true };
++const JUMP: InputFrame = { ...NO_INPUT, jump: true };
++
++/** Ticks a stepping loop tries before calling it a failure rather than hanging. */
++const GIVE_UP = 1000;
++
++/** Walk right until the creature is on the hat; the tick it climbed on is `carriedSince`. */
++function mount(world: WorldState): number {
++  for (let step = 0; step < GIVE_UP && (world.creature?.carriedSince ?? -1) < 0; step += 1) {
++    tick(world, RIGHT);
++  }
++
++  const since = world.creature?.carriedSince ?? -1;
++
++  expect(since, 'the creature never climbed on').toBeGreaterThanOrEqual(0);
++
++  return since;
++}
++
++describe('the startle', () => {
++  it('ignores a jump pressed on the last startled tick', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const since = mount(world);
++
++    run(world, hold({}, since + CREATURE_STARTLE_TICKS - 1 - world.tick));
++    run(world, [JUMP]);
++
++    expect(world.tick - since).toBe(CREATURE_STARTLE_TICKS);
++    expect(world.player.onGround).toBe(true);
++  });
++
++  it('gives the buttons back on the tick after it', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const since = mount(world);
++
++    run(world, hold({}, since + CREATURE_STARTLE_TICKS - world.tick));
++    run(world, [JUMP]);
++
++    expect(world.tick - since).toBe(CREATURE_STARTLE_TICKS + 1);
++    expect(world.player.onGround).toBe(false);
++    expect(world.player.state).toBe('jump');
++  });
++
++  it('holds the buttons, not the fall, when it begins in the air', () => {
++    const world = worldFrom(DROP, { creature: true });
++    const since = mount(world);
++
++    expect(world.player.onGround, 'it climbed on before he left the ledge').toBe(false);
++
++    const y = world.player.y;
++
++    run(world, hold({}, CREATURE_STARTLE_TICKS - 1));
++
++    expect(world.tick - since).toBeLessThanOrEqual(CREATURE_STARTLE_TICKS);
++    expect(world.player.y).toBeGreaterThan(y);
++  });
++
++  it('replays: the same frames are startled on the same ticks', () => {
++    const frames = [...hold({ right: true }, 40), ...hold({ jump: true }, 30), ...hold({ right: true }, 30)];
++    const a = run(worldFrom(ROOM, { creature: true, seed: 3 }), frames);
++    const b = run(worldFrom(ROOM, { creature: true, seed: 3 }), frames);
++
++    expect(a).toEqual(b);
++  });
++});

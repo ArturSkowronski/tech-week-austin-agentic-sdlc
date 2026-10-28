@@ -1,6 +1,6 @@
-# The factory's production line (lesson 7). One run = one attempt at one work order:
+# The factory's production line (lesson 8). One run = one work order, attempts as a recursion of the `line` template:
 #   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
-#   → 🧱 quality control (build ‖ secrets, then the oracle from main, then mutation) → result
+#   → 🧱 quality control ‖ 🔎 risk and review → ⚖️ decision: lights-out | 👤 human | 🔁 rework (attempt+1) | 🚨 andon
 # Run it: make order O=startle [AGENT=replay]. The graph and the logs: the floor (Argo UI).
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
@@ -45,10 +45,28 @@ spec:
             template: quality
             when: "{{steps.intake.outputs.parameters.accepted}} == true"
             arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
-        - - name: result
-            template: result
+          - name: review
+            template: review
             when: "{{steps.intake.outputs.parameters.accepted}} == true"
             arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        - - name: decision
+            template: decision
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        # On GitHub the human is the PR review: the line does not stop, the PR waits without auto-merge.
+        - - name: human
+            template: human
+            when: "'{{steps.decision.outputs.parameters.decision}}' == 'human' && '{{inputs.parameters.source}}' == 'file'"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        - - name: result
+            template: result
+            when: "{{steps.intake.outputs.parameters.accepted}} == true && '{{steps.decision.outputs.parameters.decision}}' != 'rework'"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: decision, value: "{{steps.decision.outputs.parameters.decision}}"}]}
+          # Rework = the same line, attempt + 1. A recursion of the template instead of a separate run: the whole history in one graph.
+          - name: rework
+            template: line
+            when: "'{{steps.decision.outputs.parameters.decision}}' == 'rework'"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: agent, value: "{{inputs.parameters.agent}}"}, {name: attempt, value: "{{=asInt(inputs.parameters.attempt) + 1}}"}, {name: variant, value: "{{inputs.parameters.variant}}"}, {name: source, value: "{{inputs.parameters.source}}"}]}
 
     # Quality control: deterministic, no model, out of the agent's reach. A red gate does not stop the others:
     # the factory wants the full picture before it decides. Mutation runs after the oracle.
@@ -119,7 +137,64 @@ spec:
                     [ -s "$OUT/quality-4-mutation.md" ] || { tail -n 20 .sdlc/mutation.log; printf '### 🧬 Mutation: ⚠️ no result\n' > "$OUT/quality-4-mutation.md"; }
                     cat "$OUT/quality-4-mutation.md"; echo "$code" > "$OUT/quality-4-mutation.exit"; exit $code
 
-    - name: result
+    # Code computes the risk, not a model (sdlc/risk.py). The level decides whether we ask the reviewer and whether the change waits for a human.
+    - name: review
+      inputs:
+        parameters: [{name: order}, {name: attempt}]
+      steps:
+        - - name: run
+            template: step
+            continueOn: {failed: true}
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    mkdir -p /tmp/outputs; title=$(jq -r .title .sdlc/order.json)
+                    python3 sdlc/risk.py --base main --head HEAD --agent --attempt "$ATTEMPT" --work-order "$title" > "$OUT/review-1-risk.md"
+                    cp .sdlc/risk.json "$OUT/risk.json"; cp /tmp/outputs/needs_human "$OUT/needs_human"; cat "$OUT/review-1-risk.md"
+                    set +e; python3 sdlc/review.py --base main --head HEAD --fail-on-blocking > /dev/null; code=$?; set -e
+                    cp .sdlc/review.md "$OUT/review-2-review.md"; cp .sdlc/review.sarif "$OUT/review.sarif" 2>/dev/null || true
+                    cat "$OUT/review-2-review.md"; echo "$code" > "$OUT/review.exit"; exit $code
+
+    - name: decision
+      inputs:
+        parameters: [{name: order}, {name: attempt}]
+      outputs:
+        parameters:
+          - name: decision
+            valueFrom: {parameter: "{{steps.run.outputs.parameters.decision}}"}
+      steps:
+        - - name: run
+            template: step-decision
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    max=$(jq -r '.line.max_attempts' sdlc/policy.json)
+                    red=0; for f in "$OUT"/quality-*.exit; do [ "$(cat "$f")" = "0" ] || red=1; done
+                    review=$(cat "$OUT/review.exit" 2>/dev/null || echo 1); needs_human=$(cat "$OUT/needs_human" 2>/dev/null || echo true)
+                    vault=$(jq -r '.vault // "none"' "$OUT/oracle.json" 2>/dev/null || echo none)
+                    reason=""
+                    # A blocking review escalates to a human, not to a rework: the model advises, a human decides.
+                    # Only the deterministic gates (quality control) force a rework.
+                    [ "$review" = "0" ] || needs_human=true
+                    if [ $red = 0 ]; then
+                      if [ "$needs_human" = "true" ]; then decision="human"; else decision="lights-out"; fi
+                    elif [ "$vault" = "failed" ]; then decision="andon"; reason="The vault failed (a rework for the vault would turn it into a training set)"
+                    elif [ "$ATTEMPT" -ge "$max" ]; then decision="andon"; reason="$ATTEMPT attempts without passing quality control"
+                    else decision="rework"; fi
+                    echo "Decision: $decision ${reason:+($reason)}"; echo "$decision" > /tmp/outputs/decision
+                    printf '%s\n' "$decision" > "$OUT/decision"; [ -z "$reason" ] || printf '%s\n' "$reason" > "$OUT/andon.md"
+                    if [ "$decision" = "rework" ]; then python3 sdlc/factory.py feedback > "$OUT/feedback.md"; echo "--- report for the agent ---"; cat "$OUT/feedback.md"; fi
+
+    # TODO(lesson 9): this step has to wait for a human. Turn it into two steps: `wait` (a `suspend` template
+    # with the output `who`, valueFrom.supplied) and `record`, which writes "human.approved <who>" to $OUT/human.
+    # make approve W=<run> sets `who` and resumes the line.
+    - name: human
       inputs:
         parameters: [{name: order}, {name: attempt}]
       steps:
@@ -131,9 +206,55 @@ spec:
                 - {name: attempt, value: "{{inputs.parameters.attempt}}"}
                 - name: script
                   value: |
-                    red=0; for f in "$OUT"/quality-*.exit; do c=$(cat "$f"); n=$(basename "$f" .exit); [ "$c" = "0" ] && echo "✅ $n" || { echo "❌ $n (exit $c)"; red=1; }; done
-                    cat "$OUT"/quality-*.md > "$OUT/quality.md"
-                    [ $red = 0 ] && echo "Quality control: green" || { echo "Quality control: red. Reports: $OUT/quality.md"; exit 1; }
+                    printf '### 👤 Approval: ⚠️ missing\n\nThe risk needs a human, and the run did not wait. Add a suspend to the human step (lesson 9).\n' > "$OUT/human.md"
+                    echo "human.approval_missing" > "$OUT/human"; cat "$OUT/human.md"
+
+    - name: result
+      inputs:
+        parameters: [{name: order}, {name: attempt}, {name: decision}]
+      steps:
+        - - name: run
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    decision="{{inputs.parameters.decision}}"
+                    for f in "$OUT"/quality-*.exit; do c=$(cat "$f"); n=$(basename "$f" .exit); [ "$c" = "0" ] && echo "✅ $n" || echo "❌ $n (exit $c)"; done
+                    [ "$(cat "$OUT/review.exit" 2>/dev/null)" = "0" ] && echo "✅ review" || echo "🚫 review: blocking findings (for a human to decide)"
+                    cat "$OUT"/quality-*.md "$OUT"/review-*.md "$OUT"/human.md > "$OUT/report.md" 2>/dev/null || true
+                    case "$decision" in
+                      lights-out) echo "🌑 Accepted without a human (lights-out). Patch: $OUT/change.patch" ;;
+                      human)      [ "$(cat "$OUT/human" 2>/dev/null)" = "human.approval_missing" ] && echo "👤 Needs a human, and the run did not wait (lesson 9)" || echo "👤 Accepted by a human" ;;
+                      andon)      echo "🚨 Andon: the line stopped. $(cat "$OUT/andon.md" 2>/dev/null). The factory does not guess further: a human decides."; exit 1 ;;
+                    esac
+
+    - name: step-decision
+      inputs:
+        parameters: [{name: script}, {name: order}, {name: agent, value: kagent}, {name: attempt, value: "1"}]
+      outputs:
+        parameters:
+          - name: decision
+            valueFrom: {path: /tmp/outputs/decision, default: "andon"}
+      container:
+        image: factory-toolbox:lesson
+        imagePullPolicy: IfNotPresent
+        command: [bash, -eo, pipefail, -c]
+        args: ["mkdir -p /tmp/outputs; t0=$(date +%s%N); trap 'python3 sdlc/tracing.py step --start $t0 --exit $? 2>/dev/null || true' EXIT; {{inputs.parameters.script}}"]
+        workingDir: /work/repo
+        env:
+          - {name: ORDER, value: "{{inputs.parameters.order}}"}
+          - {name: AGENT, value: "{{inputs.parameters.agent}}"}
+          - {name: ATTEMPT, value: "{{inputs.parameters.attempt}}"}
+          - {name: FACTORY_RUN, value: "{{workflow.name}}"}
+          - name: FACTORY_NODE
+            valueFrom: {fieldRef: {fieldPath: "metadata.annotations['workflows.argoproj.io/node-name']"}}
+          - {name: OUT, value: "/work/out/{{inputs.parameters.order}}/attempt-{{inputs.parameters.attempt}}"}
+          - {name: OUTPUTS_DIR, value: /tmp/outputs}
+          - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+        volumeMounts: [{name: work, mountPath: /work}]
 
     # Every step is the same image and the same disk. Only the script differs. The step that builds and tests the agent's
     # code has no secret: only the ledger (step-sign) sees the cosign key, only step-github sees the GitHub token.

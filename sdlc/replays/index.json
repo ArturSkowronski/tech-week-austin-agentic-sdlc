@@ -28,6 +28,15 @@
     },
     {
       "match": [
+        "startled"
+      ],
+      "module": "sim",
+      "attempt": 2,
+      "patch": "startle-rework.patch",
+      "note": "Rework: the startle holds the input only. tick.ts hands the player step an empty frame while startled, so gravity, the water and the props go on and a startle that begins in the air still lands him (INC-2026-09-30)."
+    },
+    {
+      "match": [
         "speed"
       ],
       "module": "render",

@@ -1,0 +1,64 @@
+{
+  "_comment": "Review rules as code. Deterministic ones (regex) always run. LLM rules must have pass and fail criteria, otherwise the model guesses.",
+  "rules": [
+    {
+      "id": "DET-001",
+      "kind": "regex",
+      "severity": "blocking",
+      "paths": [
+        "system/"
+      ],
+      "pattern": "(?i)(api[_-]?key|secret|password|token)\\s*[:=]\\s*['\"][^'\"]{8,}['\"]",
+      "message": "Looks like a secret pasted into the code."
+    },
+    {
+      "id": "DET-002",
+      "kind": "regex",
+      "severity": "recommendation",
+      "paths": [
+        "system/"
+      ],
+      "pattern": "catch\\s*(\\(\\s*\\w*\\s*\\))?\\s*\\{\\s*\\}",
+      "message": "An empty catch swallows the error."
+    },
+    {
+      "id": "DET-003",
+      "kind": "regex",
+      "severity": "recommendation",
+      "paths": [
+        "system/game/",
+        "system/tools/"
+      ],
+      "pattern": "(TODO|FIXME|XXX)",
+      "message": "A TODO in new code: open an issue or do it now."
+    },
+    {
+      "id": "DET-004",
+      "kind": "regex",
+      "severity": "blocking",
+      "paths": [
+        "system/game/sim/constants.ts"
+      ],
+      "pattern": "export const",
+      "message": "The tuning table is frozen (ADR-011): a constant changes in a design decision, not in a work order."
+    },
+    {
+      "id": "LLM-001",
+      "kind": "llm",
+      "lens": "tests",
+      "rule": "A test checks the requirement; it does not restate the implementation.",
+      "pass": "The test builds a world from a map, plays frames through tick() and compares the result with a value worked out by hand or with a property (he moved right, he is on the ground, two replays are equal). Using a tuning constant by name (CREATURE_STARTLE_TICKS, RUN_SPEED) is expected: constants.ts is the frozen spec, and the tests assert against its names, never literals.",
+      "fail": "The test computes the expected value with the same formula as the production code, so it passes even for a wrong formula.",
+      "example_fail": "expect(world.player.vx).toBe(Math.min(world.player.vx + GROUND_ACCEL * DT, RUN_SPEED))"
+    },
+    {
+      "id": "LLM-003",
+      "kind": "llm",
+      "lens": "security",
+      "rule": "Nothing from outside the game reaches it unchecked.",
+      "pass": "Text from the state or the manifest that goes into a URL, an issue body or the DOM is encoded (encodeURIComponent, textContent).",
+      "fail": "A URL or HTML is built by concatenating text the player or the manifest controls.",
+      "example_fail": "window.open(`https://github.com/${repo}/issues/new?title=${bug.title}`)"
+    }
+  ]
+}

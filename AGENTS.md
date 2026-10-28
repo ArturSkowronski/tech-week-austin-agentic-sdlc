@@ -40,7 +40,7 @@ Conventions (`system/AGENTS.md`):
 
 ## L3 Organization
 
-- `architecture`: nominal owner @hobby-wizard/platform, actual Artur Skowronski (100%); changes in 30 days: 1
+- `architecture`: nominal owner @hobby-wizard/platform, actual Artur Skowronski (100%); changes in 30 days: 2
 - `bug-quest`: nominal owner @hobby-wizard/gameplay, actual visdomorchestrator[bot] (80%, agent), Tomasz Łuczak (20%); changes in 30 days: 2
 - `content`: nominal owner @hobby-wizard/levels, actual visdomorchestrator[bot] (86%, agent), Tomasz Łuczak (14%); changes in 30 days: 3
 - `render`: nominal owner @hobby-wizard/look, actual visdomorchestrator[bot] (91%, agent), Tomasz Łuczak (9%); changes in 30 days: 20
