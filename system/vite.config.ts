@@ -133,7 +133,10 @@ function traceSaver(): Plugin {
  */
 function originRepo(): string | undefined {
   try {
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
     return /github\.com[/:]([^/]+\/[^/]+?)(\.git)?$/.exec(url)?.[1];
   } catch {
     return undefined;
