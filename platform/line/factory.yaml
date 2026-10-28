@@ -1,7 +1,11 @@
-# The factory's production line (lesson 9). One run = one work order, attempts as a recursion of the `line` template:
+# The factory's production line (lesson 10). One run = one work order, attempts as a recursion of the `line` template:
 #   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
 #   → 🧱 quality control ‖ 🔎 risk and review → ⚖️ decision: lights-out | 👤 human | 🔁 rework (attempt+1) | 🚨 andon
+#   → 🔗 ledger (hash chain, cosign signature) + 🏭 work order card
 # Run it: make order O=startle [AGENT=replay]. The graph and the logs: the floor (Argo UI).
+# Finale (lessons/final-github.md): source=github. The work order is an issue, the result is a PR with the ledger and the
+# first review, andon is a comment under the issue. Runs are started by the CronWorkflow factory-pull (platform/github/).
+# Trace: Argo opens the run's trace, every step adds its span (sdlc/tracing.py), the kagent agent nests under its step.
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -26,6 +30,8 @@ spec:
   volumes:
     - name: work
       persistentVolumeClaim: {claimName: workshop}
+    - name: cosign
+      secret: {secretName: factory-cosign, optional: true}
   templates:
     - name: line
       inputs:
@@ -62,6 +68,14 @@ spec:
             template: human
             when: "'{{steps.decision.outputs.parameters.decision}}' == 'human' && '{{inputs.parameters.source}}' == 'file'"
             arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+        - - name: ledger
+            template: ledger
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: decision, value: "{{steps.decision.outputs.parameters.decision}}"}]}
+        - - name: github
+            template: github
+            when: "'{{inputs.parameters.source}}' == 'github' && {{steps.intake.outputs.parameters.accepted}} == true && '{{steps.decision.outputs.parameters.decision}}' != 'rework'"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: decision, value: "{{steps.decision.outputs.parameters.decision}}"}]}
         - - name: result
             template: result
             when: "{{steps.intake.outputs.parameters.accepted}} == true && '{{steps.decision.outputs.parameters.decision}}' != 'rework'"
@@ -195,14 +209,14 @@ spec:
                     printf '%s\n' "$decision" > "$OUT/decision"; [ -z "$reason" ] || printf '%s\n' "$reason" > "$OUT/andon.md"
                     if [ "$decision" = "rework" ]; then python3 sdlc/factory.py feedback > "$OUT/feedback.md"; echo "--- report for the agent ---"; cat "$OUT/feedback.md"; fi
 
-    # TODO(lesson 9): this step has to wait for a human. Turn it into two steps: `wait` (a `suspend` template
-    # with the output `who`, valueFrom.supplied) and `record`, which writes "human.approved <who>" to $OUT/human.
-    # make approve W=<run> sets `who` and resumes the line.
+    # A human is a node with a role (lesson 9): the line stops (suspend), make approve records who and resumes.
     - name: human
       inputs:
         parameters: [{name: order}, {name: attempt}]
       steps:
-        - - name: run
+        - - name: wait
+            template: wait
+        - - name: record
             template: step
             arguments:
               parameters:
@@ -210,8 +224,57 @@ spec:
                 - {name: attempt, value: "{{inputs.parameters.attempt}}"}
                 - name: script
                   value: |
-                    printf '### 👤 Approval: ⚠️ missing\n\nThe risk needs a human, and the run did not wait. Add a suspend to the human step (lesson 9).\n' > "$OUT/human.md"
-                    echo "human.approval_missing" > "$OUT/human"; cat "$OUT/human.md"
+                    who="{{steps.wait.outputs.parameters.who}}"
+                    printf '### 👤 Approval: ✅ %s\n' "$who" > "$OUT/human.md"
+                    printf 'human.approved %s\n' "$who" > "$OUT/human"; cat "$OUT/human.md"
+
+    - name: wait
+      suspend: {}
+      outputs:
+        parameters:
+          - name: who
+            valueFrom: {supplied: {}}
+
+    # The ledger: every event of the attempt as a line with the hash of the previous one. Built deterministically from the
+    # steps' results (gates, oracle, risk, decision, human) and from the agent's tool trace. Signed with the factory key (cosign, offline).
+    - name: ledger
+      inputs:
+        parameters: [{name: order}, {name: attempt}, {name: decision}]
+      steps:
+        - - name: run
+            template: step-sign
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    decision="{{inputs.parameters.decision}}"; L="--file $OUT/ledger.jsonl"; rm -f "$OUT/ledger.jsonl"
+                    python3 sdlc/factory.py line-config > /dev/null
+                    python3 sdlc/ledger.py $L append --type line.config --data "$(jq -c . .sdlc/line-config.json)"
+                    trace=$(python3 sdlc/tracing.py url); [ -z "$trace" ] || python3 sdlc/ledger.py $L append --type trace --data "{\"url\": \"$trace\"}"
+                    python3 sdlc/ledger.py $L append --type order.intake --data "$(jq -c '{accepted, problems}' .sdlc/intake.json)"
+                    python3 sdlc/ledger.py $L append --type order.routed --data "$(jq -c --argjson a "$ATTEMPT" '{attempt: $a, "module": .module, reason, blast_radius, critical_in_radius}' .sdlc/route.json)"
+                    python3 sdlc/ledger.py $L append --type agent.prompt --data "{\"agent\": \"$AGENT\", \"sha256\": \"$(sha256sum .sdlc/prompt.md | cut -d' ' -f1)\", \"bytes\": $(wc -c < .sdlc/prompt.md)}"
+                    python3 sdlc/ledger.py $L ingest --source workshop --events "$OUT/tools.jsonl" > /dev/null
+                    python3 sdlc/ledger.py $L ingest --source "$AGENT" --events "$OUT/agent-events.jsonl" > /dev/null
+                    [ ! -s "$OUT/holdout-peek.jsonl" ] || python3 sdlc/ledger.py $L append --type holdout.peek --data "{\"count\": $(wc -l < "$OUT/holdout-peek.jsonl")}"
+                    python3 sdlc/ledger.py $L append --type git.commit --data "{\"sha\": \"$(git rev-parse HEAD)\", \"branch\": \"$(git branch --show-current)\", \"files\": $(git show --name-only --format= HEAD | jq -Rsc 'split("\n") | map(select(length > 0))')}"
+                    for f in "$OUT"/quality-*.exit; do n=$(basename "$f" .exit); python3 sdlc/ledger.py $L append --type "gate.${n#quality-?-}" --data "{\"exit_code\": $(cat "$f")}"; done
+                    [ ! -f "$OUT/oracle.json" ] || python3 sdlc/ledger.py $L append --type gate.oracle --data "$(jq -c '{covered, working_failed, vault}' "$OUT/oracle.json")"
+                    [ ! -f "$OUT/risk.json" ] || python3 sdlc/ledger.py $L append --type review.risk --data "$(jq -c '{level, score, needs_human, autonomy}' "$OUT/risk.json")"
+                    python3 sdlc/ledger.py $L append --type review.result --data "{\"exit_code\": $(cat "$OUT/review.exit" 2>/dev/null || echo 1)}"
+                    python3 sdlc/ledger.py $L append --type order.decision --data "$(jq -nc --arg d "$decision" --arg r "$(cat "$OUT/andon.md" 2>/dev/null)" --argjson a "$ATTEMPT" '{decision: $d, reason: $r, attempt: $a}')"
+                    if [ -f "$OUT/human" ]; then read -r kind who < "$OUT/human"; python3 sdlc/ledger.py $L append --type "$kind" --data "$(jq -nc --arg w "${who:-}" '{by: $w}')"; fi
+                    final="$decision"; [ "$decision" != "human" ] || { grep -q human.approved "$OUT/human" 2>/dev/null && final="human" || final="waiting"; }
+                    python3 sdlc/factory.py card --attempt "$ATTEMPT" --decision "$final" > "$OUT/card.md"
+                    python3 sdlc/ledger.py $L append --type order.card --data "$(jq -c . .sdlc/card.json)"
+                    python3 sdlc/ledger.py $L verify && python3 sdlc/ledger.py $L summary > "$OUT/ledger.md"
+                    if [ -f /run/secrets/cosign/cosign.key ]; then
+                      COSIGN_PASSWORD="" cosign sign-blob --yes --key /run/secrets/cosign/cosign.key --tlog-upload=false --use-signing-config=false \
+                        --bundle "$OUT/ledger.sigstore.json" "$OUT/ledger.jsonl" 2>/dev/null && echo "ledger signed: $OUT/ledger.sigstore.json"
+                    else echo "no cosign key (make cosign-keys): the ledger is not signed"; fi
+                    cat "$OUT/card.md" "$OUT/ledger.md"
 
     - name: result
       inputs:
@@ -290,6 +353,28 @@ spec:
           requests: {cpu: 200m, memory: 512Mi}
           limits: {memory: 2Gi}
 
+    # The ledger: the only step with the factory key. It runs no agent code, only sdlc/ and git.
+    - name: step-sign
+      inputs:
+        parameters: [{name: script}, {name: order}, {name: agent, value: kagent}, {name: attempt, value: "1"}]
+      container:
+        image: factory-toolbox:lesson
+        imagePullPolicy: IfNotPresent
+        command: [bash, -eo, pipefail, -c]
+        args: ["t0=$(date +%s%N); trap 'python3 sdlc/tracing.py step --start $t0 --exit $? 2>/dev/null || true' EXIT; {{inputs.parameters.script}}"]
+        workingDir: /work/repo
+        env:
+          - {name: ORDER, value: "{{inputs.parameters.order}}"}
+          - {name: AGENT, value: "{{inputs.parameters.agent}}"}
+          - {name: ATTEMPT, value: "{{inputs.parameters.attempt}}"}
+          - {name: FACTORY_RUN, value: "{{workflow.name}}"}
+          - name: FACTORY_NODE
+            valueFrom: {fieldRef: {fieldPath: "metadata.annotations['workflows.argoproj.io/node-name']"}}
+          - {name: FACTORY_STEP, value: "{{pod.name}}"}
+          - {name: OUT, value: "/work/out/{{inputs.parameters.order}}/attempt-{{inputs.parameters.attempt}}"}
+          - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+        volumeMounts: [{name: work, mountPath: /work}, {name: cosign, mountPath: /run/secrets/cosign, readOnly: true}]
+
     # Finale: the only steps with the GitHub token (the Secret factory-github from make github). They do not build agent
     # code: fetch, the ledger commit, push the branch, the PR and comments. Git without hooks, the token in a header (sdlc/github.py).
     - name: step-github
@@ -315,6 +400,31 @@ spec:
           - name: GH_REPO
             valueFrom: {secretKeyRef: {name: factory-github, key: GH_REPO, optional: true}}
         volumeMounts: [{name: work, mountPath: /work}]
+
+    # Finale: the result of the line on GitHub. lights-out and human get a PR (the agent's branch + a commit with the ledger),
+    # andon gets a comment under the issue. The ledger travels with the code: the `provenance` job checks it before merge.
+    - name: github
+      inputs:
+        parameters: [{name: order}, {name: attempt}, {name: decision}]
+      steps:
+        - - name: run
+            template: step-github
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    decision="{{inputs.parameters.decision}}"; issue="${ORDER#issue-}"
+                    if [ "$decision" = "andon" ]; then
+                      [ -s "$OUT/andon.md" ] || echo "The line stopped without passing quality control." > "$OUT/andon.md"
+                      python3 sdlc/github.py andon --issue "$issue" --file "$OUT/andon.md"; exit 0
+                    fi
+                    mkdir -p ".factory/$ORDER"
+                    for f in ledger.jsonl ledger.sigstore.json card.md; do [ ! -f "$OUT/$f" ] || cp "$OUT/$f" ".factory/$ORDER/"; done
+                    git add .factory && git -c core.hooksPath=/dev/null commit -qm "factory: the ledger of work order $ORDER (attempt $ATTEMPT, $decision)"
+                    python3 sdlc/github.py git push -q --force "{remote}" "agent/$ORDER"
+                    python3 sdlc/github.py pr --issue "$issue" --out "$OUT" --decision "$decision"
 
     # After every run (onExit): the root of the work order's trace, and on GitHub an andon under the issue if the run failed without a decision.
     - name: finish

@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup line order replay naive approve fetch send doctor lesson key a2a port-forward floor test oracle route intake agents-md
+.PHONY: help cluster setup line order replay naive approve fetch cosign-keys ledger-verify send doctor lesson key a2a port-forward floor test oracle route intake agents-md
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -11,6 +11,7 @@ setup: ## Build the factory images, load them into kind, deploy the workshop (di
 	@scripts/images.sh
 	@kubectl apply -f platform/line/ >/dev/null
 	@kubectl apply -f platform/kyverno/agent-tools.yaml >/dev/null
+	@scripts/cosign-keys.sh
 	@kubectl apply -f platform/workshop/pvc.yaml -f platform/workshop/depot.yaml -f platform/workshop/mcpserver.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-intake.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-builder.yaml >/dev/null
@@ -38,6 +39,13 @@ approve: ## A human's approval: make approve W=<run> (argo list -n factory)
 
 fetch: ## Fetch the results from the cluster into .sdlc/out/
 	@scripts/fetch.sh
+
+cosign-keys: ## The factory's key pair for signing the ledger (Secret factory-cosign + cosign.pub in the repo)
+	@scripts/cosign-keys.sh
+
+ledger-verify: ## Check the chain and the signature of a ledger: make ledger-verify F=.sdlc/out/startle/attempt-2/ledger.jsonl
+	-@python3 sdlc/ledger.py --file "$(F)" verify
+	@cosign verify-blob --key platform/line/cosign/cosign.pub --bundle "$(F:.jsonl=.sigstore.json)" --insecure-ignore-tlog "$(F)" 2>&1 | tail -1 | sed "s/^/signature: /"
 
 send: ## Send a snapshot of the repo to the cluster (/work/repo in the depot)
 	@scripts/send.sh
