@@ -1,0 +1,69 @@
+# A local Git forge for the demo: Hobby Wizard's issues and pull requests live
+# here instead of on github.com, so the finale (issue -> PR) never touches the
+# real VirtusLab repositories. Browser: http://git.localhost:18080.
+# Agents in visdom-orchestrator use http://gitea.visdom-orchestrator.svc:3000.
+# The admin user and its token are created by visdom/scripts/up.sh.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: gitea-data, namespace: visdom-orchestrator }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 2Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: gitea, namespace: visdom-orchestrator, labels: { app: gitea } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: gitea } }
+  template:
+    metadata: { labels: { app: gitea } }
+    spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000 }
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.24.6-rootless
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: GITEA__database__DB_TYPE, value: sqlite3 }
+            - { name: GITEA__security__INSTALL_LOCK, value: "true" }
+            - { name: GITEA__server__ROOT_URL, value: "http://git.localhost:18080/" }
+            - { name: GITEA__server__DOMAIN, value: git.localhost }
+            - { name: GITEA__server__HTTP_PORT, value: "3000" }
+            - { name: GITEA__server__DISABLE_SSH, value: "true" }
+            - { name: GITEA__service__DISABLE_REGISTRATION, value: "true" }
+            - { name: GITEA__service__REQUIRE_SIGNIN_VIEW, value: "false" }
+            - { name: GITEA__repository__DEFAULT_BRANCH, value: main }
+            - { name: GITEA__ui__DEFAULT_THEME, value: gitea-light }
+            - { name: GITEA__webhook__ALLOWED_HOST_LIST, value: "*" }
+            - { name: GITEA__log__LEVEL, value: Warn }
+          ports: [{ name: http, containerPort: 3000 }]
+          readinessProbe: { httpGet: { path: /api/healthz, port: http }, periodSeconds: 5 }
+          resources: { requests: { cpu: 20m, memory: 96Mi }, limits: { memory: 384Mi } }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/gitea }
+            - { name: data, mountPath: /etc/gitea, subPath: conf }
+      volumes:
+        - { name: data, persistentVolumeClaim: { claimName: gitea-data } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: gitea, namespace: visdom-orchestrator }
+spec:
+  selector: { app: gitea }
+  ports: [{ name: http, port: 3000, targetPort: http }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitea
+  namespace: visdom-orchestrator
+  annotations: { nginx.ingress.kubernetes.io/proxy-body-size: 200m }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: git.localhost
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: gitea, port: { number: 3000 } } } }] }
+    - host: git.visdom.localtest.me
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: gitea, port: { number: 3000 } } } }] }

@@ -1,0 +1,75 @@
+# Finale: issue to pull request on Hobby Wizard.
+# Workshop: a GitHub issue -> the whole line -> a PR, with the ledger.
+# Visdom: labelling an issue `planted` in the local Gitea calls this flow's
+# webhook; the flow runs every lesson in order and opens the pull request in
+# Gitea with the preview of how it got there. Nothing merges (ADR-010).
+---
+kind: FlowTemplate
+name: hw-issue-to-pr
+description: |
+  Finale. Issue to pull request: checkout, context, intake, executor, branch,
+  gates and oracle (sub-flow l07-oracle), risk, cross-model review, human
+  approval, pull request in Gitea. Started by the Gitea webhook when an issue
+  carries the label `planted`, or by hand with number = the issue number.
+tags: [finale]
+webhook: true
+inputs: [number]
+approval_policy:
+  - match: { node_kinds: [approval], tags: [], agent_def_ids: [] }
+    require: { roles: [admin], min_approvers: 1, exclusive_of_initiator: false }
+    timeout_seconds: 86400
+    on_timeout: deny
+nodes:
+  - id: trigger
+    kind: webhook-trigger
+    condition: "body.issue.labels.exists(l, l.name == 'planted') && (body.action == 'label_updated' || body.action == 'opened')"
+  - { id: checkout, kind: agent, agent: hw-checkout, after: [trigger], outputs: [commit] }
+  - { id: issue, kind: agent, agent: hw-fetch-issue, inputs: { issue: "${trigger.number}" }, outputs: [issue_md] }
+  - { id: context, kind: agent, agent: hw-context, inputs: { commit: "${checkout.commit}" }, outputs: [context] }
+  - id: intake
+    kind: agent
+    agent: hw-intake
+    inputs: { issue: "${issue.issue_md}", context: "${context.context}" }
+    outputs: [spec]
+  - id: implement
+    kind: agent
+    agent: hw-implement
+    inputs: { spec: "${intake.spec}", context: "${context.context}" }
+    outputs: [summary]
+  - id: publish
+    kind: agent
+    agent: hw-publish-branch
+    inputs: { issue: "${trigger.number}", summary: "${implement.summary}" }
+    outputs: [branch]
+  - id: gates
+    kind: sub-flow
+    flow: l07-oracle
+    inputs: { ref: "${publish.branch}" }
+  - { id: risk, kind: agent, agent: hw-risk, inputs: { commit: "${checkout.commit}" }, after: [gates], outputs: [level, report] }
+  - id: review
+    kind: agent
+    agent: hw-review
+    inputs: { spec: "${intake.spec}", risk: "${risk.report}" }
+    outputs: [verdict]
+  - id: approve
+    kind: approval
+    after: [review]
+    approver_role: admin
+    title: "Hobby Wizard: open the pull request for this fix?"
+    context_inputs: { spec: "${intake.spec}", summary: "${implement.summary}", risk: "${risk.report}", review: "${review.verdict}", branch: "${publish.branch}" }
+  - { id: rejected, kind: terminate, after: [approve.rejected], reason: "a person rejected the change", flow_status: Failed }
+  - id: open_pr
+    kind: agent
+    agent: hw-open-pr
+    after: [approve.approved]
+    inputs:
+      branch: "${publish.branch}"
+      issue: "${trigger.number}"
+      spec: "${intake.spec}"
+      summary: "${implement.summary}"
+      risk: "${risk.report}"
+      verdict: "${review.verdict}"
+    outputs: [pr_url]
+  - id: out
+    kind: output
+    inputs: { pr_url: "${open_pr.pr_url}", branch: "${publish.branch}" }

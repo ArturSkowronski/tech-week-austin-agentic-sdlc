@@ -1,0 +1,27 @@
+# Lesson 8: risk, review, fixes. Risk is computed by code, not by a model.
+# Workshop: sdlc/risk.py sums deterministic signals; LLM review lenses only
+# above a threshold; a blocking finding escalates to a person, never back to
+# the executor; only deterministic gates force a fix.
+# Visdom: hw-risk (Task) computes the level; hw-review (Codex on gpt-5.5, a
+# different model than the executor's gpt-5.4) reviews the diff against the
+# specification and the repository rules and answers approve/escalate.
+---
+kind: FlowTemplate
+name: l08-review
+description: |
+  Lesson 8. Deterministic risk, then a cross-model review lens, on a branch.
+  Inputs: ref (a branch from l05-line) and spec (its specification).
+tags: [lesson-08]
+inputs: [ref, spec]
+nodes:
+  - { id: trigger, kind: trigger }
+  - { id: checkout, kind: agent, agent: hw-checkout, inputs: { ref: "${trigger.ref}" }, outputs: [commit] }
+  - { id: risk, kind: agent, agent: hw-risk, inputs: { commit: "${checkout.commit}" }, outputs: [level, report] }
+  - id: review
+    kind: agent
+    agent: hw-review
+    inputs: { spec: "${trigger.spec}", risk: "${risk.report}" }
+    outputs: [verdict]
+  - id: out
+    kind: output
+    inputs: { level: "${risk.level}", risk: "${risk.report}", verdict: "${review.verdict}" }

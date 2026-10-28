@@ -1,0 +1,29 @@
+# Lesson 3: compiled context L1-L5. Ownership of a concept beats word frequency.
+# Workshop: sdlc/context.py compiles AGENTS.md (L1 modules, L2 rules, L3 people,
+# L4 ADRs, L5 incidents) deterministically, without a model.
+# Visdom: the deterministic Task hw-context does the same for Hobby Wizard, and
+# every agent node gets the result as its `context` input. (Context Fabric is
+# the product version of this; it is not deployed in this local cluster.)
+---
+kind: FlowTemplate
+name: l03-context
+description: |
+  Lesson 3. Compile the L1-L5 context of Hobby Wizard at a commit: modules,
+  rules, actual owners from git, decision records, planted bugs. No model.
+tags: [lesson-03]
+inputs: [{name: ref, optional: true}]
+nodes:
+  - { id: trigger, kind: trigger }
+  - id: checkout
+    kind: agent
+    agent: hw-checkout
+    inputs: { ref: { from: "${trigger.ref}", optional: true } }
+    outputs: [commit]
+  - id: context
+    kind: agent
+    agent: hw-context
+    inputs: { commit: "${checkout.commit}" }
+    outputs: [context]
+  - id: out
+    kind: output
+    inputs: { context: "${context.context}" }

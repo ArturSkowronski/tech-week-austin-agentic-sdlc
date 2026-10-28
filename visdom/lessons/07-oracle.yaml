@@ -1,0 +1,49 @@
+# Lesson 7: the oracle (holdout). It wears out with every use.
+# Workshop: human-written scenarios the agent never sees, always taken from
+# main; the vault gives only a decision, no feedback.
+# Visdom: hw-holdout runs main's paired bug tests (bugs/tests/, which the
+# executor may not edit) against the branch and answers pass/fail only. On
+# main it is red by design: the planted bug HW-001 is still there, while every
+# structural gate is green.
+---
+kind: FlowTemplate
+name: l07-oracle
+description: |
+  Lesson 7. The gates of l06 plus the oracle, all in parallel. Main is
+  green on every gate and red on the oracle (HW-001 is planted); a correct
+  fix of HW-001 turns the oracle green.
+tags: [lesson-07]
+inputs: [ref]
+nodes:
+  - { id: trigger, kind: trigger }
+  - id: checkout
+    kind: agent
+    agent: hw-checkout
+    inputs: { ref: "${trigger.ref}" }
+    outputs: [commit]
+  - { id: fan_out, kind: parallel, after: [checkout] }
+  - { id: typecheck, kind: agent, agent: hw-gate-typecheck, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: lint, kind: agent, agent: hw-gate-lint, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: test, kind: agent, agent: hw-gate-test, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: bugs_check, kind: agent, agent: hw-gate-bugs-check, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: oracle, kind: agent, agent: hw-holdout, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [verdict] }
+  - { id: join, kind: join, after: [typecheck, lint, test, bugs_check, oracle] }
+  - id: verdict
+    kind: decision
+    after: [join]
+    predicate_inputs:
+      typecheck: "${typecheck.status}"
+      lint: "${lint.status}"
+      test: "${test.status}"
+      bugs: "${bugs_check.status}"
+      oracle: "${oracle.verdict}"
+    branches:
+      - { name: accepted, when: "typecheck == 'pass' && lint == 'pass' && test == 'pass' && bugs == 'pass' && oracle == 'pass'" }
+      - { name: oracle_red, when: "typecheck == 'pass' && lint == 'pass' && test == 'pass' && bugs == 'pass'" }
+      - { name: gates_red, when: "true" }
+  - { id: oracle_says_no, kind: terminate, after: [verdict.oracle_red], reason: "every gate is green, the oracle is red", flow_status: Failed }
+  - { id: gates_say_no, kind: terminate, after: [verdict.gates_red], reason: "a quality gate is red", flow_status: Failed }
+  - id: out
+    kind: output
+    after: [verdict.accepted]
+    inputs: { oracle: "${oracle.verdict}", typecheck: "${typecheck.status}", lint: "${lint.status}", test: "${test.status}", bugs_check: "${bugs_check.status}" }

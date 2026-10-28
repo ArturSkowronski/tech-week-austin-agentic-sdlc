@@ -1,0 +1,44 @@
+# Lesson 5: the line is a versioned graph, not a script.
+# Workshop: Argo WorkflowTemplate `factory`: prepare -> intake -> builder -> change.
+# Visdom: a FlowTemplate. Every node is a pod with the same image and the same
+# /workspace; the agent is one node of the graph. Publishing a change makes a
+# new version; a run is pinned to the version it started on.
+---
+kind: FlowTemplate
+name: l05-line
+description: |
+  Lesson 5. The line: checkout, issue, context, intake, executor (Codex on
+  gpt-5.4), publish the work branch to Gitea. Run it on issue 1 (HW-001).
+tags: [lesson-05]
+inputs: [issue]
+nodes:
+  - { id: trigger, kind: trigger }
+  - { id: checkout, kind: agent, agent: hw-checkout, after: [trigger], outputs: [commit] }
+  - id: issue
+    kind: agent
+    agent: hw-fetch-issue
+    inputs: { issue: "${trigger.issue}" }
+    outputs: [issue_md]
+  - id: context
+    kind: agent
+    agent: hw-context
+    inputs: { commit: "${checkout.commit}" }
+    outputs: [context]
+  - id: intake
+    kind: agent
+    agent: hw-intake
+    inputs: { issue: "${issue.issue_md}", context: "${context.context}" }
+    outputs: [spec]
+  - id: implement
+    kind: agent
+    agent: hw-implement
+    inputs: { spec: "${intake.spec}", context: "${context.context}" }
+    outputs: [summary]
+  - id: publish
+    kind: agent
+    agent: hw-publish-branch
+    inputs: { issue: "${trigger.issue}", summary: "${implement.summary}" }
+    outputs: [branch]
+  - id: out
+    kind: output
+    inputs: { spec: "${intake.spec}", summary: "${implement.summary}", branch: "${publish.branch}" }

@@ -1,0 +1,50 @@
+# Lesson 6: a green build proves only that the model agrees with itself.
+# Workshop: the `quality` DAG after `change`: build (typecheck, lint with the
+# architecture rules, tests, bugs:check) + weakening detector, gitleaks, the
+# oracle, mutation, in parallel; a red gate does not stop the others.
+# Visdom: deterministic Task nodes after a `parallel` node, joined, then a
+# decision. The gates run outside the executor's pod, on files it cannot
+# change, and never read its prompt. Hobby Wizard's own gates are the four
+# commands of AGENTS.md rule 7; `bugs:check` is the two-way planted-bug check.
+---
+kind: FlowTemplate
+name: l06-gates
+description: |
+  Lesson 6. Quality gates in parallel on any ref of Hobby Wizard: typecheck,
+  lint, replay tests, planted-bug pairing. Green goes to the output, red ends
+  the run as Failed. Run it on main and on a branch from l05-line.
+tags: [lesson-06]
+inputs: [ref]
+nodes:
+  - { id: trigger, kind: trigger }
+  - id: checkout
+    kind: agent
+    agent: hw-checkout
+    inputs: { ref: "${trigger.ref}" }
+    outputs: [commit]
+  - { id: fan_out, kind: parallel, after: [checkout] }
+  - { id: typecheck, kind: agent, agent: hw-gate-typecheck, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: lint, kind: agent, agent: hw-gate-lint, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: test, kind: agent, agent: hw-gate-test, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: bugs_check, kind: agent, agent: hw-gate-bugs-check, inputs: { commit: "${checkout.commit}" }, after: [fan_out], outputs: [status] }
+  - { id: join, kind: join, after: [typecheck, lint, test, bugs_check] }
+  - id: verdict
+    kind: decision
+    after: [join]
+    predicate_inputs:
+      typecheck: "${typecheck.status}"
+      lint: "${lint.status}"
+      test: "${test.status}"
+      bugs: "${bugs_check.status}"
+    branches:
+      - { name: green, when: "typecheck == 'pass' && lint == 'pass' && test == 'pass' && bugs == 'pass'" }
+      - { name: red, when: "true" }
+  - { id: stop, kind: terminate, after: [verdict.red], reason: "a quality gate is red", flow_status: Failed }
+  - id: out
+    kind: output
+    after: [verdict.green]
+    inputs:
+      typecheck: "${typecheck.status}"
+      lint: "${lint.status}"
+      test: "${test.status}"
+      bugs_check: "${bugs_check.status}"

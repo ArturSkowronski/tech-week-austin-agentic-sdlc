@@ -1,0 +1,31 @@
+# Lesson 1: the agent is a resource, not a script on a laptop.
+# Workshop: kagent `Agent` CRD -> Deployment + Service + A2A endpoint.
+# Visdom: an AgentDefinition (hw-guide in 00-library.yaml) is a named,
+# versioned record with a container image pinned by digest, a driver (Codex
+# CLI), a model, a secret allow-list and an owner project. Every run is a pod
+# in the cluster and a session in TraceVault.
+---
+kind: FlowTemplate
+name: l01-first-agent
+description: |
+  Lesson 1. Ask the first agent about the repository: checkout, then hw-guide
+  (Codex on gpt-5.4-mini) answers. Run: question = "How does the game turn
+  keyboard input into movement?"
+tags: [lesson-01]
+inputs: [question]
+nodes:
+  - { id: trigger, kind: trigger }
+  - id: checkout
+    kind: agent
+    agent: hw-checkout
+    after: [trigger]
+    outputs: [commit]
+  - id: guide
+    kind: agent
+    agent: hw-guide
+    inputs: { question: "${trigger.question}" }
+    after: [checkout]
+    outputs: [answer]
+  - id: out
+    kind: output
+    inputs: { answer: "${guide.answer}" }

@@ -1,0 +1,36 @@
+# Lesson 4: the factory does not accept an order without a specification.
+# Workshop: sdlc/intake.py decides (regexes, routing); the kagent agent
+# `intake` only phrases the questions.
+# Visdom: hw-intake turns the issue into a specification with acceptance
+# criteria, and when the issue does not say what correct behaviour is, it asks
+# a person through Visdom's Human Input (vp-ask, the same internal API as the
+# ask_user tool). The run waits; the answer is part of the run's record.
+---
+kind: FlowTemplate
+name: l04-intake
+description: |
+  Lesson 4. Issue in, specification out. Run it on issue 2 (vague: the agent
+  asks) and on issue 1 (HW-001: enough to write the test, no question).
+tags: [lesson-04]
+inputs: [issue]
+nodes:
+  - { id: trigger, kind: trigger }
+  - { id: checkout, kind: agent, agent: hw-checkout, after: [trigger], outputs: [commit] }
+  - id: issue
+    kind: agent
+    agent: hw-fetch-issue
+    inputs: { issue: "${trigger.issue}" }
+    outputs: [issue_md]
+  - id: context
+    kind: agent
+    agent: hw-context
+    inputs: { commit: "${checkout.commit}" }
+    outputs: [context]
+  - id: intake
+    kind: agent
+    agent: hw-intake
+    inputs: { issue: "${issue.issue_md}", context: "${context.context}" }
+    outputs: [spec]
+  - id: out
+    kind: output
+    inputs: { spec: "${intake.spec}" }

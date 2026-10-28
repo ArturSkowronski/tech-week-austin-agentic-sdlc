@@ -1,0 +1,395 @@
+# The building blocks every lesson flow uses: deterministic Tasks (bash, no model)
+# and LLM Agents (Codex CLI on OpenAI). Provisioned by visdom/scripts/provision.py
+# into the Visdom project "Hobby Wizard"; a changed block becomes a new version.
+#
+# Every block runs in the container `runtime-demo` (see visdom/README.md). All
+# nodes of one flow run share /workspace; the repository is cloned to
+# /workspace/repo by hw-checkout and every later node works there.
+#
+# The repository is the local Gitea mirror of VirtusLab/visdom-sandbox-hobby-wizard:
+# http://gitea.visdom-orchestrator.svc:3000/visdom/hobby-wizard (nothing goes to GitHub).
+---
+kind: AgentDefinition
+name: hw-checkout
+mode: deterministic
+description: |
+  Clone Hobby Wizard from the local Gitea (remote `gitea`) into
+  /workspace/repo at `ref` (default main) and link the baked dependencies.
+  Outputs the commit.
+tags: [lesson-05, task]
+ports: { inputs: [ref], outputs: [commit] }
+deadline_seconds: 300
+script: |
+  set -euo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"
+  REF="${VP_INPUT_REF:-}"; REF="${REF:-main}"
+  rm -rf "$W/repo"
+  git clone -q --no-tags -o gitea "http://gitea.visdom-orchestrator.svc:3000/visdom/hobby-wizard.git" "$W/repo"
+  cd "$W/repo"
+  git checkout -q "$REF"
+  # `origin` only names the codebase for TraceVault (it resolves a checkout by the
+  # URL of origin); it is never fetched or pushed. Work goes through `gitea`.
+  git remote add origin https://github.com/VirtusLab/visdom-sandbox-hobby-wizard.git
+  git config user.name "Visdom agent"
+  git config user.email "agent@visdom.local"
+  ln -s /opt/hobby-wizard/node_modules node_modules
+  # .gitignore says `node_modules/`, which does not match a symlink: keep it out of commits.
+  echo node_modules >> .git/info/exclude
+  echo "checked out $REF at $(git rev-parse --short HEAD): $(git log -1 --format=%s)"
+  printf '%s' "$(git rev-parse HEAD)" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-fetch-issue
+mode: deterministic
+description: |
+  Read a Hobby Wizard issue from the local Gitea and hand it on as markdown
+  (title, labels, body). The ticket the game raised, nothing added.
+tags: [lesson-04, task]
+ports: { inputs: [issue], outputs: [issue_md] }
+deadline_seconds: 120
+script: |
+  set -euo pipefail
+  N="${VP_INPUT_ISSUE:?issue number required}"; N="${N//[^0-9]/}"
+  curl -fsS "http://gitea.visdom-orchestrator.svc:3000/api/v1/repos/visdom/hobby-wizard/issues/$N" > /tmp/issue.json
+  jq -r '"# Issue #\(.number): \(.title)\n\nLabels: \([.labels[].name] | join(", "))\n\n\(.body)"' /tmp/issue.json > /work/output.md
+  cat /work/output.md
+---
+kind: AgentDefinition
+name: hw-context
+mode: deterministic
+description: |
+  Lesson 3. Compile the L1-L5 context of the repository without a model:
+  L1 modules, L2 rules, L3 actual owners from git, L4 decision records,
+  L5 the planted bugs (the incident log of this game). Same commit, same output.
+tags: [lesson-03, task]
+ports: { inputs: [commit], outputs: [context] }
+deadline_seconds: 300
+script: |
+  set -euo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"
+  {
+    echo "# Hobby Wizard: compiled context (commit $(git rev-parse --short HEAD))"
+    echo
+    echo "## L1 System"
+    awk '/^## Layout/{f=1;next} /^## /{f=0} f' AGENTS.md
+    echo "## L2 Code: rules that break the build or the review"
+    awk '/^## Rules/{f=1;next} /^## /{f=0} f' AGENTS.md
+    echo "## L3 People: who actually changes each area (git log, last 200 commits)"
+    echo
+    echo "| area | commits by author |"
+    echo "|---|---|"
+    for area in game/sim game/render game/content tools bugs tests docs; do
+      who=$(git log -200 --format='%an' -- "$area" | sort | uniq -c | sort -rn | head -3 | awk '{n=$1; $1=""; printf "%s%s (%d)", sep, substr($0,2), n; sep=", "}')
+      echo "| \`$area\` | ${who:-none} |"
+    done
+    echo
+    echo "## L4 Decisions"
+    echo
+    for f in docs/plan/01-decisions/ADR-*.md; do
+      t=$(sed -n 's/^title: "\{0,1\}\(.*\)"\{0,1\}$/\1/p' "$f" | head -1 | sed 's/"$//')
+      s=$(sed -n 's/^status: //p' "$f" | head -1)
+      echo "- [$s] $t ($f)"
+    done
+    echo
+    echo "## L5 Operations: planted bugs still in the world (bugs/manifest.json)"
+    echo
+    jq -r '.bugs[] | "- \(.id) \(.title). Symptom: \(.symptom) Module: `\(.module)`. Paired test: `\(.test)` (never edit it)."' bugs/manifest.json
+  } > "$W/context.md"
+  cp "$W/context.md" /work/output.md
+  cat "$W/context.md"
+---
+kind: AgentDefinition
+name: hw-guide
+mode: agent
+description: |
+  Lesson 1. The first agent: a versioned definition with a container, a
+  driver (Codex CLI) and a model. Answers a question about the repository.
+tags: [lesson-01, agent]
+runtime: { container: runtime-demo, driver: codex, llm_model: gpt-5.4-mini }
+secrets: [OPENAI_API_KEY]
+ports: { inputs: [question], outputs: [answer] }
+deadline_seconds: 900
+system_prompt: |
+  You are a guide to the Hobby Wizard codebase, a browser platformer that is
+  the sandbox for Visdom. The repository is checked out at /workspace/repo
+  (read AGENTS.md there first). Answer the question below from the code, not
+  from guesses. Name files with their paths. At most 8 bullet points, no
+  preamble. Do not change any file in the repository.
+  Write the answer to @output.answer and nothing else there.
+---
+kind: AgentDefinition
+name: hw-intake
+mode: agent
+description: |
+  Lesson 4. Intake: turns an issue into a specification with acceptance
+  criteria. When the issue does not say what correct behaviour is, it asks a
+  person through Visdom (Human Input) instead of guessing.
+tags: [lesson-04, agent, ask-user]
+runtime: { container: runtime-demo, driver: codex, llm_model: gpt-5.4-mini }
+secrets: [OPENAI_API_KEY]
+ports: { inputs: [issue, context], outputs: [spec] }
+deadline_seconds: 3600
+hitl_timeout_seconds: 3600
+system_prompt: |
+  You are the intake desk of a software factory for the game Hobby Wizard.
+  The repository is at /workspace/repo. The compiled context (modules, rules,
+  owners, decisions, planted bugs) is between the CONTEXT markers:
+  CONTEXT
+  @input.context
+  CONTEXT
+
+  Decide whether the issue below can be turned into an acceptance test: it
+  must say, in observable terms, what the player does and what should happen.
+
+  - If it can: write the specification.
+  - If it cannot: ask the reporter ONE question that would let you write the
+    test, by running this shell command and waiting for it to return:
+        vp-ask --question "<your question, one or two sentences>" --choice "<option 1>" --choice "<option 2>" --choice "<option 3>"
+    (2 to 4 short options; the person may also answer in their own words).
+    The JSON it prints has the answer in `answer_value` and/or `answer_text`.
+    Use the answer. Never invent an answer, never ask twice.
+
+  The specification goes to @output.spec, in English, as markdown with exactly
+  these sections: "## Problem" (2-3 sentences), "## Acceptance criteria" (2-4
+  numbered, testable statements with concrete inputs and expected results),
+  "## Where" (the module from the context that owns the behaviour, and the
+  paired bug test if the issue matches a planted bug), "## Asked" (the
+  question and answer, or "nothing"). Do not change any file in the repository.
+---
+kind: AgentDefinition
+name: hw-implement
+mode: agent
+description: |
+  Lesson 5. The executor: fixes the issue in /workspace/repo following
+  AGENTS.md, commits on the work branch. Holds only the model key: it cannot
+  push, open pull requests or read the Gitea token (lesson 2).
+tags: [lesson-05, agent, executor]
+runtime: { container: runtime-demo, driver: codex, llm_model: gpt-5.4 }
+secrets: [OPENAI_API_KEY]
+ports: { inputs: [spec, context], outputs: [summary] }
+resources: { cpu_millis: 2000, memory_mib: 2048 }
+deadline_seconds: 2400
+system_prompt: |
+  You are the executor of a software factory. Work only in /workspace/repo
+  (cd there first). Read AGENTS.md and follow every rule in it. The compiled
+  context is between the CONTEXT markers:
+  CONTEXT
+  @input.context
+  CONTEXT
+
+  Implement the specification below as the smallest correct change:
+  - Change the module that owns the behaviour. If the specification is a
+    planted bug from bugs/manifest.json, fix the module the manifest names
+    and delete that entry from the manifest (AGENTS.md rule 4).
+  - Never create, edit or delete anything under bugs/tests/. Those tests are
+    the oracle; editing them is rejected.
+  - Every change to game/sim/ needs a replay test in tests/sim/ (rule 1).
+  - Dependencies are already installed; do not run pnpm install or touch the network.
+  - Run `pnpm typecheck && pnpm lint && pnpm test && pnpm bugs:check` and fix
+    what fails, at most three rounds.
+  - Commit everything with `git add -A && git commit -m "<intent in one sentence>"`.
+
+  Then write to @output.summary, in English: what was wrong (one sentence),
+  what you changed (files, one line each), the last result of each of the
+  four commands, and anything you could not do.
+---
+kind: AgentDefinition
+name: hw-publish-branch
+mode: deterministic
+description: |
+  Push the work branch from /workspace/repo to the local Gitea as
+  visdom/issue-<n>-<run>. The only block in the line that holds the Gitea token.
+tags: [lesson-05, task]
+secrets: [GITEA_TOKEN]
+ports: { inputs: [issue, summary], outputs: [branch] }
+deadline_seconds: 300
+script: |
+  set -euo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"
+  N="${VP_INPUT_ISSUE:-0}"; N="${N//[^0-9]/}"
+  B="visdom/issue-${N:-0}-${VP_FLOW_RUN_ID:0:8}"
+  if [ -z "$(git log gitea/main..HEAD --oneline)" ]; then echo "no commits on top of main; nothing to publish" >&2; exit 1; fi
+  git push -q "http://visdom:${GITEA_TOKEN}@gitea.visdom-orchestrator.svc:3000/visdom/hobby-wizard.git" "HEAD:refs/heads/$B"
+  git log --oneline gitea/main..HEAD
+  printf '%s' "$B" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-gate-typecheck
+mode: deterministic
+description: Lesson 6 gate. `pnpm typecheck` (tsc --noEmit) on the work tree. Output pass or fail.
+tags: [lesson-06, gate]
+ports: { inputs: [commit], outputs: [status] }
+deadline_seconds: 600
+script: |
+  set -uo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"; mkdir -p "$W/gates"
+  if pnpm typecheck > "$W/gates/typecheck.log" 2>&1; then s=pass; else s=fail; fi
+  echo "gate typecheck: $s"; tail -25 "$W/gates/typecheck.log"
+  printf '%s' "$s" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-gate-lint
+mode: deterministic
+description: Lesson 6 gate. `pnpm lint` (eslint) on the work tree. Output pass or fail.
+tags: [lesson-06, gate]
+ports: { inputs: [commit], outputs: [status] }
+deadline_seconds: 600
+script: |
+  set -uo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"; mkdir -p "$W/gates"
+  if pnpm lint > "$W/gates/lint.log" 2>&1; then s=pass; else s=fail; fi
+  echo "gate lint: $s"; tail -25 "$W/gates/lint.log"
+  printf '%s' "$s" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-gate-test
+mode: deterministic
+description: Lesson 6 gate. `pnpm test` (Vitest replay tests of the simulation). Output pass or fail.
+tags: [lesson-06, gate]
+ports: { inputs: [commit], outputs: [status] }
+deadline_seconds: 600
+script: |
+  set -uo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"; mkdir -p "$W/gates"
+  if pnpm test > "$W/gates/test.log" 2>&1; then s=pass; else s=fail; fi
+  echo "gate test: $s"; tail -25 "$W/gates/test.log"
+  printf '%s' "$s" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-gate-bugs-check
+mode: deterministic
+description: |
+  Lesson 6 gate. `pnpm bugs:check`: every planted bug in the manifest has a
+  paired test that fails as planted, and no unlisted test fails.
+tags: [lesson-06, gate]
+ports: { inputs: [commit], outputs: [status] }
+deadline_seconds: 600
+script: |
+  set -uo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"; mkdir -p "$W/gates"
+  if pnpm bugs:check > "$W/gates/bugs-check.log" 2>&1; then s=pass; else s=fail; fi
+  echo "gate bugs:check: $s"; tail -25 "$W/gates/bugs-check.log"
+  printf '%s' "$s" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-holdout
+mode: deterministic
+description: |
+  Lesson 7, the oracle. Runs the paired bug tests as they are on main (never
+  the branch's copy) against the branch, and refuses a branch that touched
+  bugs/tests/. Answers only pass or fail: no names, no logs, no hints the
+  executor could train on.
+tags: [lesson-07, gate, holdout]
+ports: { inputs: [commit], outputs: [verdict] }
+deadline_seconds: 600
+script: |
+  set -uo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"
+  git fetch -q gitea main
+  if git diff --name-only gitea/main...HEAD | grep -q '^bugs/tests/'; then
+    echo "holdout: the branch changed bugs/tests/ (tamper)"; printf 'fail' > /work/output.md; exit 0
+  fi
+  # The oracle is main's paired tests for main's planted bugs; the branch must make them pass.
+  tests=$(git show gitea/main:bugs/manifest.json | jq -r '.bugs[].test')
+  [ -n "$tests" ] || { echo "holdout: main has no planted bugs"; printf 'pass' > /work/output.md; exit 0; }
+  rm -rf /tmp/oracle && mkdir -p /tmp/oracle
+  for t in $tests; do mkdir -p "/tmp/oracle/$(dirname "$t")"; git show "gitea/main:$t" > "/tmp/oracle/$t"; done
+  cp -r /tmp/oracle/bugs/tests/. bugs/tests/
+  if npx --no-install vitest run --config vitest.bugs.config.ts $tests > /tmp/oracle.log 2>&1; then v=pass; else v=fail; fi
+  git checkout -q -- bugs/tests
+  echo "holdout: $v ($(echo "$tests" | wc -w) scenario(s); details withheld from the executor)"
+  printf '%s' "$v" > /work/output.md
+---
+kind: AgentDefinition
+name: hw-risk
+mode: deterministic
+description: |
+  Lesson 8. Risk is computed by code, not by a model: size of the diff, the
+  simulation (critical path, needs a replay test), the oracle's files,
+  tooling and CI. Outputs a level and the report.
+tags: [lesson-08, risk]
+ports: { inputs: [commit], outputs: [level, report] }
+deadline_seconds: 300
+script: |
+  set -euo pipefail
+  W="${VP_FLOW_WORKSPACE_DIR:-/workspace}"; cd "$W/repo"
+  git fetch -q gitea main
+  files=$(git diff --name-only gitea/main...HEAD)
+  lines=$(git diff --numstat gitea/main...HEAD | awk '{s+=$1+$2} END {print s+0}')
+  score=0; why=""
+  add() { score=$((score+$1)); why="$why\n- +$1 $2"; }
+  n=$(printf '%s\n' "$files" | grep -c . || true)
+  [ "$n" -gt 5 ] && add 1 "$n files changed"
+  [ "$lines" -gt 200 ] && add 2 "$lines lines changed" || { [ "$lines" -gt 60 ] && add 1 "$lines lines changed"; }
+  if printf '%s\n' "$files" | grep -q '^game/sim/'; then
+    add 2 "touches game/sim/ (the deterministic simulation, critical path)"
+    printf '%s\n' "$files" | grep -q '^tests/sim/' || add 2 "game/sim/ changed without a replay test in tests/sim/ (rule 1)"
+  fi
+  printf '%s\n' "$files" | grep -q '^bugs/tests/' && add 6 "edits the oracle's paired tests (rule 4)"
+  printf '%s\n' "$files" | grep -qE '^(tools/|\.github/|package.json|pnpm-lock.yaml)' && add 2 "touches tooling, CI or dependencies"
+  if [ "$score" -le 1 ]; then level=low; elif [ "$score" -le 3 ]; then level=medium; elif [ "$score" -le 5 ]; then level=high; else level=critical; fi
+  mkdir -p "$VP_OUTPUTS_DIR"
+  printf '%s' "$level" > "$VP_OUTPUTS_DIR/level.md"
+  printf "## Risk: %s (score %s)\n\nFiles: %s, lines: %s\n%b\n\nFiles:\n%s\n" "$level" "$score" "$n" "$lines" "${why:-\n- nothing raised the score}" "$(printf '%s\n' "$files" | sed 's/^/- /')" > "$VP_OUTPUTS_DIR/report.md"
+  cat "$VP_OUTPUTS_DIR/report.md"
+---
+kind: AgentDefinition
+name: hw-review
+mode: agent
+description: |
+  Lesson 8. A review lens on a different model than the executor. Checks the
+  diff against the specification and the repository rules; precision over
+  recall. Its verdict escalates to a person, it never sends work back.
+tags: [lesson-08, agent, review]
+runtime: { container: runtime-demo, driver: codex, llm_model: gpt-5.5 }
+secrets: [OPENAI_API_KEY]
+ports: { inputs: [spec, risk], outputs: [verdict] }
+resources: { cpu_millis: 2000, memory_mib: 2048 }
+deadline_seconds: 1200
+system_prompt: |
+  You review a change to Hobby Wizard. The repository is at /workspace/repo;
+  the change is `git diff gitea/main...HEAD` there (do not fetch or push).
+  Read AGENTS.md. Do not change any file. The computed risk report:
+  @input.risk
+
+
+  Check, and report only what you are at least 80% sure of (at most 5 findings):
+  1. Does the diff do what the specification below asks, in the module that owns it?
+  2. Rule 4: no file under bugs/tests/ changed; a fixed planted bug has its manifest entry removed.
+  3. Rule 1: a change to game/sim/ comes with a replay test in tests/sim/.
+  4. Anything that would make a correct-looking fix wrong (sign errors, a
+     special case that hides the bug, determinism broken: Math.random, Date, timers in game/sim/).
+
+  Write to @output.verdict: the first line is exactly one word, `approve` or
+  `escalate` (escalate when any finding is blocking). Then the findings as a
+  markdown list: severity (blocking/minor), file:line, one sentence each.
+---
+kind: AgentDefinition
+name: hw-open-pr
+mode: deterministic
+description: |
+  Finale. Opens the pull request in the local Gitea from the work branch,
+  with the specification, the executor's summary, the gates, the risk and
+  the review in its body, and links it from the issue.
+tags: [finale, task]
+secrets: [GITEA_TOKEN]
+ports: { inputs: [branch, issue, spec, summary, risk, verdict], outputs: [pr_url] }
+deadline_seconds: 300
+script: |
+  set -euo pipefail
+  G=http://gitea.visdom-orchestrator.svc:3000/api/v1/repos/visdom/hobby-wizard
+  N="${VP_INPUT_ISSUE//[^0-9]/}"
+  title="Fix #${N}: $(curl -fsS "$G/issues/$N" | jq -r .title)"
+  run="http://orchestrator.localhost:18080/orchestrator/operate/flow-runs/${VP_FLOW_RUN_ID}"
+  body=$(printf '%s\n\n%s\n\n## What the executor did\n\n%s\n\n%s\n\n## Review\n\n%s\n\n---\nOpened by Visdom flow run %s. Fixes #%s.\n' \
+    "Closes #${N}" "$(cat "$VP_INPUTS_DIR/spec.txt" 2>/dev/null || echo "${VP_INPUT_SPEC:-}")" \
+    "$(cat "$VP_INPUTS_DIR/summary.txt" 2>/dev/null || echo "${VP_INPUT_SUMMARY:-}")" \
+    "$(cat "$VP_INPUTS_DIR/risk.txt" 2>/dev/null || echo "${VP_INPUT_RISK:-}")" \
+    "$(cat "$VP_INPUTS_DIR/verdict.txt" 2>/dev/null || echo "${VP_INPUT_VERDICT:-}")" "$run" "$N")
+  pr=$(jq -n --arg t "$title" --arg b "$body" --arg h "${VP_INPUT_BRANCH}" '{title:$t, body:$b, head:$h, base:"main"}' \
+    | curl -fsS -X POST -H "Authorization: token $GITEA_TOKEN" -H 'Content-Type: application/json' --data @- "$G/pulls")
+  url=$(jq -r .html_url <<<"$pr")
+  jq -n --arg b "Visdom opened $url for this issue (flow run: $run)." '{body:$b}' \
+    | curl -fsS -X POST -H "Authorization: token $GITEA_TOKEN" -H 'Content-Type: application/json' --data @- "$G/issues/$N/comments" >/dev/null
+  echo "opened $url"
+  printf '%s' "$url" > /work/output.md

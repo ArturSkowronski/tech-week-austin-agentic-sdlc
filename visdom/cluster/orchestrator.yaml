@@ -1,0 +1,184 @@
+# Visdom orchestrator (vp-server) in the kind cluster visdom-local.
+#
+# Raw manifests, not the product Helm chart: the chart pulls its visdom-common
+# dependency from GAR, and this demo has to come up offline. The values mirror
+# what charts/visdom-orchestrator renders (configmap.yaml, deployment.yaml,
+# rbac.yaml, runtime.yaml) for: one replica, no mTLS, no NetworkPolicies, runs
+# in the same namespace as vp-server (so they share the workspace PVC).
+#
+# Secrets (signing keys, DB URL, M2M secret) are created by
+# visdom/scripts/up.sh, never stored here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: visdom-orchestrator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: vp-server, namespace: visdom-orchestrator }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: visdom-run, namespace: visdom-orchestrator }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: vp-server-runs-manager, namespace: visdom-orchestrator }
+rules:
+  - { apiGroups: ["batch"], resources: ["jobs"], verbs: ["get", "list", "watch", "create", "delete"] }
+  - { apiGroups: [""], resources: ["pods"], verbs: ["get", "list", "watch", "create", "delete"] }
+  - { apiGroups: [""], resources: ["pods/log"], verbs: ["get"] }
+  - { apiGroups: [""], resources: ["pods/exec"], verbs: ["get", "create"] }
+  - { apiGroups: [""], resources: ["resourcequotas"], verbs: ["get", "list", "watch"] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: vp-server-runs-manager, namespace: visdom-orchestrator }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: vp-server-runs-manager }
+subjects: [{ kind: ServiceAccount, name: vp-server, namespace: visdom-orchestrator }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: vp-server-visdom-orchestrator-cluster-status }
+rules:
+  - { apiGroups: [""], resources: ["nodes"], verbs: ["get", "list"] }
+  - { apiGroups: ["metrics.k8s.io"], resources: ["nodes"], verbs: ["get", "list"] }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: vp-server-visdom-orchestrator-cluster-status }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: vp-server-visdom-orchestrator-cluster-status }
+subjects: [{ kind: ServiceAccount, name: vp-server, namespace: visdom-orchestrator }]
+---
+# kind's local-path class is ReadWriteOnce, which is enough on a one-node
+# cluster: vp-server and every run pod sit on the same node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: vp-workspace-pvc, namespace: visdom-orchestrator }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 10Gi } }
+---
+# Placeholder client Secret for the outbox sidecar; mTLS is off (VP_OUTBOX_INSECURE).
+apiVersion: v1
+kind: Secret
+metadata: { name: visdom-pod-mtls, namespace: visdom-orchestrator }
+stringData: { tls.crt: "", tls.key: "", ca.crt: "" }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: vp-server, namespace: visdom-orchestrator }
+data:
+  VP_LISTEN_ADDR: "0.0.0.0:8080"
+  VP_SERVICE_NAME: vp-server
+  VP_K8S_IN_CLUSTER: "1"
+  VP_K8S_RUN_NAMESPACE: visdom-orchestrator
+  VP_K8S_RUN_SA: visdom-run
+  VP_POD_MTLS_SECRET: visdom-pod-mtls
+  VP_OUTBOX_INSECURE: "true"
+  VP_CALLBACK_URL: http://vp-server.visdom-orchestrator.svc:8080
+  VP_RUN_MIGRATIONS_ON_BOOT: "1"
+  # Browser-facing URLs are *.localhost: a secure context, so PKCE works over plain http.
+  VP_PUBLIC_URL: http://orchestrator.localhost:18080
+  VP_SUITE_ORCHESTRATOR_URL: http://orchestrator.localhost:18080
+  VP_SUITE_CONTROL_PLANE_URL: http://control-plane.localhost:18080
+  VP_SUITE_TRACING_URL: http://ai-tracing.localhost:18080
+  VP_SUITE_AI_GATEWAY_URL: http://ai-gateway.visdom.localtest.me:18080
+  # The issuer is the same string inside and outside the cluster (CoreDNS rewrites
+  # *.visdom.localtest.me to the ingress controller).
+  VP_OIDC_ISSUER_URL: http://keycloak.visdom.localtest.me:18080/realms/visdom-local
+  VP_OIDC_AUDIENCE: orchestrator
+  VP_OIDC_SPA_CLIENT_ID: visdom-orchestrator
+  VP_MCP_OAUTH_CLIENT_ID: visdom-orchestrator-mcp
+  VP_CONTROL_PLANE_URL: http://control-plane.visdom.svc:8080
+  VP_M2M_CLIENT_ID: orchestrator-m2m
+  # TraceVault (Visdom AI Tracing). Run pods send sessions to this URL.
+  VP_TRACING_URL: http://ai-tracing.visdom.localtest.me:18080
+  # AI Gateway: in-cluster LLM gateway (LiteLLM) and the console's service API.
+  VP_AI_GATEWAY_URL: http://ai-gateway-llm-gateway.ai-gateway.svc:4000
+  VP_AI_GATEWAY_SERVICE_URL: http://ai-gateway-console.ai-gateway.svc:3000
+  VP_GIT_CONFIG_MODE: "off"
+  CATALOG_DIR: /var/lib/visdom/catalog
+  CATALOG_PUBKEY: 2b767e8df093943e7766c53395103f979d3aa770d95444e54407efba1b01452b
+  VP_WORKSPACE_PVC_NAME: vp-workspace-pvc
+  VP_WORKSPACE_LOCAL_DIR: /workspace
+  VP_RECONCILER_RETENTION_SECONDS: "86400"
+  VP_JOB_TTL_SECONDS: "604800"
+  VP_RUNS_DOCKER_ENABLED: "false"
+  VP_RUNS_RUN_AS_NON_ROOT: "true"
+  VP_RUNS_PRIORITY_CLASS: ""
+  VP_DEBUG_POD_CPU_REQUEST: 100m
+  VP_DEBUG_POD_MEMORY_REQUEST: 256Mi
+  VP_DEBUG_POD_CPU_LIMIT: "1"
+  VP_DEBUG_POD_MEMORY_LIMIT: 2Gi
+  # Run images come from the local registry container kind-registry (localhost:5001 on the node).
+  VP_ALLOWED_IMAGE_REGISTRIES: localhost:5001,localhost,ghcr.io,docker.pkg.dev
+  VP_INSECURE_REGISTRIES: localhost:5001
+  # Models offered to Codex agents that call OpenAI directly (not through the gateway).
+  VP_RUNTIME_MODELS: >-
+    {"codex": {"label": "Codex (OpenAI)", "default_model": "gpt-5.4-mini", "models": [
+      {"id": "gpt-5.4-mini", "label": "GPT-5.4 mini (fast)"},
+      {"id": "gpt-5.4", "label": "GPT-5.4"},
+      {"id": "gpt-5.5", "label": "GPT-5.5 (most capable)"},
+      {"id": "gpt-5.3-codex", "label": "GPT-5.3 Codex"}]}}
+  LOG_FORMAT: text
+  RUST_LOG: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: vp-server, namespace: visdom-orchestrator, labels: { app: vp-server } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: vp-server } }
+  template:
+    metadata: { labels: { app: vp-server } }
+    spec:
+      serviceAccountName: vp-server
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 1000, fsGroupChangePolicy: OnRootMismatch }
+      containers:
+        - name: vp-server
+          image: localhost:5001/visdom/vp-server:main
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef: { name: vp-server }
+            - secretRef: { name: vp-server-keys }
+            - secretRef: { name: vp-server-secret }
+          ports: [{ name: http, containerPort: 8080 }]
+          # Boot runs migrations and a Control Plane backfill; give it time before liveness kicks in.
+          startupProbe: { httpGet: { path: /_/health, port: http }, periodSeconds: 5, failureThreshold: 120 }
+          livenessProbe: { httpGet: { path: /_/health, port: http }, periodSeconds: 10 }
+          readinessProbe: { httpGet: { path: /_/ready, port: http }, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 1Gi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          volumeMounts:
+            - { name: workspace, mountPath: /workspace, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: workspace, persistentVolumeClaim: { claimName: vp-workspace-pvc } }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: vp-server, namespace: visdom-orchestrator }
+spec:
+  selector: { app: vp-server }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vp-server
+  namespace: visdom-orchestrator
+  annotations:
+    # Run logs and run events are streamed (SSE).
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: orchestrator.localhost
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: vp-server, port: { number: 8080 } } } }] }
+    - host: orchestrator.visdom.localtest.me
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: vp-server, port: { number: 8080 } } } }] }

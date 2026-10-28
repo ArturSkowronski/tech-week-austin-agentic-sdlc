@@ -1,0 +1,16 @@
+# Lesson 2: the agent's permissions are a list, not a sentence in the prompt.
+# Workshop: the executor gets five tools of the MCP server `workshop`, and a
+# Kyverno policy refuses any Agent with other tools.
+# Visdom: the same boundary is in the agent's definition and enforced by the
+# platform, not the model:
+#   - secret allow-list: hw-implement gets OPENAI_API_KEY only. The Gitea token
+#     is allow-listed on two deterministic tasks (hw-publish-branch, hw-open-pr),
+#     so the model cannot push or open a pull request, whatever it is told.
+#   - required MCP servers: none (Codex's own shell and file tools in its pod).
+#   - egress allow-list (below): the hosts the executor may call, recorded as a
+#     governance policy with an audit entry.
+---
+kind: EgressPolicy
+agent: hw-implement
+allow_hosts: [api.openai.com, ai-tracing.visdom.localtest.me, gitea.visdom-orchestrator.svc]
+deny_hosts: [github.com, api.github.com]

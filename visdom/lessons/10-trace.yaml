@@ -1,0 +1,10 @@
+# Lesson 10: trace and ledger. An agent may propose laws, not pass them.
+# Workshop: sdlc/ledger.py hash-chains every event, cosign signs the ledger,
+# kagent sends OpenTelemetry traces to Jaeger.
+# Visdom: nothing to provision. Every run above already leaves:
+#   - the orchestrator's audit log: hash-chained and sealed (VP_AUDIT_SEAL_KEY_V1),
+#     verifiable from Admin > Audit log (POST /api/v1/audit/verify);
+#   - a TraceVault (Visdom AI Tracing) session per LLM agent node, with model,
+#     tokens, tool calls and the transcript, attributed to the project and the
+#     flow run (x-tv-flow-id, x-tv-params), and TraceVault's own signed chain
+#     (AI_TRACING_SIGNING_ENABLED, Compliance page).

@@ -1,0 +1,47 @@
+# Lesson 9: the human is a node with a role; a file draws the line.
+# Workshop: sdlc/policy.json decides who waits for a person; the `human`
+# step (its `wait` suspend) stops the Argo workflow until `make approve`.
+# Visdom: a decision node draws the line (lights-out only for low/medium risk
+# with an approving review), an approval node with approver_role waits in the
+# Approvals inbox, and an approval policy on the flow names the role and the
+# number of approvers. The decision, who made it and when go to the audit log.
+---
+kind: FlowTemplate
+name: l09-approval
+description: |
+  Lesson 9. Risk and review decide the route: lights-out, or a person with
+  the admin role approves in the Approvals inbox. Inputs: ref, spec.
+tags: [lesson-09]
+inputs: [ref, spec]
+approval_policy:
+  - match: { node_kinds: [approval], tags: [], agent_def_ids: [] }
+    require: { roles: [admin], min_approvers: 1, exclusive_of_initiator: false }
+    timeout_seconds: 86400
+    on_timeout: deny
+nodes:
+  - { id: trigger, kind: trigger }
+  - { id: checkout, kind: agent, agent: hw-checkout, inputs: { ref: "${trigger.ref}" }, outputs: [commit] }
+  - { id: risk, kind: agent, agent: hw-risk, inputs: { commit: "${checkout.commit}" }, outputs: [level, report] }
+  - id: review
+    kind: agent
+    agent: hw-review
+    inputs: { spec: "${trigger.spec}", risk: "${risk.report}" }
+    outputs: [verdict]
+  - id: route
+    kind: decision
+    predicate_inputs: { level: "${risk.level}", verdict: "${review.verdict}" }
+    branches:
+      - { name: lights_out, when: "(level == 'low' || level == 'medium') && verdict.startsWith('approve')" }
+      - { name: human, when: "true" }
+  - id: approve
+    kind: approval
+    after: [route.human]
+    approver_role: admin
+    title: "Hobby Wizard: approve this change?"
+    context_inputs: { risk: "${risk.report}", review: "${review.verdict}", ref: "${trigger.ref}" }
+  - { id: rejected, kind: terminate, after: [approve.rejected], reason: "a person rejected the change", flow_status: Failed }
+  - { id: accepted, kind: join, after: [route.lights_out, approve.approved] }
+  - id: out
+    kind: output
+    after: [accepted]
+    inputs: { level: "${risk.level}", verdict: "${review.verdict}" }
