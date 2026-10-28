@@ -19,7 +19,7 @@ When a check does not pass, show me the result and propose a fix. Do not get aro
 ```text
 Prepare the workshop environment as in README.md (Step 1 and Step 2).
 1. Check: factory (the list of commands) and git tag -l 'lesson-*' (there must be 10).
-   No factory on the laptop: make tools and a new terminal.
+   No factory: the codespace has not finished building; wait and open a new terminal.
 2. factory lesson 1, then factory start (in the background, up to 15 min).
 3. factory map and kubectl get agent -n factory.
 Do not change files in the repo. When something fails, show the log and stop.
@@ -37,7 +37,7 @@ in the systemMessage field with the instruction of the "intake" agent:
 Change nothing else in the file. Then:
 1. kubectl apply -f platform/kagent/agent-intake.yaml
 2. kubectl wait --for=condition=Ready agent/intake -n factory --timeout=180s
-3. make a2a A=intake T="Double jump. Players keep asking for a second
+3. factory ask intake "Double jump. Players keep asking for a second
    jump in the air. Add it."
 Show the agent's answer. If it is an essay instead of questions,
 fix the instruction and repeat step 3 (at most twice).

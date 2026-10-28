@@ -29,7 +29,7 @@ The factory stands on open-source projects from the Linux Foundation:
 
 ## 🎮 First, play the game (2 min)
 
-Open the **PORTS** tab and click the link of **🎮 Hobby Wizard (your repo)**, port 5173 (on a laptop: `factory play`).
+Open the **PORTS** tab and click the link of **🎮 Hobby Wizard (your repo)**, port 5173.
 Arrows walk, Z jumps. Walk through the bush on the plateau and hold →.
 👀 You should see: the creature jumps on your hat and the wizard walks **left**. That is bug HW-001. In lesson 5 an
 agent fixes it, and you will play the fix.
@@ -69,7 +69,8 @@ missing, a separate agent, `intake`, asks the author questions. It has no tools,
 4. Send the agent to the cluster: `kubectl apply -f platform/kagent/agent-intake.yaml`.
 5. Wait until it is up: `kubectl wait --for=condition=Ready agent/intake -n factory --timeout=180s`.
 6. Run `factory check 1`.
-   🟢 You should see: `the intake agent's instruction is written` and `the intake agent is deployed and Ready`.
+   🟢 You should see: `the intake agent's instruction is written`, `the cluster has the instruction from platform/kagent/agent-intake.yaml`
+   and `the intake agent is deployed and Ready`. Without step 4 the check stays red: the cluster still has the old instruction.
 
    ![`factory check 1` is red, `factory solve 1` writes and deploys the instruction, and the check turns green.](images/gif/l01-check-red-green.gif)
    <sub>`factory check 1` is red, `factory solve 1` writes and deploys the instruction, and the check turns green.</sub>
@@ -81,7 +82,7 @@ Stuck? `factory solve 1`.
 Ask the agent about a vague task:
 
 ```bash
-make a2a A=intake T="Double jump. Players keep asking for a second jump in the air. Add it."
+factory ask intake "Double jump. Players keep asking for a second jump in the air. Add it."
 ```
 
 👀 A good instruction gives questions about numbers and edge cases: how fast the second jump starts, what
@@ -89,6 +90,19 @@ gives it back (landing, a respawn, the water), whether a jump off a ledge in coy
 A bad instruction gives an essay. With a key, `factory check 1` also wants a list of 2 to 6 questions.
 
 No key yet? `factory key`. Without one the agent comes up but does not answer; lesson 5 has a replay mode for that.
+
+**When does the factory use this agent?** `kubectl apply` puts it to work at once, but only with a model key
+(Step 3). Without a key it is up and Ready and never answers.
+
+| When | Who asks it | What you see |
+|---|---|---|
+| Lesson 1, right after `kubectl apply` | you: `factory ask intake "…"` | its questions in the terminal |
+| Lesson 4, `make intake O=double-jump` | the intake check, when it sends a work order back | its questions under "sent back" (without a key: three fixed questions) |
+| Lesson 5 on, every run of the line | the line's `intake` step, the same way | the questions in the run's `intake.md` |
+| Finale | the line, for an issue without `Criteria:` | its questions as a comment under the issue |
+
+From lesson 2 on, `factory lesson N` deploys the instructor's version of this file (yours goes to `git stash`), so the
+agent you wrote answers only in lesson 1.
 
 ## To discuss
 

@@ -76,6 +76,14 @@ class A2ATest(unittest.TestCase):
     def test_falls_back_to_last_agent_message(self):
         self.assertEqual(a2a.send("probe", "no artifact"), "from the history")
 
+    def test_input_required_returns_the_agents_questions(self):
+        # The intake agent asks instead of answering: kagent ends the task in input-required
+        # and puts the questions in status.message, not in artifacts or history.
+        result = {"kind": "task", "artifacts": [], "history": [],
+                  "status": {"state": "input-required", "message": {"role": "agent", "parts": [
+                      {"kind": "text", "text": "- How high is the second jump?\n- Does water give it back?"}]}}}
+        self.assertEqual(a2a.extract_text(result), "- How high is the second jump?\n- Does water give it back?")
+
     def test_error_is_raised(self):
         with self.assertRaises(RuntimeError):
             a2a.send("probe", "error")

@@ -14,5 +14,5 @@ COPYFILE_DISABLE=1 tar --no-xattrs --exclude node_modules --exclude .sdlc --excl
   && ln -s /opt/hw/node_modules system/node_modules \
   && git config user.name '$who' && git config user.email '$mail' \
   && git switch -q -C main && git add -A \
-  && (git commit -qm 'snapshot: the working tree from the laptop' >/dev/null 2>&1 || true) \
+  && (git commit -qm 'snapshot: the working tree from the codespace' >/dev/null 2>&1 || true) \
   && git log --oneline -1"

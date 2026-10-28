@@ -33,10 +33,8 @@ issue (label factory   ─▶ factory-pull ─▶ the line in Argo ─▶ PR on 
 
 Do this at home, together with [SETUP.md](../SETUP.md):
 
-1. Fork `ArturSkowronski/tech-week-austin-agentic-sdlc` to your account and set it as `origin`:
-   `git remote set-url origin https://github.com/<login>/tech-week-austin-agentic-sdlc`.
-2. Log in: `gh auth login` (the `repo` scope is enough). In Codespaces:
-   `env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow`. The codespace's own token cannot change
+1. Your codespace is on your fork, so `origin` is already the fork (`git remote -v`).
+2. Log `gh` in, in the codespace's terminal: `env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow`. The codespace's own token cannot change
    repo settings, and `make github` would end with `HTTP 403 Resource not accessible by integration`. The
    [README finale](../README.md#-finale-the-factory-on-github) walks through `gh`'s questions.
 
@@ -45,8 +43,8 @@ Do this at home, together with [SETUP.md](../SETUP.md):
 1. Set up the finale: `factory lesson final`.
 2. Check the remote: `git remote -v`.
    👀 You should see: `origin` is YOUR fork, not `VirtusLab/…`.
-3. Check the login: `gh auth status` (in Codespaces: `env -u GITHUB_TOKEN gh auth status`).
-   👀 You should see: `Logged in`, with the scopes `repo` and `workflow`. In Codespaces, `(GITHUB_TOKEN)` and `Token: ghu_…` mean the login did not work.
+3. Check the login: `env -u GITHUB_TOKEN gh auth status`.
+   👀 You should see: `Logged in`, with the scopes `repo` and `workflow`. `(GITHUB_TOKEN)` and `Token: ghu_…` mean the login did not work.
 4. Connect the fork: `make github`. It turns on issues and Actions in the fork, creates the labels, protects
    `main` with four checks, uploads your cluster's cosign key to `main`, and creates the Secret
    `factory-github` and the poller `factory-pull` in the cluster.
@@ -119,10 +117,10 @@ factory play agent/issue-<N>   # the game from the agent's branch, port 5174
 - Actions take the gates and tools from `main`, never from the PR. An agent can propose a new rule in `system/architecture/rules.js`, but it applies only after a human merges it (lesson 10, enforced by GitHub).
 - Only the `step-github` steps see the GitHub token, and only the ledger step sees the cosign key. The step that builds and tests the agent's code has no secret at all. Check it:
   `kubectl get workflowtemplate factory -n factory -o yaml | grep -B3 secretKeyRef`.
-- A cluster on a laptop cannot receive a webhook from the internet, so the factory asks GitHub every two minutes. At work you swap that for a webhook or a GitHub App. The factory still pulls one work order at a time.
+- A cluster in a codespace cannot receive a webhook from the internet, so the factory asks GitHub every two minutes. At work you swap that for a webhook or a GitHub App. The factory still pulls one work order at a time.
 
 ## Known limitations
 
-- Jaeger all-in-one keeps traces in memory: a pod restart deletes them. The trace link in the PR works only on your machine.
+- Jaeger all-in-one keeps traces in memory: a pod restart deletes them. The trace link in the PR works only in your codespace (a private port).
 - One work order from GitHub at a time (the shared `/work` disk). A manual `make order` running alongside breaks the run.
 - Without a network the finale does not work. Plan B: `make order O=… AGENT=replay` and the result from `make fetch`.

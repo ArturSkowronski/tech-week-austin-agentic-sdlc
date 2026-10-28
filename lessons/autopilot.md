@@ -6,8 +6,6 @@ with the lesson's prompt and the same permissions. Inside an open Claude Code: `
 Without a model: the ready variant of the exercise in `solutions/lesson-NN/` (`factory lesson N` creates it) or `factory solve N`.
 The autopilot switches the repo and the cluster to the lesson by itself, does the exercise, checks it with `factory check N`,
 and if that fails, swaps in the solution. At the end it says which block of the factory lit up.
-On a laptop connected to a codespace (`factory connect`) the autopilot also tells Claude to run make, kubectl and argo
-through `factory cs`.
 
 ## Lesson 01 · The cluster and the first agent
 
@@ -39,7 +37,7 @@ in the systemMessage field with the instruction of the "intake" agent:
 Change nothing else in the file. Then:
 1. kubectl apply -f platform/kagent/agent-intake.yaml
 2. kubectl wait --for=condition=Ready agent/intake -n factory --timeout=180s
-3. make a2a A=intake T="Double jump. Players keep asking for a second
+3. factory ask intake "Double jump. Players keep asking for a second
    jump in the air. Add it."
 Show the agent's answer. If it is an essay instead of questions,
 fix the instruction and repeat step 3 (at most twice).

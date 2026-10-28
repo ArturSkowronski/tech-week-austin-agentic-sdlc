@@ -2,7 +2,7 @@
 # `planted` (the label the game's "Raise ticket on GitHub" sets, ADR-006) from your fork and runs the line on it
 # (WorkflowTemplate factory, source=github).
 #
-# A cluster on a laptop cannot take a webhook from the internet, so we ask GitHub ourselves (polling). One work order at a
+# A cluster in a codespace cannot take a webhook from the internet, so we ask GitHub ourselves (polling). One work order at a
 # time (concurrencyPolicy: Forbid and waiting for the run): the line and the agent share one /work disk.
 # The poller has its own account with the right to create runs. The line's steps do not have that right.
 # Deployed by make github (with the Secret factory-github). Trigger it now: make pull.

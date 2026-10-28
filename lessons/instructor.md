@@ -33,7 +33,7 @@ Between the reveals there are slides with the thesis. Every thesis has proof fro
 | Oct 27 | Go through the finale on your own fork: `make github`, `make issue O=hw-001`, `make pull AGENT=replay`. A PR with label `factory:human`, the checks green, the link to the trace works. `make issue O=hud-speed`: auto-merge. |
 | Oct 27 | Generate the model keys (OpenRouter or Claude API) with a spending limit each. Print them on cards. |
 | Oct 28 | Record the screen with reveals 6, 8 and 9 (plan B when the network or the model fails). Send the follow-up email (`lessons/setup-email-followup.md`). |
-| Oct 28 | The demo laptop: a cluster with runs of HW-001 (without `owns` and with `owns`), the startle (2 attempts, approved) and the naive change. The floor open. |
+| Oct 28 | The demo codespace: a cluster with runs of HW-001 (without `owns` and with `owns`), the startle (2 attempts, approved) and the naive change. The floor open. |
 | after the workshop | Revoke the model keys. |
 
 Cost: a builder attempt on Sonnet 5 is in the order of tens of cents, the review lenses cost cents. Check the
@@ -97,8 +97,9 @@ Exercises you must not skip: 2 (protected paths), 6 (the architecture rule), 9A 
 
 ## Codespaces, factory and the autopilot
 
-The participant's default road is a fork and GitHub Codespaces (`.devcontainer/`, a 4-core machine, 16 GB).
-Nothing to install on the laptop, and the free quota of GitHub Free (120 core-hours) is enough for 30 hours.
+The only road is a fork and GitHub Codespaces (`.devcontainer/`, a 4-core machine, 16 GB). There is no laptop or other
+cloud variant; do not offer one in the room. The free quota of GitHub Free (120 core-hours) is enough for 30 hours.
+Remind the room to turn on Issues on the fork (Settings → Features), otherwise "Raise ticket on GitHub" goes nowhere.
 Ask the room to run `factory start` before the workshop: the first cluster takes about 10 minutes.
 
 The `factory` tool is installed outside the repo, so jumping between tags does not remove it:
@@ -110,7 +111,6 @@ The `factory` tool is installed outside the repo, so jumping between tags does n
 | the exercise does not work out | `factory autopilot N` (starts Claude Code), the ready variant in `solutions/lesson-NN/`, as a last resort `factory solve N` |
 | nobody understands what we have built so far | `factory map` on the projector: the factory's blocks light up lesson by lesson |
 | the cluster in a strange state | `factory reset` (10 minutes, so rather a break) |
-| the ports are taken on a laptop | `.factory.env` with other ports, then `factory reset` |
 
 The autopilot never approves for a human: at `make approve` and at the PR it stops and asks.
 A good moment for the sentence from lesson 9, shown live.
@@ -125,17 +125,17 @@ A good second beat: the game's own "Raise ticket on GitHub" button opens the sam
 (labels `bug`, `planted`, ADR-006), and the poller takes it the same way.
 
 What must work for the participant: the fork as `origin`, `gh auth login`, network to GitHub. Without network you show
-the finale from the demo laptop, and the participants run `make replay O=hw-001`.
+the finale from the demo codespace, and the participants run `make replay O=hw-001`.
 
 ## Plan B
 
 | Problem | What you do |
 |---|---|
 | The model does not answer or the limit ran out | `make replay O=…`. Every lesson works on recordings, the rework loop included (attempt 1 and attempt 2 of the startle are recorded). Review without a model stays on its regex rules. |
-| The Wi-Fi is down | Nothing happens: the cluster, the images and `system/node_modules` are on the laptop or in the codespace. Only the model needs the network. |
+| The Wi-Fi is down | Nothing happens: the cluster, the images and `system/node_modules` are in the codespace. The browser still needs the network to reach it, and the model too. |
 | A participant is stuck | `factory lesson N`. Their changes land in `git stash`. |
-| The image build failed for a participant | Repeat `factory lesson N`; if it fails again, Codespaces or pair with a neighbour. |
-| A run takes too long | Show a finished run from the demo laptop, leave the current one in the background on the floor. |
+| The image build failed for a participant | Repeat `factory lesson N`; if it fails again, a new codespace or pair with a neighbour. |
+| A run takes too long | Show a finished run from the demo codespace, leave the current one in the background on the floor. |
 | Someone has no cluster | They pair with a neighbour. |
 
 ## Known behaviours
@@ -156,8 +156,7 @@ the finale from the demo laptop, and the participants run `make replay O=hw-001`
 - Port 8083 of kagent has no authentication (the identity comes from the `X-User-Id` header). It stays in the cluster.
 - The `/work` disk is one (ReadWriteOnce, one kind node). Two runs of the same work order at once overwrite each
   other's branch. The WIP semaphore does not protect against that: a deliberate simplification of the workshop.
-- Helm on macOS in a session without a TTY cannot pull an OCI chart (keychain). In the participants' terminals it works;
-  if not, `KAGENT_CHART` and `KAGENT_CHART_CRDS` in `scripts/cluster.sh` accept a path to a `.tgz`.
+- If Helm cannot pull the kagent OCI chart, `KAGENT_CHART` and `KAGENT_CHART_CRDS` in `scripts/cluster.sh` accept a path to a `.tgz`.
 - The Argo controller sends traces (OTLP to Jaeger) and gives the steps `TRACEPARENT`. `sdlc/a2a.py` passes it on to
   kagent, so the agent's spans are in the run's trace. Argo's trace has many controller spans
   (`reconcileTaskResult` etc.): in Jaeger filter the service `factory-line` or collapse the tree to the steps.
@@ -168,4 +167,4 @@ the finale from the demo laptop, and the participants run `make replay O=hw-001`
 - `game/sim` is the critical path (ADR-011): every change there ends at a human, also in replay. A lights-out run
   needs a low-risk work order with its own scenarios: `hud-speed` (`game/render`).
 - `make test` needs `system/node_modules`: the first call runs `pnpm install --frozen-lockfile` (a minute or two
-  without the cache). Codespaces does it when the container is created.
+  without the cache). The codespace does it when the container is created.

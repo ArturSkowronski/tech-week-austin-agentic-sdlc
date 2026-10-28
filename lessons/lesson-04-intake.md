@@ -31,7 +31,8 @@ Intake also sends back work orders that are too big: a title with concepts from 
 2. Take in the bug report: `make intake O=hw-001`.
    👀 You should see: `Intake: ✅ accepted onto the line`.
 3. Take in the double jump: `make intake O=double-jump`.
-   👀 You should see: `Intake: ↩️ sent back`. With a model key, the agent's questions follow.
+   👀 You should see: `Intake: ↩️ sent back`. With a model key, the questions come from the `intake` agent of lesson 1;
+   without a key, from three fixed questions in `sdlc/intake.py`.
 
    ![`make intake O=double-jump`: sent back, with the questions the intake agent asked (recorded with a model key).](images/gif/l04-intake-sent-back.gif)
    <sub>`make intake O=double-jump`: sent back, with the questions the intake agent asked (recorded with a model key).</sub>

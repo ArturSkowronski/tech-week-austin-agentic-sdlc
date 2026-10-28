@@ -1,7 +1,6 @@
 .DS_Store
 .idea/
 .sdlc/
-.factory.env
 node_modules
 system/.oracle/
 platform/**/cosign.key
@@ -11,3 +10,4 @@ lessons/keynote/*.pptx
 lessons/images/out/
 /solutions/
 lessons/images/art/out/
+.factory.env

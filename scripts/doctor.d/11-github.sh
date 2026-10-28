@@ -1,6 +1,6 @@
 # Finale: a fork on GitHub, gh and (after make github) the Secret and the poller in the cluster.
 echo "GitHub (finale)"
-if ! command -v gh >/dev/null; then fail "gh: brew install gh && gh auth login"
+if ! command -v gh >/dev/null; then fail "no gh: the codespace did not finish its setup (Codespaces: Rebuild Container)"
 elif gh auth status >/dev/null 2>&1; then pass "gh logged in"
 else fail "gh is not logged in: gh auth login (needed only in the finale)"; fi
 origin=$(git remote get-url origin 2>/dev/null || true)

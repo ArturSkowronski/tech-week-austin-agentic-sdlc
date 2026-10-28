@@ -28,7 +28,7 @@ step "Argo Workflows $ARGO_VERSION (the line)"
 kubectl apply --server-side --force-conflicts -n argo \
   -f "https://github.com/argoproj/argo-workflows/releases/download/$ARGO_VERSION/install.yaml" >/dev/null
 JAEGER_PORT=$JAEGER_PORT envsubst '${JAEGER_PORT}' < platform/argo/controller-configmap.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
-# The floor without a login and over HTTP: it is a cluster on your laptop.
+# The floor without a login and over HTTP: it is a cluster in your codespace, behind its private ports.
 kubectl patch deploy argo-server -n argo --type=json -p '[
   {"op":"replace","path":"/spec/template/spec/containers/0/args","value":["server","--auth-mode=server","--secure=false"]},
   {"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/httpGet/scheme","value":"HTTP"}]' >/dev/null
@@ -44,7 +44,7 @@ kubectl get secret kagent-openai -n kagent >/dev/null 2>&1 || \
   kubectl create secret generic kagent-openai -n kagent --from-literal=OPENAI_API_KEY=none >/dev/null
 CHART_CRDS=${KAGENT_CHART_CRDS:-oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds}
 CHART=${KAGENT_CHART:-oci://ghcr.io/kagent-dev/kagent/helm/kagent}
-# The kagent charts are public on ghcr.io. A stale Docker login to ghcr.io (also one in the macOS keychain, which Helm
+# The kagent charts are public on ghcr.io. A stale Docker login to ghcr.io (which Helm
 # finds by itself) turns an anonymous pull into "403: denied". So the charts are pulled anonymously: an empty registry
 # config whose credential helper always answers "not found". No login is used or changed.
 anon=$(mktemp -d)

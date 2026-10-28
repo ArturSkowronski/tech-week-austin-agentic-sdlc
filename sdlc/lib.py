@@ -30,16 +30,8 @@ def policy() -> dict:
 
 
 def setting(key: str, default: str = "") -> str:
-    """A value from the environment, then from the local, git-ignored .factory.env (KEY=VALUE lines)."""
-    if os.environ.get(key):
-        return os.environ[key]
-    local = ROOT / ".factory.env"
-    if local.exists():
-        for line in local.read_text(encoding="utf-8").splitlines():
-            name, _, value = line.strip().partition("=")
-            if name == key and value:
-                return value.strip().strip('"')
-    return default
+    """A value from the environment, or the default."""
+    return os.environ.get(key) or default
 
 
 def git(*args: str) -> str:

@@ -85,7 +85,8 @@ def _send_once(agent: str, text: str, namespace: str | None, session: str | None
 
 
 def extract_text(result: dict) -> str:
-    """An A2A task: the artifacts first, then the agent's last message in the history."""
+    """An A2A task: the artifacts first, then the agent's last message in the history, then the status message
+    (an agent that asks back, like intake, ends the task in input-required with its questions there)."""
     if result.get("kind") == "message":
         return _parts(result.get("parts", []))
     artifacts = result.get("artifacts") or []
@@ -98,7 +99,11 @@ def extract_text(result: dict) -> str:
             text = _parts(message.get("parts", []))
             if text:
                 return text
-    state = (result.get("status") or {}).get("state", "?")
+    status = result.get("status") or {}
+    text = _parts((status.get("message") or {}).get("parts", []))
+    if text:
+        return text
+    state = status.get("state", "?")
     raise RuntimeError(f"A2A: the agent returned no text (task state: {state})")
 
 

@@ -20,8 +20,8 @@ Copy each block of commands whole into a terminal in the repo directory.
 ## Contents
 
 - [Step 0. A clean slate](#step-0-a-clean-slate)
-- [Step 1. The environment: Codespaces or a laptop](#step-1-the-environment)
-- [Step 2. The cluster and lesson 1](#step-2-the-cluster-and-lesson-1)
+- [Step 1. The codespace](#step-1-the-codespace)
+- [Step 2. The cluster and lesson 1](#step-2-the-cluster-and-lesson-1) · [Step 3. The model key (optional)](#step-3-the-model-key-optional)
 - [The story in one minute](#-the-story-in-one-minute) · [Lessons 1–10](#-lesson-1-the-cluster-and-the-first-agent)
 - [Finale: the factory on GitHub](#-finale-the-factory-on-github)
 - [Cleaning up](#cleaning-up) · [When something does not work](#when-something-does-not-work) · [What is inside](#what-is-inside)
@@ -44,13 +44,13 @@ You can start any lesson without doing the ones before it.
 | ✏️ | your exercise |
 | 🔴 / 🟢 | what `factory check` should say before / after the exercise |
 | 👀 | look at the output: this is the point of the step |
-| 🔑 | needs a model key (`factory key`); without one, skip it: every lesson passes without a model |
+| 🔑 | needs a model key (`factory key`, Step 3); without one, skip it: every lesson passes without a model |
 
 **🎮 When to open the game** (three moments):
 
 | When | Do this | You see |
 |---|---|---|
-| 1️⃣ Right after `factory start`, before lesson 1 | In **PORTS** open **🎮 Hobby Wizard (your repo)**, port 5173 (on a laptop: `factory play`) | The bug: walk through the bush on the plateau, hold → and the wizard walks left |
+| 1️⃣ Right after `factory start`, before lesson 1 | In **PORTS** open **🎮 Hobby Wizard (your repo)**, port 5173 | The bug: walk through the bush on the plateau, hold → and the wizard walks left |
 | 2️⃣ Lesson 5, after `make fetch` | `factory play fix`, then open **🎮 Hobby Wizard (the fix)**, port 5174 | The agent's fix: the same bush, → walks right. Port 5173 still has the bug |
 | 3️⃣ Finale, when the PR is open | `git fetch origin`, then `factory play agent/issue-<N>`, port 5174 | The game from the pull request's branch, before you merge it |
 
@@ -58,24 +58,13 @@ You can start any lesson without doing the ones before it.
 
 ## Step 0. A clean slate
 
-Only if you have built the factory on this computer before or want to repeat everything from zero.
+Only if you want to repeat everything from zero: delete your codespace (https://github.com/codespaces → **⋯** next
+to it → **Delete**) and create a new one as in Step 1. The fork can stay.
 
-```bash
-kind delete cluster --name factory                                  # the cluster (if there was one)
-docker image rm factory-toolbox:lesson factory-workshop:lesson 2>/dev/null
-rm -f ~/.local/bin/factory ~/.claude/commands/factory-autopilot.md  # the workshop tools
-rm -rf ~/.local/share/factory
-rm -rf ~/tech-week-austin-agentic-sdlc                              # an old clone, if it was here
-```
+## Step 1. The codespace
 
-Check: `kind get clusters` does not print `factory`, and `command -v factory` returns nothing
-(in a new terminal).
-
-## Step 1. The environment
-
-### A. GitHub Codespaces (recommended, you install nothing)
-
-Free for GitHub Free accounts: 120 core-hours and 15 GB a month, which is 30 hours on a 4-core machine.
+The whole workshop runs in GitHub Codespaces, in the browser. You install nothing.
+Codespaces is free for GitHub Free accounts: 120 core-hours and 15 GB a month, which is 30 hours on a 4-core machine.
 When the quota runs out without a card on file, GitHub blocks usage; it does not send a bill.
 
 **The whole way in one picture** (fork → codespace → terminal → the game on port 5173):
@@ -88,106 +77,75 @@ right corner (1). On the next page keep the name and click the green **Create fo
 
 ![The Fork button in the top right corner of the repo](lessons/images/click/1-fork.png)
 
-**2. A codespace on the fork.** You are now on the page of your fork (`<login>/tech-week-austin-agentic-sdlc`).
+**2. Turn on Issues on the fork.** A fork starts with Issues off, and the game's **Raise ticket on GitHub** button
+opens an issue on your fork. On the fork's page: **Settings** → **General** → **Features** → tick **Issues**.
+
+**3. A codespace on the fork.** You are on the page of your fork (`<login>/tech-week-austin-agentic-sdlc`).
 Click the green **Code** (2), the **Codespaces** tab (3) and **Create codespace on main**: on a fresh fork it is a
 big green button, and if you already have a codespace, it is **+** (4). The 4-core machine is the only option, the
 repo requires it. The build takes about 5 minutes.
 
 ![Code, the Codespaces tab, Create codespace](lessons/images/click/2-codespace.png)
 
-**3. Trust the repository.** When you first open a terminal, VS Code asks "Do you trust the authors of the
+**4. Trust the repository.** When you first open a terminal, VS Code asks "Do you trust the authors of the
 files in this folder?". Click **Trust Folder & Continue** (5). Without it the terminal does not start.
 
 ![Trust Folder & Continue](lessons/images/click/3-trust.png)
 
-**4. The terminal.** The **Terminal** tab in the bottom panel (6). If the panel is not there: the **☰** menu in the top
+**5. The terminal.** The **Terminal** tab in the bottom panel (6). If the panel is not there: the **☰** menu in the top
 left corner → **Terminal** → **New Terminal**. The terminal greets you with the first commands of
 "Build a real agentic SDLC platform from scratch". This is where you type the commands from this README (7), starting
 with Step 2. You can dismiss the Red Hat telemetry popup in the bottom right corner (**Deny**).
 
 ![The Terminal tab and the command line](lessons/images/click/4-terminal.png)
 
-**Claude Code on the laptop, the cluster in the codespace (recommended).** Claude logs in on your machine as usual,
-and the factory's commands run in the codespace. On the laptop you need `git`, `gh`, `ssh`, `rsync` (macOS and Linux
-have them; Windows: WSL) and Claude Code.
-
-```bash
-gh auth refresh -h github.com -s codespace          # once: gh may connect to your codespaces
-gh repo clone <login>/tech-week-austin-agentic-sdlc && cd tech-week-austin-agentic-sdlc
-bash lessons/tools/install.sh                       # factory and /factory-autopilot on the laptop
-factory connect                                     # links this directory with your codespace; finds it by itself
-factory map                                         # runs in the codespace, you see the result here
-claude                                              # Claude Code in this directory (or: factory autopilot 1)
-```
-
-After `factory connect` the directory on the laptop is a copy of the repo from the codespace, `.git` included, so lessons
-and tags match. Every `factory …` sends your changes to the codespace, runs there and brings the result back (rsync both
-ways). Any other command goes through `factory cs`: `factory cs make replay O=hw-001`,
-`factory cs kubectl get agent -n factory`. Claude edits files locally; the autopilot tells it to run cluster commands
-through `factory cs`. End of work: `factory disconnect` (the codespace keeps running).
-
-**Claude Code in the codespace itself (when you do not have it on the laptop).** After you log in, claude.ai redirects
-the browser to `http://localhost:…/callback`, and that `localhost` is your laptop, not the codespace. So:
-
-1. In the codespace's terminal: `factory login`. Open the printed link and log in.
-2. The browser ends on a "localhost refused to connect" page. Copy the **whole** address from the bar
-   (`http://localhost:…/callback?code=…`).
-3. Open a second terminal (**+** in the Terminal panel) and type `factory callback '<pasted address>'`.
-
-You do not need Claude to get through the workshop: `factory solve N` solves a lesson without a model.
-
-Or the same from a terminal on the laptop (you only need `gh`):
-
-```bash
-gh auth refresh -h github.com -s codespace          # once; opens a browser
-gh repo fork ArturSkowronski/tech-week-austin-agentic-sdlc --clone=false
-gh codespace create -R <login>/tech-week-austin-agentic-sdlc -b main -m standardLinux32gb
-gh codespace ssh -c <name>                           # the name from: gh codespace list
-```
-
-Check in the codespace's terminal:
+Check in the terminal:
 
 ```bash
 factory                        # prints the list of commands: start, lesson, map, check, solve, autopilot
 git tag -l 'lesson-*' | wc -l  # 10
 ```
 
-**5. The floor, Jaeger and kagent in the browser** (after `factory start` in Step 2). The **Ports** tab next to
+**6. Claude Code (optional).** It is already installed in the codespace. You need it only for `factory autopilot N`;
+`factory solve N` solves a lesson without a model. After you log in, claude.ai redirects the browser to
+`http://localhost:…/callback`, and that `localhost` is not the codespace. So:
+
+1. In the terminal: `factory login`. Open the printed link and log in.
+2. The browser ends on a "localhost refused to connect" page. Copy the **whole** address from the bar
+   (`http://localhost:…/callback?code=…`).
+3. Open a second terminal (**+** in the Terminal panel) and type `factory callback '<pasted address>'`.
+
+**7. The floor, Jaeger and kagent in the browser** (after `factory start` in Step 2). The **Ports** tab next to
 Terminal (8). Hover over the row **The floor (Argo Workflows)** and click the globe icon **Open in Browser** (9).
 The same for **Jaeger (traces)** and **kagent dashboard**. The ports are private: only you see them. `factory urls`
 prints the same addresses as links.
 
 ![The Ports tab and the Open in Browser icon](lessons/images/click/5-ports.png)
 
-From a terminal on the laptop you forward the same ports with
-`gh codespace ports forward 2746:2746 16686:16686 8082:8082 -c <name>`.
-
-### B. A laptop
-
-You need 16 GB of RAM and Docker with at least 8 GB of memory (Docker Desktop: Settings → Resources).
-The prerequisites in detail: [SETUP.md](SETUP.md).
+## Step 2. The cluster and lesson 1
 
 ```bash
-brew install kind kubectl helm argo cosign node pnpm gh jq gettext   # macOS; Linux: binaries from the releases, Windows: WSL2
-gh repo fork ArturSkowronski/tech-week-austin-agentic-sdlc --clone=true
-cd tech-week-austin-agentic-sdlc
-make tools                   # installs factory in ~/.local/bin and /factory-autopilot in Claude Code
-exec $SHELL -l               # the new PATH in this terminal
+factory lesson 1             # the repo on the tag lesson-01; prints "No cluster yet: factory start"
+factory start                # kind + Argo + kagent + Kyverno + Jaeger, 5-10 minutes the first time
 ```
 
-Check: as in Codespaces, `factory` prints the list of commands and `git tag -l 'lesson-*' | wc -l` gives 10.
-If there are 0 tags, `factory lesson 1` fetches them from the instructor's repo by itself.
+At the end of `factory start` you see "The cluster is up", the result of `make doctor` with the cluster's items in
+green, and your addresses. A red item about `origin` means you work on the instructor's repo instead of a fork.
 
-Something else already uses ports 2746, 8082, 8083 or 16686, or you want a second cluster? Put
-`KIND_CLUSTER`, `HALL_PORT`, `KAGENT_API_PORT`, `KAGENT_UI_PORT`, `JAEGER_PORT` (KEY=VALUE lines) in the git-ignored
-`.factory.env` in the repo root before `factory start`.
+```bash
+factory map                  # ✔ L1 an agent as a resource (and L3 context, L10 trace: the cluster has them from the start), the rest greyed out
+kubectl get agent -n factory # probe  … True
+```
 
-### The model key (optional)
+If `factory start` fails: run it again (it is idempotent). If it fails again: `factory reset`.
 
-Without a key everything works in replay mode: instead of an agent the line applies a recorded change. With a key
-(you get one in the room or use your own) the agents really answer.
+## Step 3. The model key (optional)
 
-You set the key after `factory start` (Step 2), because it goes into the cluster:
+Without a key everything works in replay mode: instead of an agent the line applies a recorded change, and
+`factory check` never needs a model. With a key (you get one in the room or use your own) the agents really answer,
+and the steps marked 🔑 work. Skip them if you have no key.
+
+The key goes into the cluster, so set it after `factory start`:
 
 ```bash
 factory key                  # asks for the key: paste and press Enter (it is not shown); works on every lesson
@@ -200,38 +158,19 @@ Paste the key **after the prompt**, not as an argument (the key would stay in th
 Before saving, `factory key` sends one short request and tells you whether the key works (401: a wrong key,
 429: no credit).
 
-Skip the steps marked **(with a key)** if you have none. `factory check` never needs a model.
-
-## Step 2. The cluster and lesson 1
-
-```bash
-factory lesson 1             # the repo on the tag lesson-01; prints "No cluster yet: factory start"
-factory start                # kind + Argo + kagent + Kyverno + Jaeger, 5-10 minutes the first time
-```
-
-At the end of `factory start` you see "The cluster is up. Addresses on localhost", the result of `make doctor` with
-the cluster's items in green, and your addresses. A red item about `origin` means you work on the instructor's repo
-instead of a fork.
-
-```bash
-factory map                  # ✔ L1 an agent as a resource (and L3 context, L10 trace: the cluster has them from the start), the rest greyed out
-kubectl get agent -n factory # probe  … True
-```
-
-If `factory start` fails: run it again (it is idempotent). If it fails again: `factory reset`.
-
 ### 🎮 Play the game first
 
 Before you fix anything, play Hobby Wizard and meet the bug you will fix later.
-In Codespaces the game is already running: open **🎮 Hobby Wizard (your repo)** (port 5173) in the **PORTS** tab.
-On a laptop, or if it is not there:
+The game is already running in the codespace: open **🎮 Hobby Wizard (your repo)** (port 5173) in the **PORTS** tab.
+If it is not there:
 
 ```bash
-factory play                 # the game from your repo, http://localhost:5173 (Ctrl+C stops it)
+factory play                 # the game from your repo on port 5173 (Ctrl+C stops it)
 ```
 
 👀 Arrows walk, Z jumps. Walk through the bush on the plateau: the creature jumps on your hat, and now holding
 **right** walks **left**. That is bug HW-001. The game reloads by itself whenever the files in your repo change.
+**T** (or the **Raise ticket on GitHub** button) opens a prefilled issue on your fork (Issues on, Step 1).
 
 ![HW-001: the creature jumps on the hat in the bush, and holding → walks the wizard left.](lessons/images/gif/play-hw-001-bug.gif)
 <sub>HW-001: the creature jumps on the hat in the bush, and holding → walks the wizard left.</sub>
@@ -283,11 +222,24 @@ p.write_text(p.read_text().replace("      TODO\n", """      You are the intake d
 EOF
 kubectl apply -f platform/kagent/agent-intake.yaml                         # send the new config to the cluster
 kubectl wait --for=condition=Ready agent/intake -n factory --timeout=180s   # wait until the agent is up
-factory check 1              # 🟢 the instructions are written and the agent is running
+factory check 1              # 🟢 the cluster has YOUR instructions (red until you apply them) and the agent is running
 ```
 
 🔑 **With a model key:** ask the agent about a vague task and it answers with 2–4 questions, not code:
-`make a2a A=intake T="Double jump. Players keep asking for a second jump in the air. Add it."`
+`factory ask intake "Double jump. Players keep asking for a second jump in the air. Add it."`
+
+**When does the factory use this agent?** `kubectl apply` puts it to work at once, but only with a model key
+(Step 3). Without a key it is up and Ready and never answers.
+
+| When | Who asks it | What you see |
+|---|---|---|
+| Lesson 1, right after `kubectl apply` | you: `factory ask intake "…"` | its questions in the terminal |
+| Lesson 4, `make intake O=double-jump` | the intake check, when it sends a work order back | its questions under "sent back" (without a key: three fixed questions) |
+| Lesson 5 on, every run of the line | the line's `intake` step, the same way | the questions in the run's `intake.md` |
+| Finale | the line, for an issue without `Criteria:` | its questions as a comment under the issue |
+
+From lesson 2 on, `factory lesson N` deploys the instructor's version of this file (yours goes to `git stash`), so the
+agent you wrote answers only in lesson 1.
 
 ## 🧱 Lesson 2. The workshop and the tools
 
@@ -699,10 +651,9 @@ factory map                  # 🟢 all ten blocks of the factory are working
 ```bash
 factory lesson final         # the repo and the cluster in the state of the finale
 git remote -v                # 👀 origin must be YOUR fork, not ArturSkowronski/…
-gh auth status               # 👀 on a laptop: Logged in, with scopes repo and workflow
 ```
 
-**In Codespaces first log `gh` in with your account (once per codespace, before `make github`).** A codespace has its
+**First log `gh` in with your account (once per codespace, before `make github`).** A codespace has its
 own token (`GITHUB_TOKEN`, it starts with `ghu_`). It pushes code and opens issues, but it cannot change repo settings:
 with it `make github` ends with `HTTP 403 Resource not accessible by integration`.
 
@@ -727,7 +678,7 @@ env -u GITHUB_TOKEN gh auth status   # must say: account <login> (/home/vscode/.
 ```
 
 If you see `(GITHUB_TOKEN)` and `Token: ghu_…`, the login did not work: repeat `gh auth login` above.
-The login survives stopping the codespace. On a laptop this step does not apply: a plain `gh auth login` is enough.
+The login survives stopping the codespace.
 
 Now connect the fork:
 
@@ -777,8 +728,7 @@ with port 5173: the same bush, but the bug from the issue is gone.
 ## Cleaning up
 
 ```bash
-kind delete cluster --name factory               # laptop
-gh codespace delete -c <name>                    # Codespaces
+gh codespace delete -c <name>                    # or: github.com/codespaces → ⋯ → Delete
 ```
 
 The issues and PRs from the finale stay on your fork. If you got a model key in the room, it expires after the workshop.
@@ -787,20 +737,17 @@ The issues and PRs from the finale stay on your fork. If you got a model key in 
 
 | Symptom | What to do |
 |---|---|
-| `factory: command not found` | Codespaces: wait for the container build to finish. Laptop: `make tools`, then a new terminal |
-| `factory start`: not enough memory | Codespaces: the 4-core/16 GB machine. Docker Desktop: Settings → Resources, at least 8 GB |
+| `factory: command not found` | Wait for the codespace's build to finish, then open a new terminal |
+| `factory start`: not enough memory | The codespace must be the 4-core/16 GB machine: create it again from the fork's **Code** → **Codespaces** |
 | `factory start` fails on a timeout | Run it again; then `factory reset` |
 | `factory start`: `ghcr.io … 403: denied` for kagent | An old Docker login to ghcr.io breaks the anonymous chart pull: `docker logout ghcr.io`, then `factory start` |
-| `factory start`: a port is already in use | Other ports in `.factory.env` (`HALL_PORT`, `KAGENT_API_PORT`, `KAGENT_UI_PORT`, `JAEGER_PORT`), then `factory reset` |
 | `make setup failed` during `factory lesson` | Usually the network while building the images: repeat `factory lesson N` |
-| `make test`: no node or pnpm | Node 22 and pnpm (SETUP.md); in Codespaces they are there |
 | A run hangs as Pending | WIP limit 3 and one disk: `argo stop -n factory --all` |
 | A run stands yellow | It waits for a human: `argo list -n factory`, then `make approve W=<name>` |
 | `factory check` red, you do not know why | Compare with `solutions/lesson-NN/*-fN.*`, run `factory autopilot N` or `factory solve N` (no model, prints every step) |
-| `make github`: HTTP 403 "Resource not accessible by integration" | In Codespaces: `env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow`, then `make github` |
-| `factory connect`: "No codespace for …" | `gh auth refresh -h github.com -s codespace`, check `gh codespace list`; or `factory connect <name>` |
-| `factory …` from the laptop: "Cannot send changes to the codespace" | The codespace fell asleep: `gh codespace ssh -c <name> -- true` wakes it, then once more |
-| Claude Code in Codespaces: "localhost refused to connect" after logging in | Copy the address from the bar and in a second terminal `factory callback '<address>'` (Step 1A) |
+| `make github`: HTTP 403 "Resource not accessible by integration" | `env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow`, then `make github` |
+| Claude Code: "localhost refused to connect" after logging in | Copy the address from the bar and in a second terminal `factory callback '<address>'` (Step 1) |
+| **Raise ticket on GitHub** opens a 404 or the repo page | Issues are off on the fork: **Settings** → **Features** → **Issues** (Step 1) |
 | Your changes disappeared after `factory lesson` | They are in `git stash list`; `git stash pop` |
 | `detected dubious ownership` | `git config --global --add safe.directory "$(pwd)"` |
 | The cluster in a strange state after jumping back | `factory reset` (about 10 minutes) |
@@ -819,8 +766,8 @@ All the tool's commands: `factory`. All make targets: `make help`. The autopilot
 | `platform/` | The cluster's manifests: kagent (agents, model), workshop (MCP tools), line (Argo), Kyverno, Jaeger, the GitHub poller |
 | `.github/workflows/factory.yml` | Finale: the factory's gates on GitHub (gates, oracle, review, provenance of the ledger) |
 | `orders/` | Work orders for the factory |
-| `lessons/tools/` | The `factory` CLI and the autopilot prompts. Install: `make tools` |
-| `.devcontainer/` | GitHub Codespaces: the whole stack in the browser |
+| `lessons/tools/` | The `factory` CLI and the autopilot prompts (the codespace installs them; `factory update` refreshes them) |
+| `.devcontainer/` | The codespace: the whole stack in the browser |
 | `lessons/` | Lesson materials, the instructor's notes, the slides |
 
 Each lesson is a tag `lesson-NN`: the lesson's commit contains its infrastructure and exercise, the solution is in

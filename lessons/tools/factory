@@ -11,20 +11,21 @@
 #   factory autopilot N         run Claude Code with the prompt of lesson N (--prompt: print the prompt only)
 #   factory ready [N]           the final files of exercise N in solutions/lesson-NN/*-fN.* (factory lesson makes them too)
 #   factory solve N             swap in the final files, deploy, print every step, check; no model
-#   factory login               log Claude Code in (in Codespaces with factory callback '<address from the browser>')
-#   factory connect [name]      on a laptop: connect a clone of your fork to your codespace; then factory … and factory cs <cmd> run there
+#   factory login               log Claude Code in (then factory callback '<address from the browser>')
+#   factory ask AGENT "TASK"     ask an agent in the cluster over A2A (with a model key), e.g. factory ask intake "Add a double jump"
 #   factory key                 the model key (sk-ant-… Claude API, sk-or-… OpenRouter, sk-proj-… OpenAI); works on every lesson
 #   factory reset               the cluster from scratch (kind delete + start), when the state cannot be saved
-#   factory urls                clickable links to the floor (Argo), Jaeger and kagent: in Codespaces and on a laptop
+#   factory urls                clickable links to the floor (Argo), Jaeger and kagent
 #   factory play [fix|<ref>]    play Hobby Wizard in the browser: now (with its bug), with the factory's fix, or any branch
 #   factory welcome             the welcome and the first steps (works on every lesson)
 #   factory update              fetch the newest tools from main
 # No pipefail: the checks are pipes into grep -q, and grep exits on the first hit while the writer gets SIGPIPE.
-# Keep it bash 3.2 safe (macOS): no associative arrays, no ${var,,}, no mapfile.
 set -u
 
 UPSTREAM=${FACTORY_UPSTREAM:-https://github.com/ArturSkowronski/tech-week-austin-agentic-sdlc.git}
 DATA=${FACTORY_DATA:-$HOME/.local/share/factory}
+# The A2A client from main (installed with the tools): the one in an old lesson tag cannot read an agent that asks back.
+a2a_py() { [ -f "$DATA/sdlc/a2a.py" ] && echo "$DATA/sdlc/a2a.py" || echo sdlc/a2a.py; }
 NS=factory
 
 ok()   { printf '  \033[32m✔\033[0m %s\n' "$*"; }
@@ -33,24 +34,13 @@ skip() { printf '  \033[2m·\033[0m \033[2m%s\033[0m\n' "$*"; }
 info() { printf '\033[1m%s\033[0m\n' "$*"; }
 die()  { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 
-# Settings: the environment, then the git-ignored .factory.env in the repo root (KIND_CLUSTER, ports).
-local_env() {
-  local top f k v; top=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
-  f="$top/.factory.env"; [ -f "$f" ] || return 0
-  while IFS='=' read -r k v; do
-    case "$k" in ''|\#*) continue ;; esac
-    v=${v%\"}; v=${v#\"}
-    [ -n "$(eval "printf '%s' \"\${$k:-}\"")" ] || export "$k=$v"
-  done < "$f"
-}
-local_env
 CLUSTER=${KIND_CLUSTER:-factory}
 HALL_PORT=${HALL_PORT:-2746}
 KAGENT_UI_PORT=${KAGENT_UI_PORT:-8082}
 JAEGER_PORT=${JAEGER_PORT:-16686}
 
 repo() {
-  # A directory mounted with another owner (Codespaces, devcontainer): git refuses to work, so we allow it.
+  # The codespace mounts the repo with another owner: git refuses to work, so we allow it.
   if git status --porcelain 2>&1 | grep -q 'dubious ownership'; then
     git config --global --add safe.directory "$(git status 2>&1 | sed -n "s/.*repository at '\(.*\)'.*/\1/p" | head -1)"
   fi
@@ -58,55 +48,6 @@ repo() {
   [ -d "$top/system" ] && [ -d "$top/sdlc" ] || die "This does not look like the workshop repo: no system/ and sdlc/."
   cd "$top"
 }
-
-# ------------------------------------------------------------------ Claude on the laptop, the cluster in a Codespace
-# factory connect links a clone of your fork on the laptop with your codespace. Then every `factory …` and `factory cs <cmd>`
-# runs in the codespace: rsync sends local changes, the command runs, rsync brings the result back. The laptop stays an
-# exact copy (with .git, so lessons and tags match), and Claude Code works locally on the files.
-CS_EXCLUDE=(--exclude 'node_modules' --exclude '/platform/line/cosign/cosign.key' --exclude '/.git/factory-codespace' --exclude '.DS_Store')
-cs_file() { local t; t=$(git rev-parse --show-toplevel 2>/dev/null) && echo "$t/.git/factory-codespace"; }
-cs_active() { [ -z "${CODESPACES:-}" ] && [ -f "$(cs_file 2>/dev/null)" ]; }
-cs_rsync() { rsync -az --delete "${CS_EXCLUDE[@]}" -e "ssh -F $CS_SSH -o LogLevel=ERROR" "$@"; }
-cs_run() {   # $1: the command (text) to run in the codespace's repo
-  repo; . "$(cs_file)"
-  printf '\033[2m→ codespace %s: %s\033[0m\n' "$CS_NAME" "$1" >&2
-  cs_rsync ./ "$CS_HOST:$CS_DIR/" || die "Cannot send changes to the codespace. Stopped? Start it (gh codespace ssh -c $CS_NAME) or: factory connect"
-  local tty=""; [ -t 0 ] && [ -t 1 ] && tty="-tt"
-  ssh -F "$CS_SSH" -o LogLevel=ERROR $tty "$CS_HOST" "cd '$CS_DIR' && export PATH=\$HOME/.local/bin:\$PATH && $1"; local rc=$?
-  cs_rsync "$CS_HOST:$CS_DIR/" ./ || echo "Warning: could not fetch files from the codespace" >&2
-  return $rc
-}
-
-cmd_connect() {
-  repo
-  [ -z "${CODESPACES:-}" ] || die "You are in a codespace. Run factory connect on the laptop, in a clone of your fork."
-  local t; for t in gh rsync ssh; do command -v "$t" >/dev/null || die "No $t on the laptop."; done
-  local name="${1:-}" gh_repo
-  gh_repo=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/.]+)(\.git)?$#\2#p')
-  if [ -z "$name" ]; then
-    name=$(gh codespace list -R "$gh_repo" --json name -q '.[0].name' 2>/dev/null)
-    [ -n "$name" ] || die "No codespace for $gh_repo. Missing the codespace scope? gh auth refresh -h github.com -s codespace. Or name it: factory connect <name> (list: gh codespace list)."
-  fi
-  info "Connecting this directory with codespace $name (if it sleeps, it wakes up in about a minute)"
-  local cfg="$HOME/.ssh/factory-$name.conf"; mkdir -p "$HOME/.ssh"
-  gh codespace ssh --config -c "$name" > "$cfg" 2>/dev/null && grep -q '^Host ' "$cfg" || die "gh codespace ssh --config failed. Check: gh codespace list, gh auth status (codespace scope)."
-  local host; host=$(awk '/^Host /{print $2; exit}' "$cfg")
-  local dir; dir=$(ssh -F "$cfg" -o LogLevel=ERROR "$host" 'for d in /workspaces/*/; do [ -d "$d/system" ] && [ -d "$d/sdlc" ] && { echo "${d%/}"; break; }; done')
-  [ -n "$dir" ] || die "No workshop repo in the codespace's /workspaces."
-  ssh -F "$cfg" -o LogLevel=ERROR "$host" 'command -v rsync >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq rsync; } >/dev/null' || die "Cannot install rsync in the codespace."
-  if [ -n "$(git status --porcelain)" ]; then
-    git stash push -q -u -m "factory: before connecting to the codespace" && echo "  Your local changes are in git stash (git stash list)."
-  fi
-  printf 'CS_NAME=%q\nCS_HOST=%q\nCS_DIR=%q\nCS_SSH=%q\n' "$name" "$host" "$dir" "$cfg" > "$(git rev-parse --git-dir)/factory-codespace"
-  CS_SSH=$cfg; cs_rsync "$host:$dir/" ./ || die "Could not fetch the repo from the codespace."
-  info "Connected. This directory is a copy of $dir from codespace $name."
-  echo "  factory …               runs in the codespace (sync before and after)"
-  echo "  factory cs <command>    any command in the codespace: make, kubectl, argo"
-  echo "  claude                  Claude Code here, on the laptop; factory autopilot N does the same with the lesson's prompt"
-  echo "  factory disconnect      the end: this directory works on its own again"
-}
-
-cmd_disconnect() { repo; rm -f "$(git rev-parse --git-dir)/factory-codespace"; info "Disconnected. The codespace keeps running; stop it with: gh codespace stop"; }
 
 lesson_no() {
   case "${1:-}" in
@@ -160,15 +101,15 @@ sync() {
 
 preflight() {
   [ "${FACTORY_NO_PREFLIGHT:-0}" = 1 ] && return 0
-  command -v docker >/dev/null && docker info >/dev/null 2>&1 || die "Docker does not run. In Codespaces wait until the container finishes starting; on a laptop start Docker Desktop."
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 || die "Docker does not run yet: wait until the codespace finishes starting, then factory start again."
   local mem; mem=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
-  [ "$mem" -ge 7000000000 ] 2>/dev/null || die "Docker has $((mem / 1024 / 1024 / 1024)) GB of memory, the factory needs at least 8 GB. Codespaces: a 4-core machine (16 GB); Docker Desktop: Settings → Resources."
+  [ "$mem" -ge 7000000000 ] 2>/dev/null || die "Docker has $((mem / 1024 / 1024 / 1024)) GB of memory, the factory needs at least 8 GB. Create the codespace on the 4-core machine (16 GB)."
   local root; root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null); [ -d "$root" ] || root=$HOME
   local free; free=$(df -Pk "$root" 2>/dev/null | awk 'NR==2 {print int($4/1024/1024)}')
   # Right after a codespace starts, Docker reports too little space: read it again, and only warn.
   [ "${free:-0}" -ge 10 ] || { sleep 15; free=$(df -Pk "$root" 2>/dev/null | awk 'NR==2 {print int($4/1024/1024)}'); }
   [ "${free:-0}" -ge 10 ] || echo "Warning: Docker has ${free} GB free, the factory needs about 10 GB. If start fails: docker system prune."
-  for t in kind kubectl helm make git python3 node pnpm jq envsubst; do command -v "$t" >/dev/null || die "No $t. In Codespaces it is there; on a laptop: SETUP.md"; done
+  for t in kind kubectl helm make git python3 node pnpm jq envsubst; do command -v "$t" >/dev/null || die "No $t: the codespace did not finish its setup. Rebuild it: Ctrl+Shift+P → Codespaces: Rebuild Container"; done
 }
 
 cmd_start() {
@@ -269,12 +210,19 @@ check_1() {
   local f=platform/kagent/agent-intake.yaml
   # TODO in the systemMessage field itself (the comments in the header also say "TODO" and do not count)
   grep -qE '^[[:space:]]+TODO[[:space:]]*$' "$f" && no "$f: the systemMessage still says TODO" || ok "the intake agent's instruction is written"
+  # The agent "intake" is in the cluster from the start (with TODO, or an older text), so Ready alone proves nothing:
+  # the instruction in the cluster has to be the one in the file, i.e. it was sent with kubectl apply.
+  local mine theirs
+  mine=$(kubectl create --dry-run=client -f "$f" -o jsonpath='{.spec.declarative.systemMessage}' 2>/dev/null)
+  theirs=$(k get agent intake -o jsonpath='{.spec.declarative.systemMessage}' 2>/dev/null)
+  [ -n "$mine" ] && [ "$mine" = "$theirs" ] && ok "the cluster has the instruction from $f" \
+    || { no "the cluster still has a different instruction than $f: kubectl apply -f $f"; return; }
   k get agent intake -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q True \
-    && ok "the intake agent is deployed and Ready" || { no "the intake agent is not Ready: kubectl apply -f $f"; return; }
+    && ok "the intake agent is deployed and Ready" || { no "the intake agent is not Ready: kubectl wait --for=condition=Ready agent/intake -n $NS --timeout=180s"; return; }
   local key; key=$(k get secret factory-llm -o jsonpath='{.data.LLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null)
   if [ -z "$key" ] || [ "$key" = none ]; then skip "the agent's answer: skipped, no model key (factory key)"; return; fi
   k rollout status deploy/intake --timeout=120s >/dev/null 2>&1   # an agent's Ready is not its pod yet: without this A2A gets connection refused
-  local out; out=$(python3 sdlc/a2a.py --agent intake --task "Double jump. Players keep asking for a second jump in the air. Add it." 2>&1)
+  local out; out=$(python3 "$(a2a_py)" --agent intake --task "Double jump. Players keep asking for a second jump in the air. Add it." 2>&1)
   # A model that is unavailable (limits, no credit, network) is not an exercise error: the instruction and the deployment are checked above.
   if [ $? -ne 0 ] || printf '%s' "$out" | grep -qiE 'A2A (error|HTTP)|429|credit|quota|rate limit|returned no text'; then
     local why; why=$(printf '%s' "$out" | grep -oiE '429|credit[a-z_]*|quota|rate limit|HTTP [0-9]+|connection refused' | head -1)
@@ -465,19 +413,17 @@ cmd_solve() {
   cmd_check "$n"
 }
 
-# Logging Claude Code in, in Codespaces: after login claude.ai redirects to http://localhost:<port>/callback, and that localhost
-# is the laptop, not the codespace. The address from the browser bar has to reach the codespace: factory callback.
+# Logging Claude Code in: after login claude.ai redirects to http://localhost:<port>/callback, and that localhost
+# is the browser's machine, not the codespace. The address from the browser bar has to reach the codespace: factory callback.
 claude_logged_in() { [ -n "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || claude auth status >/dev/null 2>&1; }
 
 login_help() {
   cat <<'TXT'
-  Logging Claude Code in, in Codespaces (once per codespace):
+  Logging Claude Code in (once per codespace):
     1. In this terminal: factory login   (or /login in Claude Code). Open the link and log in.
     2. The browser ends on a page "localhost refused to connect". That is expected: copy the WHOLE address from the bar
        (it starts with http://localhost:...callback?code=...).
     3. A second terminal (+ in the Terminal panel): factory callback 'PASTED_ADDRESS'. The first terminal shows you logged in.
-  Without a browser: claude setup-token on the laptop, and add the token as the Codespaces secret CLAUDE_CODE_OAUTH_TOKEN
-  (github.com/settings/codespaces → New secret, access: your fork), then rebuild or restart the codespace.
 TXT
 }
 
@@ -499,11 +445,6 @@ cmd_autopilot() {
   [ -f "$f" ] || die "No prompt $f. Run: factory update"
   # Inside Claude Code (the /factory-autopilot command) or in a pipe: the prompt only, Claude runs it itself.
   local prompt; prompt=$(cat "$f")
-  if cs_active; then
-    prompt="This directory is a copy of the repo from the codespace where the cluster runs. Run factory commands as usual (they go to the codespace by themselves). Run make, kubectl, argo and python3 sdlc/… through: factory cs <command>. Edit files here, locally.
-
-$prompt"
-  fi
   if [ "${2:-}" = "--prompt" ] || [ -n "${CLAUDECODE:-}" ] || [ ! -t 1 ]; then printf '%s\n' "$prompt"; return 0; fi
   if ! command -v claude >/dev/null || ! claude --version >/dev/null 2>&1; then
     echo "The autopilot runs Claude Code, and this terminal has no claude command."
@@ -516,7 +457,7 @@ $prompt"
   repo
   if ! claude_logged_in; then
     echo "Claude Code is not logged in. Log in once, then run the autopilot again."
-    [ -n "${CODESPACE_NAME:-}" ] && login_help || echo "  claude auth login"
+    login_help
     return 1
   fi
   # The same permissions as the /factory-autopilot command: the list from its allowed-tools header.
@@ -566,15 +507,9 @@ ready() {
 
 cmd_ready() { repo; local n; n=$(lesson_no "${1:-}"); tags; ready "$n" | sed 's/^/  /'; }
 
-# A cluster port in the browser. In Codespaces localhost works only in the codespace's terminal, so we give GitHub's
-# forwarding address (https://<codespace>-<port>.app.github.dev); on a laptop plain localhost.
-url() {
-  if [ -n "${CODESPACE_NAME:-}" ]; then
-    echo "https://${CODESPACE_NAME}-$1.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}$2"
-  else
-    echo "http://localhost:$1$2"
-  fi
-}
+# A cluster port in the browser: localhost works only in the codespace's terminal, so we give GitHub's
+# forwarding address (https://<codespace>-<port>.app.github.dev).
+url() { echo "https://${CODESPACE_NAME:-?}-$1.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}$2"; }
 
 cmd_urls() {
   echo
@@ -586,17 +521,15 @@ cmd_urls() {
   echo "  kagent: the agents in the cluster";             echo "    $(url "$KAGENT_UI_PORT" /)"
   echo "  Hobby Wizard: the game from your repo";          echo "    $(url 5173 /)"
   echo "  Hobby Wizard: the fix (after factory play fix)"; echo "    $(url 5174 /)"
-  if [ -n "${CODESPACE_NAME:-}" ]; then
-    echo "  This codespace's editor";                     echo "    https://${CODESPACE_NAME}.github.dev/"
-    echo
-    echo "  The ports are private: open them in a browser logged in to your GitHub account."
-  fi
+  echo "  This codespace's editor";                     echo "    https://${CODESPACE_NAME:-?}.github.dev/"
+  echo
+  echo "  The ports are private: open them in a browser logged in to your GitHub account."
   cluster_exists || echo "  No cluster yet, so the pages will not answer: factory start first."
   echo
 }
 
 # Play Hobby Wizard in the browser. Before the lessons: the game with its planted bug. After a fix: the same game with it.
-#   factory play                the game as your repo has it now, port 5173 (main keeps bug HW-001); Codespaces starts it for you
+#   factory play                the game as your repo has it now, port 5173 (main keeps bug HW-001); the codespace starts it for you
 #   factory play fix [order]    your repo plus the newest patch the factory fetched (make fetch), default hw-001, port 5174
 #   factory play <git ref>      any branch or commit, e.g. agent/issue-3 after the finale, port 5174
 # A fix or a ref is played from a separate copy ($DATA/play), so your working tree stays as it is.
@@ -627,11 +560,15 @@ cmd_play() {
     [ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile) || die "pnpm install failed in system/."
   fi
   (cd "$dir/system" && pnpm run assets >/dev/null 2>&1) || die "Building the game's assets failed (pnpm assets in system/)."
+  # "Raise ticket on GitHub" (T) opens a prefilled issue: on your fork, not on the game's own repository.
+  local fork; fork=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p'); fork=${fork%.git}
+  [ -n "$fork" ] && export VITE_GITHUB_REPO="$fork"
   echo
   echo "  🎮 Hobby Wizard: $label"
   echo "     $(url "$port" /)"
   echo
   echo "  Keys: arrows walk, Z jumps, X charges, T raises a ticket. HW-001: walk through the bush on the plateau, hold right."
+  [ -n "${VITE_GITHUB_REPO:-}" ] && echo "  Tickets go to https://github.com/$VITE_GITHUB_REPO/issues (Issues must be on: the fork's Settings → Features → Issues)."
   echo "  Ctrl+C stops the game."
   echo
   cd "$dir/system" && __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.app.github.dev,.github.dev exec pnpm exec vite --host 0.0.0.0 --port "$port" --strictPort --clearScreen false
@@ -640,6 +577,13 @@ cmd_play() {
 cmd_welcome() {
   local w="$DATA/welcome.txt"
   [ -f "$w" ] && cat "$w" || help
+}
+
+# Ask an agent over A2A with the client from the tools, on any lesson.
+cmd_ask() {
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || die "factory ask AGENT \"TASK\", e.g. factory ask intake \"Double jump. Players keep asking for a second jump in the air. Add it.\""
+  repo; cluster_exists || die "No cluster: factory start"; context
+  python3 "$(a2a_py)" --agent "$1" --task "$2"
 }
 
 # The model key: the script from the tools (from main), so every lesson tag uses the same, newest version.
@@ -652,26 +596,14 @@ cmd_key() {
 
 cmd_update() {
   local tmp; tmp=$(mktemp -d)
-  if git rev-parse --show-toplevel >/dev/null 2>&1 && git fetch -q origin main 2>/dev/null && git archive FETCH_HEAD lessons/tools scripts/key.sh .devcontainer/welcome.txt 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then :;
-  else git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD lessons/tools scripts/key.sh .devcontainer/welcome.txt | tar -x -C "$tmp" || die "Could not fetch the tools."; fi
+  if git rev-parse --show-toplevel >/dev/null 2>&1 && git fetch -q origin main 2>/dev/null && git archive FETCH_HEAD lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then :;
+  else git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt | tar -x -C "$tmp" || die "Could not fetch the tools."; fi
   bash "$tmp/lessons/tools/install.sh"; rm -rf "$tmp"
 }
 
 help() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
 
-# Codespace mode (a laptop after factory connect): the factory's commands run where the cluster is.
-if cs_active; then
-  case "${1:-help}" in
-    connect|disconnect|autopilot|login|callback|welcome|update|help|-h) ;;
-    cs) shift; [ $# -gt 0 ] || die "Name a command: factory cs make replay O=hw-001"; cs_run "$*"; exit $? ;;
-    *) cs_run "factory $(printf '%q ' "$@")"; exit $? ;;
-  esac
-fi
-
 case "${1:-help}" in
-  connect) cmd_connect "${2:-}" ;;
-  disconnect) cmd_disconnect ;;
-  cs) die "factory cs works after connecting to a codespace: factory connect" ;;
   start) cmd_start ;;
   lesson) cmd_lesson "${2:-}" ;;
   map) cmd_map ;;
@@ -686,6 +618,7 @@ case "${1:-help}" in
   play) cmd_play "${2:-}" "${3:-}" ;;
   welcome) cmd_welcome ;;
   key) cmd_key ;;
+  ask) cmd_ask "${2:-}" "${3:-}" ;;
   update) cmd_update ;;
   sync) repo; sync ;;
   *) help ;;
