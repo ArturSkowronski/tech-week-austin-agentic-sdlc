@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup send doctor lesson key a2a port-forward floor test agents-md
+.PHONY: help cluster setup send doctor lesson key a2a port-forward floor test route agents-md
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -42,6 +42,10 @@ floor: ## Open the factory floor (Argo UI), the kagent dashboard and Jaeger in t
 test: ## The game's gate: typecheck, lint with the architecture rules, tests, bugs:check (system/)
 	@[ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile)
 	@bash sdlc/build.sh system
+
+route: ## Routing, locally: make route O=hw-001 (a work order file) or make route T="title" [B="body"]
+	@if [ -n "$(O)" ]; then python3 sdlc/context.py route --title "$$(python3 sdlc/orders.py $(O) --title)" --body "$$(python3 sdlc/orders.py $(O) --body)"; \
+	else python3 sdlc/context.py route --title "$(T)" --body "$(B)"; fi
 
 agents-md: ## Rebuild AGENTS.md from the sources (module.json, system/docs, ops, history)
 	@python3 sdlc/context.py agents-md
