@@ -23,6 +23,7 @@ Architecture rules (`system/architecture/rules.js`; they break the build and can
 - `sim_does_not_import_render`: game/sim is the pure simulation and never imports the renderer or PixiJS, see docs/plan/02-design/simulation-architecture.md
 - `sim_has_no_browser`: game/sim runs in Node, in a test and in a replay: no window, document, localStorage or fetch, see docs/plan/02-design/simulation-architecture.md
 - `game_does_not_log`: game/ reports through WorldState.events and the waterfall of logs, not console; a console line is noise a visitor never sees, see AGENTS.md
+- `sim_is_deterministic`: game/sim is deterministic: randomness comes from nextRandom(state) and time from state.tick, never Math.random, Date, performance.now or timers, so a replay stays a replay, see docs/plan/02-design/simulation-architecture.md
 
 Conventions (`system/AGENTS.md`):
 

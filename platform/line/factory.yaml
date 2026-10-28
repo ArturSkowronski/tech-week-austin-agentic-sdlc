@@ -1,7 +1,7 @@
-# The factory's production line (lesson 6). One run = one attempt at one work order:
+# The factory's production line (lesson 7). One run = one attempt at one work order:
 #   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
-#   → 🧱 quality control (build with the architecture rules + test weakening ‖ secrets, then mutation) → result
-# Run it: make order O=hw-001 [AGENT=replay]. The graph and the logs: the floor (Argo UI).
+#   → 🧱 quality control (build ‖ secrets, then the oracle from main, then mutation) → result
+# Run it: make order O=startle [AGENT=replay]. The graph and the logs: the floor (Argo UI).
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -51,7 +51,7 @@ spec:
             arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
 
     # Quality control: deterministic, no model, out of the agent's reach. A red gate does not stop the others:
-    # the factory wants the full picture before it decides. Mutation runs after the build.
+    # the factory wants the full picture before it decides. Mutation runs after the oracle.
     - name: quality
       inputs:
         parameters: [{name: order}, {name: attempt}]
@@ -87,9 +87,26 @@ spec:
                     if [ $code -eq 0 ]; then printf '### 🔑 Secrets: ✅ gitleaks found nothing\n' > "$OUT/quality-3-secrets.md"
                     else printf '### 🔑 Secrets: ❌ gitleaks found a secret in the commits of the change\n' > "$OUT/quality-3-secrets.md"; fi
                     echo "$code" > "$OUT/quality-3-secrets.exit"; exit $code
-          - name: mutation
+          - name: oracle
             template: step
             dependencies: [build]
+            continueOn: {failed: true}
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    # Scenarios always from main, never from the change's branch: the agent cannot change them or add to them.
+                    rm -rf scenarios && git checkout -q main -- scenarios
+                    title=$(jq -r .title .sdlc/order.json)
+                    set +e; python3 sdlc/scenarios.py run --work-order "$title" > "$OUT/quality-5-oracle.md"; code=$?; set -e
+                    cat "$OUT/quality-5-oracle.md"; cp .sdlc/scenarios.json "$OUT/oracle.json"
+                    git checkout -q -- scenarios 2>/dev/null || true
+                    echo "$code" > "$OUT/quality-5-oracle.exit"; exit $code
+          - name: mutation
+            template: step
+            dependencies: [oracle]
             continueOn: {failed: true}
             arguments:
               parameters:

@@ -38,6 +38,21 @@ export const architecture = [
       'no-restricted-properties': ['error', { object: 'console', message: because }],
     }),
   ),
-  // TODO(lesson 6): game/sim is deterministic. Randomness comes from nextRandom(state) and time from
-  // state.tick: no Math.random, no Date, no performance.now, no timers. Today only review watches this.
+  rule(
+    'sim_is_deterministic',
+    'game/sim is deterministic: randomness comes from nextRandom(state) and time from state.tick, never Math.random, Date, performance.now or timers, so a replay stays a replay, see docs/plan/02-design/simulation-architecture.md',
+    ['game/sim/**/*.ts'],
+    (because) => ({
+      'no-restricted-syntax': [
+        'error',
+        ...[
+          "MemberExpression[object.name='Math'][property.name='random']",
+          "NewExpression[callee.name='Date']",
+          "MemberExpression[object.name='Date']",
+          "MemberExpression[object.name='performance']",
+          "CallExpression[callee.name=/^(setTimeout|setInterval|requestAnimationFrame)$/]",
+        ].map((selector) => ({ selector, message: because })),
+      ],
+    }),
+  ),
 ];
