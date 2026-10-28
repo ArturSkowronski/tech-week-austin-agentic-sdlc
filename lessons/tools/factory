@@ -7,6 +7,7 @@
 #   factory start               kind cluster + everything the current lesson needs, then doctor
 #   factory lesson N            the repo and the cluster in the state of lesson N (1-10, final): tag, stash your changes, sync the cluster
 #   factory map                 which blocks of the factory work in this repo and cluster
+#   factory doctor              the state of the setup: codespace, tools, cluster, agents, the model key, the game, Issues
 #   factory check [N]           is the exercise of lesson N done (deterministic, no model)
 #   factory autopilot N         run Claude Code with the prompt of lesson N (--prompt: print the prompt only)
 #   factory ready [N]           the final files of exercise N in solutions/lesson-NN/*-fN.* (factory lesson makes them too)
@@ -73,9 +74,28 @@ tags() {
 }
 
 # ------------------------------------------------------------------ the cluster in the state of the current lesson
+# The lesson tags carry an A2A client that cannot read an agent that asks back (intake: input-required). The tools
+# carry the fixed one from main: one commit on branch work, so make a2a, make intake and the line's images use it.
+a2a_fix() {
+  local mine="$DATA/sdlc/a2a.py"
+  [ -f "$mine" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$mine" sdlc/a2a.py || return 0
+  cp "$mine" sdlc/a2a.py
+  git -c user.name=factory -c user.email=factory@workshop commit -q --no-verify -m "factory: the A2A client from main" -- sdlc/a2a.py >/dev/null 2>&1 \
+    && echo "sdlc/a2a.py: the client from main (one commit on branch work)"
+}
+
+# factory key saves the API address and the model (never the key) in $DATA/model.env. cluster.sh of every lesson applies
+# the ModelConfig with the defaults (OpenAI), so after it we put back the model the key was tested with.
+model_restore() {
+  [ -f "$DATA/model.env" ] && [ -f platform/kagent/modelconfig.yaml ] || return 0
+  ( . "$DATA/model.env"; LLM_MODEL="$LLM_MODEL" LLM_BASE_URL="$LLM_BASE_URL" envsubst < platform/kagent/modelconfig.yaml | kubectl apply -f - >/dev/null 2>&1 ) || true
+}
+
 sync() {
   cluster_exists || die "No kind cluster \"$CLUSTER\". First: factory start"
   context
+  a2a_fix
+  model_restore
   if has_target setup; then
     info "Cluster: make setup (images, workshop, agents, line; a few minutes the first time)"
     make -s setup || die "make setup failed. Show this log to the instructor or try: factory reset"
@@ -136,6 +156,7 @@ cmd_lesson() {
     git stash push -q -u -m "factory: before lesson $n" && echo "Your changes are in git stash (git stash list)."
   fi
   git switch -q -C work "$target" || die "Could not switch to $target."
+  a2a_fix
   date -u +%Y-%m-%dT%H:%M:%SZ > "$(git rev-parse --git-dir)/factory-lesson"   # runs of this lesson count from now
   echo "Branch work = $( [ "$n" = final ] && echo 'main (finale)' || echo "$target" )"
   cluster_exists && sync || echo "No cluster yet: factory start"
@@ -579,6 +600,84 @@ cmd_welcome() {
   [ -f "$w" ] && cat "$w" || help
 }
 
+# factory doctor: the state of the whole setup in one place, from the tools (main), so it works on every lesson.
+# Every red line says what to run. The model test asks the agent probe one short question (only with a key).
+cmd_doctor() {
+  repo; RED=0
+  info "Codespace and tools"
+  [ -n "${CODESPACE_NAME:-}" ] && ok "codespace $CODESPACE_NAME" || no "not in a codespace: the workshop runs only in GitHub Codespaces (README, Step 1)"
+  [ -f "$DATA/sdlc/a2a.py" ] && [ -f "$DATA/completion.bash" ] && ok "the factory tools are current" || no "old factory tools: factory update, then a new terminal"
+  docker info >/dev/null 2>&1 && ok "Docker runs" || no "Docker does not run yet: wait until the codespace finishes starting"
+
+  info "Repo"
+  ok "$(git describe --tags --match 'lesson-*' 2>/dev/null || echo '?'), branch $(git branch --show-current)"
+  local origin fork; origin=$(git remote get-url origin 2>/dev/null)
+  fork=$(printf '%s' "$origin" | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/]+)$#\2#p'); fork=${fork%.git}
+  case "$fork" in
+    ArturSkowronski/*|VirtusLab/*|"") no "origin is not your fork ($origin): fork the repo and create the codespace on the fork" ;;
+    *) ok "origin: your fork $fork" ;;
+  esac
+  if [ -f "$DATA/sdlc/a2a.py" ]; then
+    cmp -s "$DATA/sdlc/a2a.py" sdlc/a2a.py && ok "sdlc/a2a.py reads an agent that asks back" || no "sdlc/a2a.py is the old client (make a2a A=intake fails): factory sync"
+  fi
+
+  info "Cluster"
+  cluster_exists || { no "no cluster: factory start"; echo; info "factory doctor: red."; return 1; }
+  context; ok "kind cluster $CLUSTER"
+  local a st
+  for a in $(k get agent -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+    st=$(k get agent "$a" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+    [ "$st" = True ] && ok "agent $a Ready" || no "agent $a is not Ready: kubectl describe agent $a -n $NS"
+  done
+  local f=platform/kagent/agent-intake.yaml mine theirs
+  if [ -f "$f" ] && ! grep -qE '^[[:space:]]+TODO[[:space:]]*$' "$f"; then
+    mine=$(kubectl create --dry-run=client -f "$f" -o jsonpath='{.spec.declarative.systemMessage}' 2>/dev/null)
+    theirs=$(k get agent intake -o jsonpath='{.spec.declarative.systemMessage}' 2>/dev/null)
+    [ -n "$mine" ] && [ "$mine" = "$theirs" ] && ok "intake runs the instruction from $f" || no "intake in the cluster differs from $f: kubectl apply -f $f"
+  else
+    skip "intake: the instruction in $f is still TODO (lesson 1)"
+  fi
+
+  info "Model key"
+  local key url model kind want
+  key=$(k get secret factory-llm -o jsonpath='{.data.LLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null)
+  url=$(k get modelconfig factory-model -o jsonpath='{.spec.openAI.baseUrl}' 2>/dev/null)
+  model=$(k get modelconfig factory-model -o jsonpath='{.spec.model}' 2>/dev/null)
+  if [ -z "$key" ] || [ "$key" = none ]; then
+    skip "no key: replay mode, every lesson passes without a model (factory key to add one)"
+  else
+    case "$key" in
+      sk-ant-*) kind="Claude API"; want=api.anthropic.com ;;
+      sk-or-*)  kind=OpenRouter;   want=openrouter.ai ;;
+      sk-*)     kind=OpenAI;       want=api.openai.com ;;
+      *)        kind="another API"; want="" ;;
+    esac
+    ok "key: $kind (${key:0:7}…), model $model at $url"
+    case "$url" in *"$want"*) ;; *) no "the key is for $kind, the model goes to $url: factory key again" ;; esac
+    # The agents read the key when their pod starts: a pod older than the key still has the old one.
+    local since old; since=$(k get secret factory-llm -o jsonpath='{.metadata.managedFields[*].time}' 2>/dev/null | tr ' ' '\n' | sort | tail -1)
+    old=$(k get pods -l app=kagent -o jsonpath='{range .items[*]}{.status.startTime} {.metadata.labels.kagent}{"\n"}{end}' 2>/dev/null \
+      | awk -v s="$since" '$1 < s {print $2}' | sort -u | tr '\n' ' ')
+    [ -z "$old" ] && ok "every agent started after the key was set" || no "these agents still have the old key: ${old}(factory key again, or kubectl rollout restart deploy -n $NS -l app=kagent)"
+    local out; out=$(timeout 90 python3 "$(a2a_py)" --agent probe --task "Answer with one word: ok" 2>&1)
+    if [ $? -eq 0 ]; then ok "the model answers (agent probe: $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-40))"
+    else no "the model does not answer: $(printf '%s' "$out" | tail -1 | cut -c1-110)"; fi
+  fi
+
+  info "Game and GitHub"
+  curl -fsS -m 3 -o /dev/null http://localhost:5173/ 2>/dev/null && ok "the game runs on port 5173" || no "the game does not run: factory play (in a separate terminal)"
+  if [ -n "$fork" ] && command -v gh >/dev/null; then
+    case "$(gh api "repos/$fork" --jq .has_issues 2>/dev/null)" in
+      true)  ok "Issues on the fork are on (Raise ticket on GitHub works)" ;;
+      false) no "Issues on the fork are off: https://github.com/$fork/settings → Features → Issues" ;;
+      *)     skip "could not read the fork's settings (gh)" ;;
+    esac
+  fi
+  env -u GITHUB_TOKEN gh auth status >/dev/null 2>&1 && ok "gh logged in with your account (finale)" \
+    || skip "gh with your own account: needed only in the finale (env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow)"
+  echo; [ $RED = 0 ] && info "factory doctor: green." || { info "factory doctor: red. Run what the red lines say."; return 1; }
+}
+
 # Ask an agent over A2A with the client from the tools, on any lesson.
 cmd_ask() {
   [ -n "${1:-}" ] && [ -n "${2:-}" ] || die "factory ask AGENT \"TASK\", e.g. factory ask intake \"Double jump. Players keep asking for a second jump in the air. Add it.\""
@@ -591,7 +690,7 @@ cmd_key() {
   repo; [ -f "$DATA/key.sh" ] || die "No key script in the tools. Run: factory update"
   cluster_exists || die "The key goes into the cluster, and there is no cluster yet: factory start first."
   context
-  FACTORY_REPO=$PWD bash "$DATA/key.sh"
+  FACTORY_REPO=$PWD FACTORY_MODEL_ENV="$DATA/model.env" bash "$DATA/key.sh"
 }
 
 cmd_update() {
@@ -601,7 +700,7 @@ cmd_update() {
   bash "$tmp/lessons/tools/install.sh"; rm -rf "$tmp"
 }
 
-help() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+help() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; }
 
 case "${1:-help}" in
   start) cmd_start ;;
@@ -619,6 +718,7 @@ case "${1:-help}" in
   welcome) cmd_welcome ;;
   key) cmd_key ;;
   ask) cmd_ask "${2:-}" "${3:-}" ;;
+  doctor) cmd_doctor ;;
   update) cmd_update ;;
   sync) repo; sync ;;
   *) help ;;

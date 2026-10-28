@@ -6,6 +6,7 @@
   3. factory map            which blocks of the factory already work
   4. factory check 1        is the exercise done
   5. factory urls           clickable links to the floor (Argo), Jaeger and kagent
+  6. factory doctor         is everything set: the cluster, the agents, the key, the game, Issues
 
   Claude Code is installed here: factory login, then factory autopilot 1 (README, Step 1).
   The model key (optional, after factory start): factory key.

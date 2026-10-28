@@ -110,6 +110,7 @@ The `factory` tool is installed outside the repo, so jumping between tags does n
 | nobody knows whether the exercise is done | `factory check N`: deterministic, no model |
 | the exercise does not work out | `factory autopilot N` (starts Claude Code), the ready variant in `solutions/lesson-NN/`, as a last resort `factory solve N` |
 | nobody understands what we have built so far | `factory map` on the projector: the factory's blocks light up lesson by lesson |
+| something is off and nobody knows what | `factory doctor`: every red line says what to run |
 | the cluster in a strange state | `factory reset` (10 minutes, so rather a break) |
 
 The autopilot never approves for a human: at `make approve` and at the PR it stops and asks.

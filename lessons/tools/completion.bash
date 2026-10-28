@@ -7,7 +7,7 @@
 _factory() {
   local cur=${COMP_WORDS[COMP_CWORD]} prev=${COMP_WORDS[COMP_CWORD-1]} words
   if [ "$COMP_CWORD" -eq 1 ]; then
-    words="start lesson map check solve autopilot ready ask key play urls login callback reset welcome update help"
+    words="start lesson map doctor check solve autopilot ready ask key play urls login callback reset welcome update help"
   else
     case "${COMP_WORDS[1]}" in
       lesson|check|solve|autopilot|ready)

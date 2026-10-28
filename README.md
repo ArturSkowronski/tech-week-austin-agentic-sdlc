@@ -157,7 +157,13 @@ Paste the key **after the prompt**, not as an argument (the key would stay in th
 `sk-ant-…` is the Claude API (Anthropic, model `claude-sonnet-5`), `sk-or-…` is OpenRouter, `sk-proj-…` is OpenAI
 (model `gpt-5.4`). Another model: `LLM_MODEL=claude-opus-5-5 factory key`.
 Before saving, `factory key` sends one short request and tells you whether the key works (401: a wrong key,
-429: no credit).
+429: no credit). Then it restarts the agents and waits until they are up: they read the key when they start.
+
+**Another key or another model:** run `factory key` again, nothing else. The factory remembers the API and the model,
+so `factory lesson N` and `factory start` keep them. After `factory reset` the cluster is new: `factory key` once more.
+
+**Is everything set?** `factory doctor` checks the codespace, the tools, the cluster and its agents, the key (and asks
+an agent one question), the game and Issues on your fork. Every red line says what to run.
 
 ### 🎮 Play the game first
 
@@ -740,6 +746,8 @@ The issues and PRs from the finale stay on your fork. If you got a model key in 
 |---|---|
 | `factory: command not found` | Wait for the codespace's build to finish, then open a new terminal |
 | `factory start`: not enough memory | The codespace must be the 4-core/16 GB machine: create it again from the fork's **Code** → **Codespaces** |
+| Not sure what is wrong | `factory doctor`: every red line says what to run |
+| `make a2a A=intake …`: "the agent returned no text (task state: input-required)" | `factory update`, then `factory sync` (the fixed A2A client on your branch), or ask with `factory ask intake "…"` |
 | `factory start` fails on a timeout | Run it again; then `factory reset` |
 | `factory start`: `ghcr.io … 403: denied` for kagent | An old Docker login to ghcr.io breaks the anonymous chart pull: `docker logout ghcr.io`, then `factory start` |
 | `make setup failed` during `factory lesson` | Usually the network while building the images: repeat `factory lesson N` |
