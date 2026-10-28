@@ -263,7 +263,10 @@ factory check 1              # 🔴 expected: the intake agent's instructions st
 ```
 
 ✏️ **Exercise:** write the instructions of the `intake` agent. Its only job: ask what is missing from a task, never write code.
-Open `platform/kagent/agent-intake.yaml` and replace `TODO` under `systemMessage` with your own text, or paste this:
+Open `platform/kagent/agent-intake.yaml` and replace `TODO` under `systemMessage` with your own text, or open the solution below:
+
+<details>
+<summary>💡 Solution and check</summary>
 
 ```bash
 python3 - <<'EOF'
@@ -285,6 +288,8 @@ kubectl apply -f platform/kagent/agent-intake.yaml                         # sen
 kubectl wait --for=condition=Ready agent/intake -n factory --timeout=180s   # wait until the agent is up
 factory check 1              # 🟢 the instructions are written and the agent is running
 ```
+
+</details>
 
 🔑 **With a model key:** ask the agent about a vague task and it answers with 2–4 questions, not code:
 `make a2a A=intake T="Double jump. Players keep asking for a second jump in the air. Add it."`
@@ -312,6 +317,9 @@ then `make send` to put the original files back in the cluster.
 
 ✏️ **Exercise:** tell the tool server which folders the agent may never write to. Set `PROTECTED_PATHS` in `platform/workshop/mcpserver.yaml`:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 python3 - <<'EOF'
 import re
@@ -325,6 +333,8 @@ kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for th
 factory check 2              # 🟢 all three writes are now refused by the server
 kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl   # 👀 the log of tool calls: a refused try shows up as gate.tamper_attempt
 ```
+
+</details>
 
 ## 🧭 Lesson 3. Context L1–L5
 
@@ -344,6 +354,9 @@ factory check 3              # 🔴 expected: the bug is sent to the wrong modul
 
 ✏️ **Exercise:** write down that the game's simulation (`sim`) owns the creature and the controls (ADR-011). Fill in `owns` in `system/game/sim/module.json`:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 python3 - <<'EOF'
 import json
@@ -358,6 +371,8 @@ make agents-md               # rebuild the guide the agent reads before it start
 git diff --stat              # 👀 two files changed: module.json and AGENTS.md
 factory check 3              # 🟢 HW-001 goes to sim and the guide is up to date
 ```
+
+</details>
 
 ## 📋 Lesson 4. Intake of a work order
 
@@ -378,6 +393,9 @@ factory check 4              # 🔴 expected: orders/double-jump.md has no Crite
 
 ✏️ **Exercise:** write when the double jump is "done". Use numbers and the game's own words, not adjectives:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 cat >> orders/double-jump.md <<'EOF'
 
@@ -389,6 +407,8 @@ EOF
 make intake O=double-jump    # 👀 accepted now (with a note: no hidden tests exist for it yet)
 factory check 4              # 🟢 the task is accepted
 ```
+
+</details>
 
 ## 🏭 Lesson 5. The line
 
@@ -408,6 +428,9 @@ factory check 5              # 🔴 expected: nothing has gone through the pipel
 
 ✏️ **Exercise:** send bug HW-001 through the pipeline. First with a recorded fix (no model needed), then with a real agent.
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 make replay O=hw-001         # run the pipeline with the recorded fix; 1–2 minutes, ends with "Result: Succeeded"
 make fetch                   # copy the results from the cluster to .sdlc/out/
@@ -415,6 +438,8 @@ cat .sdlc/out/hw-001/attempt-1/description.md              # 👀 what the agent
 git apply --stat .sdlc/out/hw-001/attempt-1/change.patch   # 👀 which files the fix touches: input-map.ts and the bug list
 factory check 5              # 🟢 the bug went through the pipeline and you have the patch
 ```
+
+</details>
 
 👀 **Watch it:** `factory urls` → open the floor (Argo) → run `factory-hw-001-…`: the steps prepare → intake → builder → change.
 🔑 **With a model key:** `make order O=hw-001` runs a real agent (2–5 minutes). In a second terminal,
@@ -443,6 +468,9 @@ factory check 6              # 🔴 expected: the rule file still says TODO
 ```
 
 ✏️ **Exercise:** add a rule to the code checks (ESLint): the game's physics in `game/sim` may not use random numbers or the clock:
+
+<details>
+<summary>💡 Solution and check</summary>
 
 ```bash
 python3 - <<'EOF'
@@ -478,6 +506,8 @@ grep -A3 'Architecture rule violated' .sdlc/out/startle/attempt-1/quality-1-buil
 factory check 6              # 🟢 good code passes, the bad change is caught
 ```
 
+</details>
+
 ## 🔮 Lesson 7. The oracle
 
 😬 **The problem:** If the agent can read the acceptance tests, it writes code to pass those tests, not to do what was asked. Then the tests stop telling you anything.
@@ -498,6 +528,9 @@ factory check 7              # 🔴 expected: the agent can still read those hid
 
 ✏️ **Exercise:** hide the tests written by people (`scenarios/`) from the agent, so it cannot even read them:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 python3 - <<'EOF'
 import re
@@ -509,6 +542,8 @@ kubectl apply -f platform/workshop/mcpserver.yaml                  # send the ne
 kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for the server to restart
 factory check 7              # 🟢 reading the hidden tests is refused, and the lesson 2 wall still stands
 ```
+
+</details>
 
 🔑 **With a model key:** ask the agent to read a hidden test. Before your change it happily summarizes it; after it, it gets "Rejected: … is out of the agent's reach":
 `make a2a A=builder T="Read scenarios/startle/startle.test.ts and summarize what it checks"`
@@ -534,6 +569,9 @@ factory check 8              # 🔴 expected: the AI reviewer has no rule about 
 
 ✏️ **Exercise:** give the AI reviewer one precise rule, with what a good and a bad change look like:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 python3 - <<'EOF'
 import json
@@ -553,6 +591,8 @@ python3 -m json.tool sdlc/review-rules.json > /dev/null && echo "JSON OK"   # th
 factory check 8              # 🟢 the reviewer has the rule: "freeze the controls, not the physics"
 ```
 
+</details>
+
 🔑 **With a model key:** `make send && make order O=startle`, and the reviewer points at the exact bug in attempt 1.
 
 ## 🚥 Lesson 9. Lights, WIP and policy
@@ -571,6 +611,9 @@ factory check 9              # 🔴 expected: A. the pipeline never stops for a 
 ```
 
 ✏️ **Exercise A:** make the pipeline stop and wait for a person. The `human` step gets a `wait` (pause) inside:
+
+<details>
+<summary>💡 Solution and check</summary>
 
 ```bash
 python3 - <<'EOF'
@@ -617,6 +660,8 @@ argo lint --offline platform/line/factory.yaml    # check the file: "no linting 
 make line                                         # send the new pipeline to the cluster
 ```
 
+</details>
+
 Try it. HW-001 changes the game's physics (`game/sim`), which is risky (ADR-011), so the run stops and turns
 yellow on the floor. Use a **second terminal** to approve it:
 
@@ -627,6 +672,9 @@ make approve W=<run name>          # terminal 2: approve it; your name is record
 ```
 
 ✏️ **Exercise B:** add a cluster rule (Kyverno): the coding agent may only use the tools of our tool server, nothing else:
+
+<details>
+<summary>💡 Solution and check</summary>
 
 ```bash
 kubectl apply --dry-run=server -f platform/kyverno/test/bad-agent.yaml   # 👀 an agent with extra tools is accepted: that is the hole
@@ -643,6 +691,8 @@ kubectl apply --dry-run=server -f platform/kyverno/test/bad-agent.yaml   # 👀 
 kubectl apply --dry-run=server -f platform/kagent/agent-builder.yaml     # 👀 the real agent is still allowed
 factory check 9              # 🟢 A. the pipeline waits for a person, B. the bad agent is refused
 ```
+
+</details>
 
 ## 🧾 Lesson 10. The trace and the floor
 
@@ -666,6 +716,9 @@ factory check 10             # 🟢 the log is whole and correctly signed
 
 ✏️ **Exercise:** try to fake the log. Change one word and see the check catch it:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 L=.sdlc/out/startle/attempt-2/ledger.jsonl
 cp $L /tmp/ledger-copy.jsonl                     # keep a copy
@@ -674,6 +727,8 @@ make ledger-verify F=$L      # 👀 caught: it names the changed line, and the s
 cp /tmp/ledger-copy.jsonl $L                     # put the original back
 make ledger-verify F=$L      # 👀 OK again
 ```
+
+</details>
 
 👀 **The summary card:** `cat .sdlc/out/startle/attempt-2/card.md`: how many attempts, the decision, who approved.
 🔑 **With a model key:** open Jaeger (`factory urls`), service `builder`, the newest trace: every model call and tool
@@ -755,6 +810,9 @@ waits for you. A low-risk task with hidden tests (`hud-speed`) would merge by it
 
 ✏️ **Exercise:** add a "quick fix" by hand on the agent's branch, after the checks. The provenance check notices that the code is no longer the code the factory checked and signed:
 
+<details>
+<summary>💡 Solution and check</summary>
+
 ```bash
 git stash -u                 # put local files aside (your cluster's key would block switching branches)
 git fetch origin && git switch agent/issue-<N>   # go to the agent's branch
@@ -767,6 +825,8 @@ sleep 30
 gh pr checks <PR number> --watch   # 🟢 provenance is green again
 git switch work && git stash pop                 # back to where you were
 ```
+
+</details>
 
 🎮 **Play the PR:** `factory play agent/issue-<N>` starts the game from the agent's branch on port 5174. Compare it
 with port 5173: the same bush, but the bug from the issue is gone.
