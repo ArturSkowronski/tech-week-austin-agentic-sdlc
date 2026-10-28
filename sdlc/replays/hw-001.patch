@@ -1,0 +1,90 @@
+diff --git a/system/bugs/manifest.json b/system/bugs/manifest.json
+index 1e20218..5ca22b3 100644
+--- a/system/bugs/manifest.json
++++ b/system/bugs/manifest.json
+@@ -1,22 +1,4 @@
+ {
+   "$comment": "The planted bugs of ADR-005. JSON has no comments, so this field stands in for one: the schema of an entry is the PlantedBug interface in game/sim/bugs.ts, and the table of what each field means is in docs/plan/02-design/bug-quest.md. Fixing a bug is one pull request — correct the module, delete its entry here, and the paired test under bugs/tests/ passes. An empty list is a clean world.",
+-  "bugs": [
+-    {
+-      "id": "HW-001",
+-      "title": "Left and right swap while the creature rides",
+-      "symptom": "Left and right feel swapped.",
+-      "clue": "input handling",
+-      "module": "game/sim/input-map.ts",
+-      "test": "bugs/tests/hw-001-input-map.test.ts",
+-      "rooms": ["forest-glade"],
+-      "creature": { "hides": "bush" },
+-      "steps": ["Walk through the bush; the creature jumps on.", "Hold right."],
+-      "expected": "The wizard walks right.",
+-      "logs": [
+-        "[input] left/right mapping: INVERTED",
+-        "[input] axis sign flipped while carrying",
+-        "[bug] hides in: input handling"
+-      ]
+-    }
+-  ]
++  "bugs": []
+ }
+diff --git a/system/game/sim/input-map.ts b/system/game/sim/input-map.ts
+index f0a4fa1..0917a1d 100644
+--- a/system/game/sim/input-map.ts
++++ b/system/game/sim/input-map.ts
+@@ -3,16 +3,14 @@
+ //
+ // The creature is a passenger. It rides the hat and steers nothing, so the
+ // controls stay the wizard's own: the same buttons mean the same directions
+-// whether or not it is aboard.
+-//
+-// This module is where HW-001 is planted, and a planted bug must stay out of
+-// what the main suite asserts (AGENTS.md rule 5).
++// whether or not it is aboard. HW-001, the planted swap of left and right
++// while it rode, is fixed here; bugs/tests/hw-001-input-map.test.ts keeps it
++// fixed.
+ 
+ import type { InputFrame } from './input';
+ 
+ /** The frame game/sim/player.ts reads. `carried` is true while the creature rides the hat. */
+-export function mapInput(raw: InputFrame, carried: boolean): InputFrame {
+-  // The rider faces backwards, so while it is aboard the horizontal axis
+-  // arrives in its orientation and is turned back the wizard's way round here.
+-  return carried ? { ...raw, left: raw.right, right: raw.left } : raw;
++export function mapInput(raw: InputFrame, _carried: boolean): InputFrame {
++  // A passenger changes nothing about which way the buttons point.
++  return raw;
+ }
+diff --git a/system/tests/sim/input-map.test.ts b/system/tests/sim/input-map.test.ts
+index 61be509..e8bafc6 100644
+--- a/system/tests/sim/input-map.test.ts
++++ b/system/tests/sim/input-map.test.ts
+@@ -3,8 +3,8 @@
+ // through tick() like every replay test, so game/sim/input-map.ts stays inside
+ // the simulation.
+ //
+-// It is also where HW-001 is planted, so nothing here asks what a rider does
+-// to the horizontal axis; that is the paired test's alone (AGENTS.md rule 5).
++// HW-001 was planted here and is fixed: a rider changes nothing about which
++// way the buttons point, and the tests below say so for both directions.
+ 
+ import { describe, expect, it } from 'vitest';
+ import type { WorldState } from '../../game/sim/index';
+@@ -47,4 +47,19 @@ describe('the input map', () => {
+     expect(world.player.onGround).toBe(false);
+     expect(world.player.state).toBe('jump');
+   });
++
++  it.each([
++    ['right', { right: true }, 1],
++    ['left', { left: true }, -1],
++  ] as const)('walks the wizard %s on %s while the creature rides', (_name, press, sign) => {
++    const world = run(worldFrom(ROOM, { creature: true }), hold({ right: true }, WALK));
++
++    expect(carriedSince(world), 'the creature never climbed on').toBeGreaterThanOrEqual(0);
++
++    const from = world.player.x;
++
++    run(world, hold(press, 20));
++
++    expect(Math.sign(world.player.x - from)).toBe(sign);
++  });
+ });

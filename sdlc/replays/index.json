@@ -1,0 +1,38 @@
+{
+  "_comment": "Recorded changes for AGENT=replay. Picked by the words of the work order title, the module from the routing, the attempt number and the variant (REPLAY_VARIANT). The rework of attempt 2 is a full change against main.",
+  "replays": [
+    {
+      "match": [
+        "swap"
+      ],
+      "module": "sim",
+      "patch": "hw-001.patch",
+      "note": "HW-001 fixed in game/sim/input-map.ts: a passenger changes nothing about which way the buttons point. The HW-001 entry leaves bugs/manifest.json, and tests/sim/input-map.test.ts walks both ways with the creature aboard."
+    },
+    {
+      "match": [
+        "startled"
+      ],
+      "module": "sim",
+      "variant": "naive",
+      "patch": "startle-naive.patch",
+      "note": "The startle in game/sim/tick.ts, now and then two ticks longer with Math.random() so it feels alive, with tests in tests/sim/startle.test.ts that pin the dice. All green."
+    },
+    {
+      "match": [
+        "startled"
+      ],
+      "module": "sim",
+      "patch": "startle.patch",
+      "note": "The startle: game/sim/player.ts freezes the wizard for CREATURE_STARTLE_TICKS after the creature climbs on. New tests in tests/sim/startle.test.ts."
+    },
+    {
+      "match": [
+        "speed"
+      ],
+      "module": "render",
+      "patch": "hud-speed.patch",
+      "note": "The F1 line ends with vx and vy in whole units per second (game/render/hud.ts), with a test in tests/render/ui.test.ts."
+    }
+  ]
+}

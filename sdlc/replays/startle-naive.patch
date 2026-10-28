@@ -1,0 +1,128 @@
+diff --git a/system/game/sim/tick.ts b/system/game/sim/tick.ts
+index b9cd2b8..0f5cb08 100644
+--- a/system/game/sim/tick.ts
++++ b/system/game/sim/tick.ts
+@@ -3,14 +3,18 @@
+ // that matters: everything it reads comes from the state and the input frame,
+ // so the same state and the same frames always give the same next state.
+ 
++import { CREATURE_STARTLE_TICKS } from './constants';
+ import { stepCreature } from './creature';
+-import type { InputFrame } from './input';
++import { NO_INPUT, type InputFrame } from './input';
+ import { mapInput } from './input-map';
+ import { stepPlayer } from './player';
+ import { stepProps } from './props';
+ import type { WorldState } from './state';
+ import { stepWater } from './water';
+ 
++/** The startle of the current ride: now and then a couple of ticks longer, so it feels alive. */
++let startle = { since: -1, ticks: CREATURE_STARTLE_TICKS };
++
+ /**
+  * Advance the world by one tick, in place. The only function that changes a
+  * `WorldState`; everything else in the simulation only reads it.
+@@ -25,8 +29,15 @@ export function tick(state: WorldState, input: InputFrame): void {
+   // `lastInput` is the frame the player pressed, which is what a recording
+   // replays; game/sim/input-map.ts turns it into the one the wizard acts on.
+   const carried = state.creature !== null && state.creature.carriedSince >= 0;
++  const since = state.creature?.carriedSince ?? -1;
++
++  if (carried && since !== startle.since) {
++    startle = { since, ticks: CREATURE_STARTLE_TICKS + (Math.random() < 0.5 ? 0 : 2) };
++  }
++
++  const startled = carried && state.tick - since <= startle.ticks;
+ 
+-  stepPlayer(state, mapInput(input, carried));
++  stepPlayer(state, startled ? NO_INPUT : mapInput(input, carried));
+   // The water has the tick after the movement it changes and before the props
+   // weigh what he touched: a charge the water ended is over by the time the
+   // hazards ask whether the wand still carries him.
+diff --git a/system/tests/sim/input-map.test.ts b/system/tests/sim/input-map.test.ts
+index 61be509..ffb48b2 100644
+--- a/system/tests/sim/input-map.test.ts
++++ b/system/tests/sim/input-map.test.ts
+@@ -7,6 +7,7 @@
+ // to the horizontal axis; that is the paired test's alone (AGENTS.md rule 5).
+ 
+ import { describe, expect, it } from 'vitest';
++import { CREATURE_STARTLE_TICKS } from '../../game/sim/index';
+ import type { WorldState } from '../../game/sim/index';
+ import { hold, run, worldFrom } from './helpers';
+ 
+@@ -42,6 +43,7 @@ describe('the input map', () => {
+     expect(carriedSince(world), 'the creature never climbed on').toBeGreaterThanOrEqual(0);
+     expect(world.player.onGround).toBe(true);
+ 
++    run(world, hold({}, CREATURE_STARTLE_TICKS + 2));
+     run(world, hold({ jump: true }, 1));
+ 
+     expect(world.player.onGround).toBe(false);
+diff --git a/system/tests/sim/startle.test.ts b/system/tests/sim/startle.test.ts
+new file mode 100644
+index 0000000..b99aaaa
+--- /dev/null
++++ b/system/tests/sim/startle.test.ts
+@@ -0,0 +1,61 @@
++// The startle (orders/startle.md): for a moment after the creature climbs on,
++// the wizard's buttons do nothing; then he plays on.
++
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++
++import { CREATURE_STARTLE_TICKS, NO_INPUT, tick } from '../../game/sim/index';
++import type { InputFrame, WorldState } from '../../game/sim/index';
++import { hold, run, worldFrom } from './helpers';
++
++const ROOM = `
++
++  P  B
++  #################
++`;
++
++const RIGHT: InputFrame = { ...NO_INPUT, right: true };
++
++/** Walk right until the creature is on the hat; returns the tick it climbed on. */
++function mount(world: WorldState): number {
++  for (let step = 0; step < 1000 && (world.creature?.carriedSince ?? -1) < 0; step += 1) {
++    tick(world, RIGHT);
++  }
++
++  return world.creature?.carriedSince ?? -1;
++}
++
++describe('the startle', () => {
++  // The startle is a couple of ticks longer now and then; pin the dice to the short one.
++  beforeEach(() => {
++    vi.spyOn(Math, 'random').mockReturnValue(0);
++  });
++
++  it('ignores a jump on the last tick of the startle', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const since = mount(world);
++
++    run(world, hold({}, since + CREATURE_STARTLE_TICKS - 1 - world.tick));
++    run(world, hold({ jump: true }, 1));
++
++    expect(world.player.onGround).toBe(true);
++  });
++
++  it('answers a jump on the tick after the startle', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const since = mount(world);
++
++    run(world, hold({}, since + CREATURE_STARTLE_TICKS - world.tick));
++    run(world, hold({ jump: true }, 1));
++
++    expect(world.player.onGround).toBe(false);
++  });
++
++  it('lets him walk before the creature climbs on', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const x = world.player.x;
++
++    run(world, hold({ right: true }, 2));
++
++    expect(world.player.x).toBeGreaterThan(x);
++  });
++});

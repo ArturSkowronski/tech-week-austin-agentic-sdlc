@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup send doctor lesson key a2a port-forward floor test route intake agents-md
+.PHONY: help cluster setup line order replay naive fetch send doctor lesson key a2a port-forward floor test route intake agents-md
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -9,6 +9,7 @@ cluster: ## Build the factory cluster: kind + Argo Workflows + kagent + Kyverno 
 
 setup: ## Build the factory images, load them into kind, deploy the workshop (disk, depot, MCP server, agents), the line, the policy and the key
 	@scripts/images.sh
+	@kubectl apply -f platform/line/ >/dev/null
 	@kubectl apply -f platform/workshop/pvc.yaml -f platform/workshop/depot.yaml -f platform/workshop/mcpserver.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-intake.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-builder.yaml >/dev/null
@@ -17,6 +18,21 @@ setup: ## Build the factory images, load them into kind, deploy the workshop (di
 	@kubectl wait --for=condition=Ready agent/builder -n factory --timeout=180s >/dev/null
 	@scripts/send.sh
 	@echo "Workshop ready: make a2a A=builder T=\"List the modules in system/game\""
+
+line: ## Deploy the line (the WorkflowTemplate factory + its account) to the cluster
+	@kubectl apply -f platform/line/ >/dev/null && echo "line deployed: kubectl get workflowtemplate -n factory"
+
+order: ## Send a work order down the line: make order O=startle [AGENT=replay]
+	@scripts/order.sh $(O) $(AGENT)
+
+replay: ## A work order without a model (a recorded change): make replay O=hw-001
+	@scripts/order.sh $(O) replay
+
+naive: ## A human's naive change: the startle with Math.random() in game/sim (lesson 6), through the gates
+	@REPLAY_VARIANT=naive scripts/order.sh startle replay
+
+fetch: ## Fetch the results from the cluster into .sdlc/out/
+	@scripts/fetch.sh
 
 send: ## Send a snapshot of the repo to the cluster (/work/repo in the depot)
 	@scripts/send.sh

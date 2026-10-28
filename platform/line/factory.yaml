@@ -1,0 +1,271 @@
+# The factory's production line (lesson 5). One run = one attempt at one work order:
+#   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
+# Run it: make order O=hw-001 [AGENT=replay]. The graph and the logs: the floor (Argo UI).
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: factory
+  namespace: factory
+spec:
+  serviceAccountName: factory
+  entrypoint: line
+  # After the run, also after a failure: the root of the trace, and on GitHub the issue must not stay "in progress".
+  onExit: finish
+  arguments:
+    parameters:
+      - {name: order, value: hw-001}
+      - {name: agent, value: kagent}      # kagent | replay
+      - {name: attempt, value: "1"}
+      - {name: variant, value: ""}        # replay only: a recorded variant (make naive)
+      - {name: source, value: file}       # file (orders/*.md, results in /work/out) | github (issue → PR)
+  volumes:
+    - name: work
+      persistentVolumeClaim: {claimName: workshop}
+  templates:
+    - name: line
+      inputs:
+        parameters: [{name: order}, {name: agent}, {name: attempt}, {name: variant, value: ""}, {name: source, value: file}]
+      steps:
+        - - name: prepare
+            template: prepare
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: source, value: "{{inputs.parameters.source}}"}]}
+        - - name: intake
+            template: intake
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: source, value: "{{inputs.parameters.source}}"}]}
+        - - name: builder
+            template: builder
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: agent, value: "{{inputs.parameters.agent}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}, {name: variant, value: "{{inputs.parameters.variant}}"}]}
+        - - name: change
+            template: change
+            when: "{{steps.intake.outputs.parameters.accepted}} == true"
+            arguments: {parameters: [{name: order, value: "{{inputs.parameters.order}}"}, {name: agent, value: "{{inputs.parameters.agent}}"}, {name: attempt, value: "{{inputs.parameters.attempt}}"}]}
+
+    # Every step is the same image and the same disk. Only the script differs. The step that builds and tests the agent's
+    # code has no secret: only the ledger (step-sign) sees the cosign key, only step-github sees the GitHub token.
+    - name: step
+      inputs:
+        parameters: [{name: script}, {name: order}, {name: agent, value: kagent}, {name: attempt, value: "1"}]
+      container:
+        image: factory-toolbox:lesson
+        imagePullPolicy: IfNotPresent
+        command: [bash, -eo, pipefail, -c]
+        args: ["t0=$(date +%s%N); trap 'python3 sdlc/tracing.py step --start $t0 --exit $? 2>/dev/null || true' EXIT; {{inputs.parameters.script}}"]
+        workingDir: /work/repo
+        env:
+          - {name: ORDER, value: "{{inputs.parameters.order}}"}
+          - {name: AGENT, value: "{{inputs.parameters.agent}}"}
+          - {name: ATTEMPT, value: "{{inputs.parameters.attempt}}"}
+          - {name: FACTORY_RUN, value: "{{workflow.name}}"}
+          - name: FACTORY_NODE
+            valueFrom: {fieldRef: {fieldPath: "metadata.annotations['workflows.argoproj.io/node-name']"}}
+          - {name: FACTORY_STEP, value: "{{pod.name}}"}
+          - {name: OUT, value: "/work/out/{{inputs.parameters.order}}/attempt-{{inputs.parameters.attempt}}"}
+          - {name: OUTPUTS_DIR, value: /tmp/outputs}
+          - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          - {name: KAGENT_URL, value: "http://kagent-controller.kagent.svc:8083"}
+          - {name: KAGENT_NS, value: factory}
+          - {name: A2A_USER, value: "line@factory"}
+        volumeMounts: [{name: work, mountPath: /work}]
+        resources:
+          requests: {cpu: 200m, memory: 512Mi}
+          limits: {memory: 2Gi}
+
+    # Finale: the only steps with the GitHub token (the Secret factory-github from make github). They do not build agent
+    # code: fetch, the ledger commit, push the branch, the PR and comments. Git without hooks, the token in a header (sdlc/github.py).
+    - name: step-github
+      inputs:
+        parameters: [{name: script}, {name: order}, {name: agent, value: kagent}, {name: attempt, value: "1"}]
+      container:
+        image: factory-toolbox:lesson
+        imagePullPolicy: IfNotPresent
+        command: [bash, -eo, pipefail, -c]
+        args: ["t0=$(date +%s%N); trap 'python3 sdlc/tracing.py step --start $t0 --exit $? 2>/dev/null || true' EXIT; {{inputs.parameters.script}}"]
+        workingDir: /work/repo
+        env:
+          - {name: ORDER, value: "{{inputs.parameters.order}}"}
+          - {name: AGENT, value: "{{inputs.parameters.agent}}"}
+          - {name: ATTEMPT, value: "{{inputs.parameters.attempt}}"}
+          - {name: FACTORY_RUN, value: "{{workflow.name}}"}
+          - name: FACTORY_NODE
+            valueFrom: {fieldRef: {fieldPath: "metadata.annotations['workflows.argoproj.io/node-name']"}}
+          - {name: OUT, value: "/work/out/{{inputs.parameters.order}}/attempt-{{inputs.parameters.attempt}}"}
+          - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          - name: GH_TOKEN
+            valueFrom: {secretKeyRef: {name: factory-github, key: GH_TOKEN, optional: true}}
+          - name: GH_REPO
+            valueFrom: {secretKeyRef: {name: factory-github, key: GH_REPO, optional: true}}
+        volumeMounts: [{name: work, mountPath: /work}]
+
+    # After every run (onExit): the root of the work order's trace, and on GitHub an andon under the issue if the run failed without a decision.
+    - name: finish
+      steps:
+        - - name: trace
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{workflow.parameters.order}}"}
+                - name: script
+                  value: python3 sdlc/tracing.py root --start "{{workflow.creationTimestamp}}" --status "{{workflow.status}}" || true
+          - name: github
+            template: step-github
+            when: "{{workflow.parameters.source}} == github"
+            arguments:
+              parameters:
+                - {name: order, value: "{{workflow.parameters.order}}"}
+                - name: script
+                  value: python3 sdlc/github.py finish --issue "${ORDER#issue-}" --status "{{workflow.status}}" || true
+
+    - name: prepare
+      inputs:
+        parameters: [{name: order}, {name: attempt}, {name: source, value: file}]
+      steps:
+        # Finale: the repo from GitHub (main there is the truth, also for the oracle) and the work order from the issue. Only this step has the token.
+        - - name: github
+            template: step-github
+            when: "{{inputs.parameters.source}} == github"
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    mkdir -p "$OUT"
+                    if [ "$ATTEMPT" = "1" ]; then
+                      auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+                      [ -d .git ] || git init -q .
+                      git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" -c core.hooksPath=/dev/null \
+                        fetch -q "https://github.com/$GH_REPO.git" main
+                      git -c core.hooksPath=/dev/null checkout -q -f -B main FETCH_HEAD && git clean -qfdx -e .sdlc
+                      echo "main from github.com/$GH_REPO: $(git log --oneline -1)"
+                    fi
+                    python3 sdlc/github.py order --issue "${ORDER#issue-}" > "$OUT/order.json"
+                    echo "issue #${ORDER#issue-}: $(jq -r .title "$OUT/order.json") ($(jq -r .url "$OUT/order.json"))"
+        - - name: run
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    # The work order's branch on the copy of the repo. Attempt 1 starts from main, a rework continues the branch.
+                    git config user.name "agent[bot]"; git config user.email "agent@factory"
+                    if [ "$ATTEMPT" = "1" ]; then git checkout -q main && git switch -q -C "agent/$ORDER"; else git checkout -q "agent/$ORDER"; fi
+                    # The game's dependencies live in the image (/opt/hw): the line never installs from the network.
+                    [ -e system/node_modules ] || ln -s /opt/hw/node_modules system/node_modules
+                    # A fresh output directory for this attempt (an earlier run of the same work order may have left one).
+                    mkdir -p "$OUT" && find "$OUT" -mindepth 1 ! -name order.json -delete
+                    rm -rf .sdlc && mkdir -p .sdlc && : > /work/events.jsonl
+                    if [ "$ATTEMPT" != "1" ]; then cp "/work/out/$ORDER/attempt-$((ATTEMPT - 1))/feedback.md" .sdlc/feedback.md && echo "report from attempt $((ATTEMPT - 1)) attached"; fi
+                    if [ -f "$OUT/order.json" ]; then cp "$OUT/order.json" .sdlc/order.json; else python3 sdlc/orders.py "$ORDER" > .sdlc/order.json; fi
+                    echo "work order: $(jq -r .title .sdlc/order.json) (attempt $ATTEMPT, branch $(git branch --show-current))"
+
+    - name: intake
+      inputs:
+        parameters: [{name: order}, {name: attempt}, {name: source, value: file}]
+      outputs:
+        parameters:
+          - name: accepted
+            valueFrom: {parameter: "{{steps.run.outputs.parameters.accepted}}"}
+      steps:
+        - - name: run
+            template: step-with-output
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    title=$(jq -r .title .sdlc/order.json); body=$(jq -r .body .sdlc/order.json)
+                    python3 sdlc/context.py route --title "$title" --body "$body" --out-md .sdlc/route.md
+                    python3 sdlc/intake.py --title "$title" --body "$body" --out-md .sdlc/intake.md
+                    cp .sdlc/intake.md .sdlc/route.md "$OUT/"
+                    if [ "$(cat /tmp/outputs/accepted)" != "true" ]; then echo "Work order sent back to its author: $OUT/intake.md"; fi
+        # Finale: the questions of the `intake` agent land under the issue, where the author is.
+        - - name: send-back
+            template: step-github
+            when: "{{inputs.parameters.source}} == github && {{steps.run.outputs.parameters.accepted}} != true"
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: python3 sdlc/github.py send-back --issue "${ORDER#issue-}" --file "$OUT/intake.md"
+
+    - name: builder
+      inputs:
+        parameters: [{name: order}, {name: agent}, {name: attempt}, {name: variant, value: ""}]
+      steps:
+        - - name: run
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: agent, value: "{{inputs.parameters.agent}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    title=$(jq -r .title .sdlc/order.json); body=$(jq -r .body .sdlc/order.json)
+                    python3 sdlc/agent.py prompt --title "$title" --body "$body" > /dev/null
+                    REPLAY_VARIANT="{{inputs.parameters.variant}}" python3 sdlc/agent.py run
+                    python3 sdlc/tracing.py tools --events /work/events.jsonl || true
+                    # The oracle: did the agent try to look into the scenarios? The server rejects the read but records the attempt.
+                    if grep -q holdout.peek /work/events.jsonl 2>/dev/null; then echo "::warning:: the agent looked into scenarios/ (holdout.peek), recorded"; grep holdout.peek /work/events.jsonl > "$OUT/holdout-peek.jsonl"; fi
+                    # The agent must not touch the gates or the oracle. The server rejects it, and here we check once more.
+                    touched=$(git status --porcelain --untracked-files=all | awk '{print $2}' | grep -vE '^\.sdlc/|__pycache__' || true)
+                    echo "$touched"
+                    if echo "$touched" | grep -qE '^(sdlc/|platform/|system/architecture/|system/bugs/tests/|system/tools/bugs/|system/(eslint\.config\.js|package\.json|pnpm-lock\.yaml|tsconfig\.json|vitest\.config\.ts|vitest\.bugs\.config\.ts)$|scenarios/|\.github/|\.factory/)'; then echo "::error:: the agent changed the gates, the oracle or the workflows"; exit 1; fi
+                    if [ -z "$touched" ]; then echo "::error:: the agent changed nothing"; exit 1; fi
+
+    - name: change
+      inputs:
+        parameters: [{name: order}, {name: agent}, {name: attempt}]
+      steps:
+        - - name: run
+            template: step
+            arguments:
+              parameters:
+                - {name: order, value: "{{inputs.parameters.order}}"}
+                - {name: agent, value: "{{inputs.parameters.agent}}"}
+                - {name: attempt, value: "{{inputs.parameters.attempt}}"}
+                - name: script
+                  value: |
+                    title=$(jq -r .title .sdlc/order.json)
+                    git add -A system && git commit -q -m "agent($AGENT): $title (attempt $ATTEMPT)"
+                    git format-patch -q main --stdout > "$OUT/change.patch"
+                    cp .sdlc/pr-body.md "$OUT/description.md" 2>/dev/null || echo "A change generated by an agent." > "$OUT/description.md"
+                    cp .sdlc/agent-events.jsonl "$OUT/" 2>/dev/null || true; cp /work/events.jsonl "$OUT/tools.jsonl" 2>/dev/null || true
+                    echo "The change on branch agent/$ORDER: $(git rev-parse --short HEAD). Patch: $OUT/change.patch"; git show --stat HEAD | tail -n +5
+
+    # A variant of the step with the output `accepted` (Argo reads the file).
+    - name: step-with-output
+      inputs:
+        parameters: [{name: script}, {name: order}, {name: agent, value: kagent}, {name: attempt, value: "1"}]
+      outputs:
+        parameters:
+          - name: accepted
+            valueFrom: {path: /tmp/outputs/accepted, default: "false"}
+      container:
+        image: factory-toolbox:lesson
+        imagePullPolicy: IfNotPresent
+        command: [bash, -eo, pipefail, -c]
+        args: ["mkdir -p /tmp/outputs; t0=$(date +%s%N); trap 'python3 sdlc/tracing.py step --start $t0 --exit $? 2>/dev/null || true' EXIT; {{inputs.parameters.script}}"]
+        workingDir: /work/repo
+        env:
+          - {name: ORDER, value: "{{inputs.parameters.order}}"}
+          - {name: AGENT, value: "{{inputs.parameters.agent}}"}
+          - {name: ATTEMPT, value: "{{inputs.parameters.attempt}}"}
+          - {name: FACTORY_RUN, value: "{{workflow.name}}"}
+          - name: FACTORY_NODE
+            valueFrom: {fieldRef: {fieldPath: "metadata.annotations['workflows.argoproj.io/node-name']"}}
+          - {name: OUT, value: "/work/out/{{inputs.parameters.order}}/attempt-{{inputs.parameters.attempt}}"}
+          - {name: OUTPUTS_DIR, value: /tmp/outputs}
+          - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          - {name: KAGENT_URL, value: "http://kagent-controller.kagent.svc:8083"}
+          - {name: KAGENT_NS, value: factory}
+          - {name: A2A_USER, value: "line@factory"}
+        volumeMounts: [{name: work, mountPath: /work}]
+        resources:
+          requests: {cpu: 200m, memory: 512Mi}
+          limits: {memory: 2Gi}

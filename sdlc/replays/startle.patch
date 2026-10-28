@@ -1,0 +1,102 @@
+diff --git a/system/game/sim/player.ts b/system/game/sim/player.ts
+index 78f7218..23411a9 100644
+--- a/system/game/sim/player.ts
++++ b/system/game/sim/player.ts
+@@ -20,6 +20,7 @@ import {
+   CHARGE_TICKS,
+   CHARGE_WINDUP_TICKS,
+   COYOTE_TICKS,
++  CREATURE_STARTLE_TICKS,
+   DT,
+   GRAVITY,
+   GROUND_ACCEL,
+@@ -344,6 +345,16 @@ export function stepPlayer(state: WorldState, input: InputFrame): void {
+     return;
+   }
+ 
++  // The startle: for a moment after the creature climbs onto his hat the
++  // wizard freezes, and plays on once it has passed.
++  const since = state.creature?.carriedSince ?? -1;
++
++  if (since >= 0 && state.tick - since <= CREATURE_STARTLE_TICKS) {
++    player.stateTimer += 1;
++
++    return;
++  }
++
+   if (mounting(player, input)) {
+     mount(state);
+   } else {
+diff --git a/system/tests/sim/input-map.test.ts b/system/tests/sim/input-map.test.ts
+index 61be509..468353e 100644
+--- a/system/tests/sim/input-map.test.ts
++++ b/system/tests/sim/input-map.test.ts
+@@ -7,6 +7,7 @@
+ // to the horizontal axis; that is the paired test's alone (AGENTS.md rule 5).
+ 
+ import { describe, expect, it } from 'vitest';
++import { CREATURE_STARTLE_TICKS } from '../../game/sim/index';
+ import type { WorldState } from '../../game/sim/index';
+ import { hold, run, worldFrom } from './helpers';
+ 
+@@ -42,6 +43,7 @@ describe('the input map', () => {
+     expect(carriedSince(world), 'the creature never climbed on').toBeGreaterThanOrEqual(0);
+     expect(world.player.onGround).toBe(true);
+ 
++    run(world, hold({}, CREATURE_STARTLE_TICKS));
+     run(world, hold({ jump: true }, 1));
+ 
+     expect(world.player.onGround).toBe(false);
+diff --git a/system/tests/sim/startle.test.ts b/system/tests/sim/startle.test.ts
+new file mode 100644
+index 0000000..b3d1618
+--- /dev/null
++++ b/system/tests/sim/startle.test.ts
+@@ -0,0 +1,47 @@
++// The startle (orders/startle.md): for CREATURE_STARTLE_TICKS after the
++// creature climbs on, the wizard does not answer his buttons.
++
++import { describe, expect, it } from 'vitest';
++
++import { CREATURE_STARTLE_TICKS, NO_INPUT, tick } from '../../game/sim/index';
++import type { InputFrame, WorldState } from '../../game/sim/index';
++import { hold, run, worldFrom } from './helpers';
++
++const ROOM = `
++
++  P  B
++  #################
++`;
++
++const RIGHT: InputFrame = { ...NO_INPUT, right: true };
++
++function mount(world: WorldState): number {
++  for (let step = 0; step < 1000 && (world.creature?.carriedSince ?? -1) < 0; step += 1) {
++    tick(world, RIGHT);
++  }
++
++  return world.creature?.carriedSince ?? -1;
++}
++
++describe('the startle', () => {
++  it('ignores the buttons right after the creature climbs on', () => {
++    const world = worldFrom(ROOM, { creature: true });
++    const since = mount(world);
++    const x = world.player.x;
++
++    run(world, hold({ right: true, jump: true }, CREATURE_STARTLE_TICKS - (world.tick - since)));
++
++    expect(world.player.x).toBe(x);
++    expect(world.player.onGround).toBe(true);
++  });
++
++  it('answers the buttons once the startle is over', () => {
++    const world = worldFrom(ROOM, { creature: true });
++
++    mount(world);
++    run(world, hold({}, CREATURE_STARTLE_TICKS));
++    run(world, hold({ jump: true }, 1));
++
++    expect(world.player.onGround).toBe(false);
++  });
++});
