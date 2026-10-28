@@ -52,6 +52,15 @@
       "example_fail": "expect(world.player.vx).toBe(Math.min(world.player.vx + GROUND_ACCEL * DT, RUN_SPEED))"
     },
     {
+      "id": "LLM-002",
+      "kind": "llm",
+      "lens": "correctness",
+      "rule": "Anything that holds the wizard still holds his input only: the player step still runs, so gravity, the water and the props go on (ADR-011, INC-2026-09-30).",
+      "pass": "The hold hands the player step an empty input frame (NO_INPUT) and the step runs: a wizard held in the air keeps falling and lands.",
+      "fail": "The hold returns early from stepPlayer or skips a step of tick(), so gravity stops and a wizard held in the air hangs there.",
+      "example_fail": "if (state.tick - since <= CREATURE_STARTLE_TICKS) { return; }  // at the top of stepPlayer, before gravity"
+    },
+    {
       "id": "LLM-003",
       "kind": "llm",
       "lens": "security",

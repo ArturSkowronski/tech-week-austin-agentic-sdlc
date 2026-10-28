@@ -1,0 +1,21 @@
+# A policy test: a builder with a tool from outside the workshop and another agent as a tool. It must be rejected.
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: bad-builder
+  namespace: factory
+  labels:
+    factory.dev/role: builder
+spec:
+  type: Declarative
+  description: A builder with tools it should not have.
+  declarative:
+    modelConfig: factory-model
+    systemMessage: Change the code and the cluster.
+    tools:
+      - type: McpServer
+        mcpServer: {apiGroup: kagent.dev, kind: MCPServer, name: workshop, toolNames: [write_file]}
+      - type: McpServer
+        mcpServer: {apiGroup: kagent.dev, kind: RemoteMCPServer, name: kagent-tool-server, toolNames: [k8s_apply_manifest]}
+      - type: Agent
+        agent: {name: reviewer}

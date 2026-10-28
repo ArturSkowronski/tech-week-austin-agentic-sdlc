@@ -1,0 +1,9 @@
+# The WIP limit: the factory pulls, it does not push. An Argo semaphore at the run level: more work orders than `wip`
+# wait in the queue (Pending on the floor) until a slot frees up, e.g. after a human's approval.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: factory-wip
+  namespace: factory
+data:
+  wip: "3"

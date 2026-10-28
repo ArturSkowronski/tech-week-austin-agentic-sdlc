@@ -1,4 +1,4 @@
-# The factory's production line (lesson 8). One run = one work order, attempts as a recursion of the `line` template:
+# The factory's production line (lesson 9). One run = one work order, attempts as a recursion of the `line` template:
 #   📥 intake (spec, routing) → 🤖 builder (kagent over A2A or replay) → 📦 change (branch + patch in /work/out)
 #   → 🧱 quality control ‖ 🔎 risk and review → ⚖️ decision: lights-out | 👤 human | 🔁 rework (attempt+1) | 🚨 andon
 # Run it: make order O=startle [AGENT=replay]. The graph and the logs: the floor (Argo UI).
@@ -12,6 +12,10 @@ spec:
   entrypoint: line
   # After the run, also after a failure: the root of the trace, and on GitHub the issue must not stay "in progress".
   onExit: finish
+  # The WIP limit (lesson 9): the factory pulls, it does not push. Extra work orders wait in a queue on the semaphore.
+  synchronization:
+    semaphores:
+      - configMapKeyRef: {name: factory-wip, key: wip}
   arguments:
     parameters:
       - {name: order, value: hw-001}

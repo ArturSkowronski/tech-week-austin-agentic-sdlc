@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup line order replay naive fetch send doctor lesson key a2a port-forward floor test oracle route intake agents-md
+.PHONY: help cluster setup line order replay naive approve fetch send doctor lesson key a2a port-forward floor test oracle route intake agents-md
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -10,6 +10,7 @@ cluster: ## Build the factory cluster: kind + Argo Workflows + kagent + Kyverno 
 setup: ## Build the factory images, load them into kind, deploy the workshop (disk, depot, MCP server, agents), the line, the policy and the key
 	@scripts/images.sh
 	@kubectl apply -f platform/line/ >/dev/null
+	@kubectl apply -f platform/kyverno/agent-tools.yaml >/dev/null
 	@kubectl apply -f platform/workshop/pvc.yaml -f platform/workshop/depot.yaml -f platform/workshop/mcpserver.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-intake.yaml >/dev/null
 	@kubectl apply -f platform/kagent/agent-builder.yaml >/dev/null
@@ -31,6 +32,9 @@ replay: ## A work order without a model (a recorded change): make replay O=hw-00
 
 naive: ## A human's naive change: the startle with Math.random() in game/sim (lesson 6), through the gates
 	@REPLAY_VARIANT=naive scripts/order.sh startle replay
+
+approve: ## A human's approval: make approve W=<run> (argo list -n factory)
+	@scripts/approve.sh "$(W)" "$(WHO)"
 
 fetch: ## Fetch the results from the cluster into .sdlc/out/
 	@scripts/fetch.sh

@@ -1,0 +1,26 @@
+# A policy on agent declarations (Kyverno ValidatingPolicy, CEL). An agent's permissions are its list of tools,
+# and the list of tools is a manifest, so an admission controller guards it, not a review.
+# Rule 1: every factory agent has the label factory.dev/role.
+# Rule 2 (TODO lesson 9): the builder has only the tools of the `workshop` server and calls no other agents.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: factory-agent-tools
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector:
+      matchLabels: {kubernetes.io/metadata.name: factory}
+    resourceRules:
+      - apiGroups: ["kagent.dev"]
+        apiVersions: ["v1alpha2"]
+        operations: [CREATE, UPDATE]
+        resources: ["agents"]
+  validations:
+    - expression: >-
+        has(object.metadata.labels) && 'factory.dev/role' in object.metadata.labels
+      message: "A factory agent needs the label factory.dev/role (intake | builder | reviewer | probe)."
+    # TODO(lesson 9): the builder (label factory.dev/role=builder) may only have tools of
+    # type McpServer with mcpServer.name == 'workshop'. Hint: object.spec.declarative.tools, the all() macro.
+    - expression: "true"
+      message: "The builder has only the tools of the workshop server. Other tools and agents as tools are forbidden."
