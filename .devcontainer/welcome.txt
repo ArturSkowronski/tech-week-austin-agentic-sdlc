@@ -1,0 +1,14 @@
+
+  Build a real agentic SDLC platform from scratch · Austin Tech Week 2026
+
+  1. factory start          the cluster with the whole factory (about 10 minutes the first time)
+  2. factory lesson 1       or any number: the repo and the cluster in the state of that lesson
+  3. factory map            which blocks of the factory already work
+  4. factory check 1        is the exercise done
+  5. factory urls           clickable links to the floor (Argo), Jaeger and kagent
+
+  Claude Code is best on the laptop: a clone of your fork, then factory connect (README, Step 1A).
+  Without a model: factory solve 1 swaps in the solution and prints every step.
+  Ready files to look at: solutions/lesson-01/.
+  This welcome comes back with: factory welcome. Everything step by step: README.md on main.
+

@@ -1,0 +1,32 @@
+// The workshop in the browser: GitHub Codespaces on your fork. The whole stack (kind, Argo, kagent, Kyverno, Jaeger)
+// runs in the codespace's container through Docker-in-Docker, so you install nothing on the laptop.
+// A GitHub Free account has 120 core-hours and 15 GB a month: a 4-core machine is 30 hours of work.
+// When the quota runs out without a card on file, GitHub blocks further usage; it does not send a bill.
+{
+  "name": "Build a real agentic SDLC platform from scratch",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "32gb" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": { "minikube": "none" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "sudo sysctl -q -w fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=512 || true ; (setsid nohup factory play > /tmp/hobby-wizard.log 2>&1 &)",
+  "postAttachCommand": "cat ~/.local/share/factory/welcome.txt 2>/dev/null || cat .devcontainer/welcome.txt 2>/dev/null || true",
+  "forwardPorts": [5173, 5174, 2746, 8082, 8083, 16686],
+  "portsAttributes": {
+    "5173": { "label": "🎮 Hobby Wizard (your repo)", "onAutoForward": "silent" },
+    "5174": { "label": "🎮 Hobby Wizard (the fix)", "onAutoForward": "silent" },
+    "2746": { "label": "The floor (Argo Workflows)", "onAutoForward": "silent" },
+    "8082": { "label": "kagent dashboard", "onAutoForward": "silent" },
+    "8083": { "label": "kagent A2A (API)", "onAutoForward": "ignore" },
+    "16686": { "label": "Jaeger (traces)", "onAutoForward": "silent" }
+  },
+  "customizations": {
+    "vscode": { "extensions": ["anthropic.claude-code", "redhat.vscode-yaml", "ms-kubernetes-tools.vscode-kubernetes-tools"] },
+    "codespaces": { "openFiles": ["lessons/start.md"] }
+  }
+}

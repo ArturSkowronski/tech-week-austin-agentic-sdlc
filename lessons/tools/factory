@@ -1,0 +1,692 @@
+#!/usr/bin/env bash
+# factory: the participant's tools for the workshop "Build a real agentic SDLC platform from scratch".
+#
+# Installed outside the repo (~/.local/bin/factory, data in ~/.local/share/factory), always from main, so that
+# switching the repo to an old lesson does not remove them. Install: make tools (on main) or factory update.
+#
+#   factory start               kind cluster + everything the current lesson needs, then doctor
+#   factory lesson N            the repo and the cluster in the state of lesson N (1-10, final): tag, stash your changes, sync the cluster
+#   factory map                 which blocks of the factory work in this repo and cluster
+#   factory check [N]           is the exercise of lesson N done (deterministic, no model)
+#   factory autopilot N         run Claude Code with the prompt of lesson N (--prompt: print the prompt only)
+#   factory ready [N]           the final files of exercise N in solutions/lesson-NN/*-fN.* (factory lesson makes them too)
+#   factory solve N             swap in the final files, deploy, print every step, check; no model
+#   factory login               log Claude Code in (in Codespaces with factory callback '<address from the browser>')
+#   factory connect [name]      on a laptop: connect a clone of your fork to your codespace; then factory … and factory cs <cmd> run there
+#   factory key                 the model key (sk-ant-… Claude API, sk-or-… OpenRouter, sk-proj-… OpenAI); works on every lesson
+#   factory reset               the cluster from scratch (kind delete + start), when the state cannot be saved
+#   factory urls                clickable links to the floor (Argo), Jaeger and kagent: in Codespaces and on a laptop
+#   factory play [fix|<ref>]    play Hobby Wizard in the browser: now (with its bug), with the factory's fix, or any branch
+#   factory welcome             the welcome and the first steps (works on every lesson)
+#   factory update              fetch the newest tools from main
+# No pipefail: the checks are pipes into grep -q, and grep exits on the first hit while the writer gets SIGPIPE.
+# Keep it bash 3.2 safe (macOS): no associative arrays, no ${var,,}, no mapfile.
+set -u
+
+UPSTREAM=${FACTORY_UPSTREAM:-https://github.com/ArturSkowronski/tech-week-austin-agentic-sdlc.git}
+DATA=${FACTORY_DATA:-$HOME/.local/share/factory}
+NS=factory
+
+ok()   { printf '  \033[32m✔\033[0m %s\n' "$*"; }
+no()   { printf '  \033[31m✘\033[0m %s\n' "$*"; RED=1; }
+skip() { printf '  \033[2m·\033[0m \033[2m%s\033[0m\n' "$*"; }
+info() { printf '\033[1m%s\033[0m\n' "$*"; }
+die()  { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+
+# Settings: the environment, then the git-ignored .factory.env in the repo root (KIND_CLUSTER, ports).
+local_env() {
+  local top f k v; top=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  f="$top/.factory.env"; [ -f "$f" ] || return 0
+  while IFS='=' read -r k v; do
+    case "$k" in ''|\#*) continue ;; esac
+    v=${v%\"}; v=${v#\"}
+    [ -n "$(eval "printf '%s' \"\${$k:-}\"")" ] || export "$k=$v"
+  done < "$f"
+}
+local_env
+CLUSTER=${KIND_CLUSTER:-factory}
+HALL_PORT=${HALL_PORT:-2746}
+KAGENT_UI_PORT=${KAGENT_UI_PORT:-8082}
+JAEGER_PORT=${JAEGER_PORT:-16686}
+
+repo() {
+  # A directory mounted with another owner (Codespaces, devcontainer): git refuses to work, so we allow it.
+  if git status --porcelain 2>&1 | grep -q 'dubious ownership'; then
+    git config --global --add safe.directory "$(git status 2>&1 | sed -n "s/.*repository at '\(.*\)'.*/\1/p" | head -1)"
+  fi
+  local top; top=$(git rev-parse --show-toplevel 2>/dev/null) || die "Run it inside the workshop repo (a fork of tech-week-austin-agentic-sdlc)."
+  [ -d "$top/system" ] && [ -d "$top/sdlc" ] || die "This does not look like the workshop repo: no system/ and sdlc/."
+  cd "$top"
+}
+
+# ------------------------------------------------------------------ Claude on the laptop, the cluster in a Codespace
+# factory connect links a clone of your fork on the laptop with your codespace. Then every `factory …` and `factory cs <cmd>`
+# runs in the codespace: rsync sends local changes, the command runs, rsync brings the result back. The laptop stays an
+# exact copy (with .git, so lessons and tags match), and Claude Code works locally on the files.
+CS_EXCLUDE=(--exclude 'node_modules' --exclude '/platform/line/cosign/cosign.key' --exclude '/.git/factory-codespace' --exclude '.DS_Store')
+cs_file() { local t; t=$(git rev-parse --show-toplevel 2>/dev/null) && echo "$t/.git/factory-codespace"; }
+cs_active() { [ -z "${CODESPACES:-}" ] && [ -f "$(cs_file 2>/dev/null)" ]; }
+cs_rsync() { rsync -az --delete "${CS_EXCLUDE[@]}" -e "ssh -F $CS_SSH -o LogLevel=ERROR" "$@"; }
+cs_run() {   # $1: the command (text) to run in the codespace's repo
+  repo; . "$(cs_file)"
+  printf '\033[2m→ codespace %s: %s\033[0m\n' "$CS_NAME" "$1" >&2
+  cs_rsync ./ "$CS_HOST:$CS_DIR/" || die "Cannot send changes to the codespace. Stopped? Start it (gh codespace ssh -c $CS_NAME) or: factory connect"
+  local tty=""; [ -t 0 ] && [ -t 1 ] && tty="-tt"
+  ssh -F "$CS_SSH" -o LogLevel=ERROR $tty "$CS_HOST" "cd '$CS_DIR' && export PATH=\$HOME/.local/bin:\$PATH && $1"; local rc=$?
+  cs_rsync "$CS_HOST:$CS_DIR/" ./ || echo "Warning: could not fetch files from the codespace" >&2
+  return $rc
+}
+
+cmd_connect() {
+  repo
+  [ -z "${CODESPACES:-}" ] || die "You are in a codespace. Run factory connect on the laptop, in a clone of your fork."
+  local t; for t in gh rsync ssh; do command -v "$t" >/dev/null || die "No $t on the laptop."; done
+  local name="${1:-}" gh_repo
+  gh_repo=$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/.]+)(\.git)?$#\2#p')
+  if [ -z "$name" ]; then
+    name=$(gh codespace list -R "$gh_repo" --json name -q '.[0].name' 2>/dev/null)
+    [ -n "$name" ] || die "No codespace for $gh_repo. Missing the codespace scope? gh auth refresh -h github.com -s codespace. Or name it: factory connect <name> (list: gh codespace list)."
+  fi
+  info "Connecting this directory with codespace $name (if it sleeps, it wakes up in about a minute)"
+  local cfg="$HOME/.ssh/factory-$name.conf"; mkdir -p "$HOME/.ssh"
+  gh codespace ssh --config -c "$name" > "$cfg" 2>/dev/null && grep -q '^Host ' "$cfg" || die "gh codespace ssh --config failed. Check: gh codespace list, gh auth status (codespace scope)."
+  local host; host=$(awk '/^Host /{print $2; exit}' "$cfg")
+  local dir; dir=$(ssh -F "$cfg" -o LogLevel=ERROR "$host" 'for d in /workspaces/*/; do [ -d "$d/system" ] && [ -d "$d/sdlc" ] && { echo "${d%/}"; break; }; done')
+  [ -n "$dir" ] || die "No workshop repo in the codespace's /workspaces."
+  ssh -F "$cfg" -o LogLevel=ERROR "$host" 'command -v rsync >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq rsync; } >/dev/null' || die "Cannot install rsync in the codespace."
+  if [ -n "$(git status --porcelain)" ]; then
+    git stash push -q -u -m "factory: before connecting to the codespace" && echo "  Your local changes are in git stash (git stash list)."
+  fi
+  printf 'CS_NAME=%q\nCS_HOST=%q\nCS_DIR=%q\nCS_SSH=%q\n' "$name" "$host" "$dir" "$cfg" > "$(git rev-parse --git-dir)/factory-codespace"
+  CS_SSH=$cfg; cs_rsync "$host:$dir/" ./ || die "Could not fetch the repo from the codespace."
+  info "Connected. This directory is a copy of $dir from codespace $name."
+  echo "  factory …               runs in the codespace (sync before and after)"
+  echo "  factory cs <command>    any command in the codespace: make, kubectl, argo"
+  echo "  claude                  Claude Code here, on the laptop; factory autopilot N does the same with the lesson's prompt"
+  echo "  factory disconnect      the end: this directory works on its own again"
+}
+
+cmd_disconnect() { repo; rm -f "$(git rev-parse --git-dir)/factory-codespace"; info "Disconnected. The codespace keeps running; stop it with: gh codespace stop"; }
+
+lesson_no() {
+  case "${1:-}" in
+    final|11) echo final ;;
+    [1-9]|10|0[1-9]) echo $((10#$1)) ;;
+    "") local t; t=$(git describe --tags --match 'lesson-*' --abbrev=0 2>/dev/null); [ -n "$t" ] && echo $((10#${t#lesson-})) || die "Name the lesson." ;;
+    *) die "Unknown lesson: $1 (1-10 or final)" ;;
+  esac
+}
+lesson_tag() { [ "$1" = final ] && echo "" || printf 'lesson-%02d' "$1"; }
+has_target() { make -n "$1" >/dev/null 2>&1; }
+cluster_exists() { command -v kind >/dev/null && kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; }
+context() { kubectl config use-context "kind-$CLUSTER" >/dev/null 2>&1; }
+k() { kubectl -n "$NS" "$@"; }
+
+# ------------------------------------------------------------------ lesson tags: from the fork, and if the fork has none, from the instructor's repo
+tags() {
+  git rev-parse -q --verify refs/tags/lesson-10 >/dev/null && return 0
+  git fetch -q --tags origin 2>/dev/null || true
+  git rev-parse -q --verify refs/tags/lesson-10 >/dev/null && return 0
+  echo "The fork has no lesson tags, fetching them from $UPSTREAM"
+  git fetch -q "$UPSTREAM" '+refs/tags/lesson-*:refs/tags/lesson-*' || die "Could not fetch the lesson tags."
+}
+
+# ------------------------------------------------------------------ the cluster in the state of the current lesson
+sync() {
+  cluster_exists || die "No kind cluster \"$CLUSTER\". First: factory start"
+  context
+  if has_target setup; then
+    info "Cluster: make setup (images, workshop, agents, line; a few minutes the first time)"
+    make -s setup || die "make setup failed. Show this log to the instructor or try: factory reset"
+  else
+    info "Lesson 1: the cluster has only the agent \"probe\" (no tools). The MCP server \"workshop\" and the builder agent come in lesson 2."
+  fi
+  if has_target line; then make -s line >/dev/null || true; fi
+  # The Argo controller configuration (lesson 5) and the run traces (lesson 10) live in cluster.sh, which sync does not call:
+  # we add them here, so a cluster started on lesson 1 catches up with the later lessons.
+  [ -f platform/argo/controller-configmap.yaml ] && JAEGER_PORT=$JAEGER_PORT envsubst '${JAEGER_PORT}' < platform/argo/controller-configmap.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null 2>&1 || true
+  kubectl -n argo get deploy workflow-controller >/dev/null 2>&1 && kubectl -n argo set env deploy/workflow-controller \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger.factory.svc:4317 OTEL_EXPORTER_OTLP_INSECURE=true OTEL_SERVICE_NAME=argo-workflows >/dev/null 2>&1 || true
+  # The ledger key is your cluster's, and checking out a lesson restores the instructor's cosign.pub: rebuild it from the key.
+  local kdir=platform/line/cosign
+  if [ -f "$kdir/cosign.key" ] && git ls-files --error-unmatch "$kdir/cosign.pub" >/dev/null 2>&1 && command -v cosign >/dev/null; then
+    COSIGN_PASSWORD="" cosign public-key --key "$kdir/cosign.key" > "$kdir/cosign.pub.tmp" 2>/dev/null && mv "$kdir/cosign.pub.tmp" "$kdir/cosign.pub" || rm -f "$kdir/cosign.pub.tmp"
+  fi
+  [ -f platform/kyverno/agent-tools.yaml ] && kubectl apply -f platform/kyverno/agent-tools.yaml >/dev/null 2>&1 || true
+  if [ -f platform/kagent/agent-intake.yaml ] && ! grep -qE '^[[:space:]]+TODO[[:space:]]*$' platform/kagent/agent-intake.yaml; then
+    kubectl apply -f platform/kagent/agent-intake.yaml >/dev/null 2>&1 || true
+  fi
+}
+
+preflight() {
+  [ "${FACTORY_NO_PREFLIGHT:-0}" = 1 ] && return 0
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 || die "Docker does not run. In Codespaces wait until the container finishes starting; on a laptop start Docker Desktop."
+  local mem; mem=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
+  [ "$mem" -ge 7000000000 ] 2>/dev/null || die "Docker has $((mem / 1024 / 1024 / 1024)) GB of memory, the factory needs at least 8 GB. Codespaces: a 4-core machine (16 GB); Docker Desktop: Settings → Resources."
+  local root; root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null); [ -d "$root" ] || root=$HOME
+  local free; free=$(df -Pk "$root" 2>/dev/null | awk 'NR==2 {print int($4/1024/1024)}')
+  # Right after a codespace starts, Docker reports too little space: read it again, and only warn.
+  [ "${free:-0}" -ge 10 ] || { sleep 15; free=$(df -Pk "$root" 2>/dev/null | awk 'NR==2 {print int($4/1024/1024)}'); }
+  [ "${free:-0}" -ge 10 ] || echo "Warning: Docker has ${free} GB free, the factory needs about 10 GB. If start fails: docker system prune."
+  for t in kind kubectl helm make git python3 node pnpm jq envsubst; do command -v "$t" >/dev/null || die "No $t. In Codespaces it is there; on a laptop: SETUP.md"; done
+}
+
+cmd_start() {
+  repo
+  preflight
+  info "kind cluster \"$CLUSTER\" (5-10 minutes the first time)"
+  # cluster.sh is idempotent: on a slower machine pods come up after the timeout, and a second pass finds them.
+  make -s cluster || { info "The cluster comes up slower than usual, trying again"; make -s cluster; } || die "make cluster failed twice. factory reset, or show the log to the instructor."
+  sync
+  make -s doctor || true
+  cmd_urls
+  info "Done. Next: open the floor (link above), factory map, then factory lesson 1 (or any number)."
+}
+
+cmd_lesson() {
+  repo; local n; n=$(lesson_no "${1:-}"); tags
+  local target; if [ "$n" = final ]; then git fetch -q origin main 2>/dev/null || git fetch -q "$UPSTREAM" main; target=FETCH_HEAD; else target=$(lesson_tag "$n"); fi
+  # A run in progress works on the shared /work disk: switching the lesson would overwrite its repo.
+  if cluster_exists && context && [ -n "$(k get workflows --field-selector status.phase=Running -o name 2>/dev/null)" ]; then
+    echo "Stopping runs in progress (shared /work disk): argo stop"
+    argo stop -n "$NS" --all >/dev/null 2>&1 || k delete workflows --field-selector status.phase=Running >/dev/null 2>&1 || true
+  fi
+  if [ -n "$(git status --porcelain)" ]; then
+    git stash push -q -u -m "factory: before lesson $n" && echo "Your changes are in git stash (git stash list)."
+  fi
+  git switch -q -C work "$target" || die "Could not switch to $target."
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$(git rev-parse --git-dir)/factory-lesson"   # runs of this lesson count from now
+  echo "Branch work = $( [ "$n" = final ] && echo 'main (finale)' || echo "$target" )"
+  cluster_exists && sync || echo "No cluster yet: factory start"
+  echo
+  local mat; mat=$(ls lessons/ 2>/dev/null | grep -E "^lesson-$(printf %02d "${n/final/11}")|^final" | head -1)
+  info "Lesson $n ready."
+  echo "  material:   lessons/${mat:-final-github.md}"
+  echo "  exercise:   factory autopilot $n  (runs Claude Code; inside Claude Code: /factory-autopilot $n)"
+  echo "  check:      factory check $n"
+  local g; g=$(ready "$n")
+  if [ -n "$g" ]; then
+    echo "  ready variant (the final version of the exercise, to look at or copy):"
+    echo "$g" | sed 's/^/    /'
+    case "$g" in *commands-f*) ;; *) echo "    swap it in with one command: factory solve $n (prints every step)" ;; esac
+  fi
+}
+
+cmd_reset() {
+  repo
+  info "Deleting the kind cluster \"$CLUSTER\" and building it from scratch"
+  kind delete cluster --name "$CLUSTER" >/dev/null 2>&1 || true
+  cmd_start
+}
+
+# ------------------------------------------------------------------ the map of blocks
+cmd_map() {
+  repo; local up=0; cluster_exists && context && up=1
+  local tag; tag=$(git describe --tags --match 'lesson-*' 2>/dev/null || echo "?")
+  info "The factory in this repo: $tag, branch $(git branch --show-current)"
+  local wt=""; [ $up = 1 ] && wt=$(k get workflowtemplate factory -o json 2>/dev/null)
+  block() { # $1 lesson, $2 name, $3 condition (0 = present)
+    if [ "$3" = 0 ]; then ok "L$1  $2"; else skip "L$1  $2"; fi
+  }
+  t() { eval "$1" >/dev/null 2>&1 && echo 0 || echo 1; }
+  [ $up = 1 ] || echo "  (no cluster: factory start; showing the repo only)"
+  block 1  "an agent as a resource (Agent probe, A2A)"                "$(t "[ $up = 1 ] && k get agent probe")"
+  block 1  "the intake agent with an instruction"                     "$(t "[ -f platform/kagent/agent-intake.yaml ] && ! grep -qE '^[[:space:]]+TODO[[:space:]]*$' platform/kagent/agent-intake.yaml")"
+  block 2  "workshop: the MCP server, five tools"                     "$(t "[ $up = 1 ] && k get mcpserver workshop")"
+  block 2  "the wall: PROTECTED_PATHS in the server"                  "$(t "[ $up = 1 ] && k get mcpserver workshop -o jsonpath='{.spec.deployment.env.PROTECTED_PATHS}' | grep -q sdlc")"
+  block 3  "context L1-L5: AGENTS.md and routing"                     "$(t "[ -f sdlc/context.py ] && [ -f AGENTS.md ]")"
+  block 3  "concept ownership: owns in game/sim"                      "$(t "python3 -c \"import json,sys;sys.exit(0 if json.load(open('system/game/sim/module.json')).get('owns') else 1)\"")"
+  block 4  "intake: criteria before the agent"                        "$(t "[ -f sdlc/intake.py ]")"
+  block 4  "double jump with criteria"                                "$(t "grep -qi '^criteria' orders/double-jump.md")"
+  block 5  "the line in Argo (WorkflowTemplate factory)"              "$(t "[ -n \"\$wt\" ]")"
+  block 6  "gates: quality control in the line"                       "$(t "echo \"\$wt\" | grep -q '\"name\": *\"quality\"'")"
+  block 6  "the architecture rule: game/sim is deterministic"         "$(t "grep -q 'sim_is_deterministic' system/architecture/rules.js && ! grep -q 'TODO(lesson 6)' system/architecture/rules.js")"
+  block 7  "the oracle in the line"                                   "$(t "echo \"\$wt\" | grep -q '\"name\": *\"oracle\"'")"
+  block 7  "the wall: scenarios/ hidden (HIDDEN_PATHS)"               "$(t "[ $up = 1 ] && k get mcpserver workshop -o jsonpath='{.spec.deployment.env.HIDDEN_PATHS}' | grep -q scenarios")"
+  block 8  "risk and review in the line"                              "$(t "echo \"\$wt\" | grep -q '\"name\": *\"review\"'")"
+  block 8  "the review rule: hold the input, not the physics"         "$(t "python3 -c \"import json;r=[x for x in json.load(open('sdlc/review-rules.json'))['rules'] if x['kind']=='llm' and 'gravity' in (x.get('rule','')+x.get('pass','')+x.get('fail','')).lower()];assert r\"")"
+  block 9  "human: suspend in the line"                               "$(t "echo \"\$wt\" | grep -q '\"suspend\"'")"
+  block 9  "Kyverno policy: the builder has only the workshop"        "$(t "[ -f platform/kyverno/agent-tools.yaml ] && ! grep -q 'expression: \"true\"' platform/kyverno/agent-tools.yaml")"
+  block 10 "the ledger and the cosign signature"                      "$(t "echo \"\$wt\" | grep -q '\"name\": *\"ledger\"' && [ $up = 1 ] && k get secret factory-cosign")"
+  block 10 "trace: Argo sends traces to Jaeger"                       "$(t "[ $up = 1 ] && kubectl -n argo get deploy workflow-controller -o jsonpath='{.spec.template.spec.containers[0].env}' | grep -q OTEL")"
+  block F  "GitHub: the issue poller and PRs (make github)"           "$(t "[ $up = 1 ] && k get cronworkflow factory-pull")"
+}
+
+# ------------------------------------------------------------------ checking the exercise
+workshop_py() { # a Workspace call inside the MCP server's pod, without writing events to the ledger
+  k exec deploy/workshop -- python3 -c "
+import sys; sys.path.insert(0, '/app')
+from workspace import Workspace
+ws = Workspace.from_env(); ws.events_file = None
+try:
+    print($1)
+except Exception as e:
+    print('Rejected:', e)
+" 2>/dev/null
+}
+
+check_1() {
+  local f=platform/kagent/agent-intake.yaml
+  # TODO in the systemMessage field itself (the comments in the header also say "TODO" and do not count)
+  grep -qE '^[[:space:]]+TODO[[:space:]]*$' "$f" && no "$f: the systemMessage still says TODO" || ok "the intake agent's instruction is written"
+  k get agent intake -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q True \
+    && ok "the intake agent is deployed and Ready" || { no "the intake agent is not Ready: kubectl apply -f $f"; return; }
+  local key; key=$(k get secret factory-llm -o jsonpath='{.data.LLM_API_KEY}' 2>/dev/null | base64 -d 2>/dev/null)
+  if [ -z "$key" ] || [ "$key" = none ]; then skip "the agent's answer: skipped, no model key (factory key)"; return; fi
+  k rollout status deploy/intake --timeout=120s >/dev/null 2>&1   # an agent's Ready is not its pod yet: without this A2A gets connection refused
+  local out; out=$(python3 sdlc/a2a.py --agent intake --task "Double jump. Players keep asking for a second jump in the air. Add it." 2>&1)
+  # A model that is unavailable (limits, no credit, network) is not an exercise error: the instruction and the deployment are checked above.
+  if [ $? -ne 0 ] || printf '%s' "$out" | grep -qiE 'A2A (error|HTTP)|429|credit|quota|rate limit|returned no text'; then
+    local why; why=$(printf '%s' "$out" | grep -oiE '429|credit[a-z_]*|quota|rate limit|HTTP [0-9]+|connection refused' | head -1)
+    skip "the agent's answer: the model does not answer (${why:-$(printf '%s' "$out" | tail -1 | cut -c1-70)}), check later"; return
+  fi
+  local n; n=$(printf '%s\n' "$out" | grep -cE '^\s*([-*•]|[0-9]+\.)\s')
+  [ "$n" -ge 2 ] && [ "$n" -le 6 ] && ok "the agent answers with a list of $n questions" || no "the agent does not answer with a list of 2-6 questions (I see $n points)"
+}
+check_2() {
+  k get mcpserver workshop -o jsonpath='{.spec.deployment.env.PROTECTED_PATHS}' | grep -q sdlc && ok "PROTECTED_PATHS deployed in the server" || no "in the cluster PROTECTED_PATHS has no sdlc (kubectl apply -f platform/workshop/mcpserver.yaml)"
+  local p; for p in sdlc/policy.json platform/kind.yaml system/architecture/rules.js; do
+    workshop_py "ws.write_file('$p.factory-check', 'x')" | grep -q '^Rejected' && ok "a write to $p rejected by the server" \
+      || { no "the server accepted a write to $p"; k exec deploy/workshop -- rm -f "/work/repo/$p.factory-check" 2>/dev/null; }
+  done
+}
+check_3() {
+  local m; m=$(python3 sdlc/context.py route --title "$(python3 sdlc/orders.py hw-001 --title)" --body "$(python3 sdlc/orders.py hw-001 --body)" 2>/dev/null | grep -oE 'goes to `[a-z-]+`' | head -1 | tr -d '`' | sed 's/goes to //')
+  echo "$m" | grep -qx sim && ok "routing: HW-001 goes to sim" || no "routing points to ${m:-?}: fill in owns in system/game/sim/module.json"
+  python3 -c "import sys; sys.path.insert(0, 'sdlc'); import context; sys.stdout.write(context.agents_md(context.build_index()))" 2>/dev/null | cmp -s - AGENTS.md \
+    && ok "AGENTS.md is up to date with its sources" || no "AGENTS.md is stale or missing: make agents-md"
+}
+check_4() {
+  grep -qiE '^\s*(#+\s*)?criteria' orders/double-jump.md && ok "double-jump has a Criteria section" || no "orders/double-jump.md has no Criteria: section"
+  local t b; t=$(python3 sdlc/orders.py double-jump --title); b=$(python3 sdlc/orders.py double-jump --body)
+  python3 sdlc/context.py route --title "$t" --body "$b" >/dev/null 2>&1
+  python3 sdlc/intake.py --title "$t" --body "$b" >/dev/null 2>&1
+  python3 -c "import json,sys;sys.exit(0 if json.load(open('.sdlc/intake.json'))['accepted'] else 1)" 2>/dev/null \
+    && ok "intake: the work order is accepted" || no "intake still sends double-jump back (make intake O=double-jump shows why)"
+}
+check_5() {
+  k get workflowtemplate factory >/dev/null 2>&1 && ok "the line is deployed" || no "no line: make line"
+  # Only runs since switching to the lesson count: old ones, from other lessons, are no proof.
+  local since; since=$(cat "$(git rev-parse --git-dir)/factory-lesson" 2>/dev/null || echo 1970-01-01T00:00:00Z)
+  local s; s=$(k get workflows -o json 2>/dev/null | SINCE="$since" python3 -c "
+import json,os,sys
+d=json.load(sys.stdin)['items']
+ok=[w for w in d if any(p.get('name')=='order' and p.get('value')=='hw-001' for p in w['spec'].get('arguments',{}).get('parameters',[]))
+    and w.get('status',{}).get('phase')=='Succeeded' and w['metadata']['creationTimestamp']>=os.environ['SINCE']]
+print(len(ok))")
+  [ "${s:-0}" -ge 1 ] && ok "HW-001 went through the line ($s run(s))" || no "no successful run of HW-001: make replay O=hw-001"
+  # make fetch keeps the times of the files in the cluster: only a patch made since the switch to the lesson counts.
+  make -s fetch >/dev/null 2>&1
+  [ -n "$(find .sdlc/out/hw-001/attempt-1 -name change.patch -size +0 -newer "$(git rev-parse --git-dir)/factory-lesson" 2>/dev/null)" ] \
+    && ok "patch fetched: .sdlc/out/hw-001/attempt-1/change.patch" || no "no fresh patch after make fetch"
+}
+check_6() {
+  local f=system/architecture/rules.js
+  grep -q 'TODO(lesson 6)' "$f" && { no "$f still says TODO"; return; } || ok "a rule instead of the TODO"
+  [ -d system/node_modules ] || { info "  pnpm install in system/ (once)"; (cd system && pnpm install --frozen-lockfile >/dev/null 2>&1); }
+  info "  the gate on the current code (typecheck, lint, test, bugs:check; under a minute)"
+  bash sdlc/build.sh system >"${TMPDIR:-/tmp}/factory-build.log" 2>&1 && ok "the current code passes the rule" || { no "the build is red on the current code: the rule is too broad (log: ${TMPDIR:-/tmp}/factory-build.log)"; return; }
+  info "  the naive startle with Math.random() (a recording) has to be red"
+  # The working tree, not HEAD: the rule you just wrote does not have to be committed yet.
+  local tmp; tmp=$(mktemp -d); tar -cf - --exclude node_modules --exclude .oracle system sdlc/replays sdlc/build.sh | tar -x -C "$tmp"
+  ln -s "$PWD/system/node_modules" "$tmp/system/node_modules"
+  (cd "$tmp" && git init -q && git apply sdlc/replays/startle-naive.patch && bash sdlc/build.sh system >"$tmp/build.log" 2>&1); local code=$?
+  if [ $code -ne 0 ] && grep -q 'no-restricted' "$tmp/build.log" && grep -q 'game/sim/tick.ts' "$tmp/build.log"; then ok "the naive startle breaks the architecture rule"; else no "the naive startle passes: the rule does not catch Math.random() in game/sim"; fi
+  rm -rf "$tmp"
+  grep -qi 'sim_is_deterministic\|deterministic' AGENTS.md && ok "the rule's reason reached AGENTS.md" || skip "AGENTS.md without the new rule: make agents-md (and because as one literal)"
+}
+check_7() {
+  k get mcpserver workshop -o jsonpath='{.spec.deployment.env.HIDDEN_PATHS}' | grep -q scenarios && ok "HIDDEN_PATHS deployed" || no "in the cluster HIDDEN_PATHS has no scenarios"
+  workshop_py "ws.read_file('scenarios/index.json')[:60]" | grep -q '^Rejected' && ok "reading the oracle rejected by the server" || no "the server shows scenarios/ to the agent"
+  workshop_py "ws.write_file('sdlc/.factory-check', 'x')" | grep -q '^Rejected' && ok "the wall from lesson 2 still stands" || no "PROTECTED_PATHS disappeared with the change"
+}
+check_8() {
+  python3 - <<'PY' && ok "an llm rule in the correctness lens: hold the input, not the physics" || no "no proper llm rule (correctness, pass/fail/example_fail, about gravity going on while the wizard is held)"
+import json, sys
+rules = json.load(open("sdlc/review-rules.json"))["rules"]
+hit = [r for r in rules if r.get("kind") == "llm" and r.get("lens") == "correctness"
+       and "gravity" in (r.get("rule", "") + r.get("pass", "") + r.get("fail", "")).lower()
+       and all(r.get(k) for k in ("pass", "fail", "example_fail"))]
+sys.exit(0 if hit else 1)
+PY
+}
+check_9() {
+  local wt; wt=$(k get workflowtemplate factory -o json 2>/dev/null)
+  echo "$wt" | python3 -c "
+import json,sys
+t={x['name']:x for x in json.load(sys.stdin)['spec']['templates']}
+wait=t.get('wait',{}); human=t.get('human',{})
+uses=any(s.get('template')=='wait' for g in human.get('steps',[]) for s in g)
+out=wait.get('outputs',{}).get('parameters',[])
+sys.exit(0 if 'suspend' in wait and uses and any(p.get('name')=='who' for p in out) else 1)" \
+    && ok "A: the human step waits (suspend with the output who) and is deployed" || no "A: the deployed line has no wait step (suspend, output who) in the human template: make line"
+  kubectl apply --dry-run=server -f platform/kyverno/test/bad-agent.yaml >"${TMPDIR:-/tmp}/factory-kyverno.log" 2>&1 \
+    && no "B: Kyverno lets the bad agent through (kubectl apply -f platform/kyverno/agent-tools.yaml)" || ok "B: Kyverno rejects the bad agent"
+  kubectl apply --dry-run=server -f platform/kagent/agent-builder.yaml >/dev/null 2>&1 && ok "B: the real builder still passes" || no "B: the policy blocks the real builder too"
+}
+check_10() {
+  make -s fetch >/dev/null 2>&1
+  # Only a ledger written since the switch to the lesson counts (make fetch keeps the times of the files in the cluster).
+  local found f=""; found=$(find .sdlc/out -name ledger.jsonl -newer "$(git rev-parse --git-dir)/factory-lesson" 2>/dev/null)
+  [ -z "$found" ] || f=$(ls -t $found | head -1)
+  [ -n "$f" ] || { no "no ledger from this lesson: send a work order down the line (make replay O=startle), then make fetch"; return; }
+  python3 sdlc/ledger.py --file "$f" verify >/dev/null 2>&1 && ok "the ledger's chain is whole: $f" || no "the ledger's chain is broken: $f (restore the file after the tampering exercise)"
+  cosign verify-blob --key platform/line/cosign/cosign.pub --bundle "${f%.jsonl}.sigstore.json" --insecure-ignore-tlog "$f" >/dev/null 2>&1 \
+    && ok "the cosign signature matches" || no "the signature does not match or is missing (make cosign-keys, then a new run)"
+}
+check_final() {
+  k get secret factory-github >/dev/null 2>&1 && ok "Secret factory-github in the cluster" || no "no Secret: make github"
+  k get cronworkflow factory-pull >/dev/null 2>&1 && ok "poller factory-pull" || no "no poller: make github"
+  local repo_gh; repo_gh=$(k get secret factory-github -o jsonpath='{.data.GH_REPO}' 2>/dev/null | base64 -d 2>/dev/null)
+  [ -n "$repo_gh" ] && gh pr list -R "$repo_gh" --state all --search "head:agent/issue-" --json number --jq length 2>/dev/null | grep -qv '^0$' \
+    && ok "the factory opened a PR on $repo_gh" || no "no PR from the factory: make issue O=hw-001, then make pull AGENT=replay"
+}
+
+cmd_check() {
+  repo; local n; n=$(lesson_no "${1:-}"); RED=0
+  if [ "$n" != 3 ] && [ "$n" != 4 ] && [ "$n" != 6 ] && [ "$n" != 8 ]; then cluster_exists || die "No cluster: factory start"; context; fi
+  info "Checking lesson $n"
+  "check_$n"
+  echo; [ $RED = 0 ] && { info "Lesson $n: green."; return 0; } || { echo "Lesson $n: red. Fix it or: factory solve $n (no model, prints every step)"; return 1; }
+}
+
+# ------------------------------------------------------------------ the solution: the exercise's files from the next lesson
+exercise_files() {
+  case "$1" in
+    1) echo platform/kagent/agent-intake.yaml ;;
+    2|7) echo platform/workshop/mcpserver.yaml ;;
+    3) echo system/game/sim/module.json ;;
+    4) echo orders/double-jump.md ;;
+    6) echo system/architecture/rules.js ;;
+    8) echo sdlc/review-rules.json ;;
+    9) echo platform/line/factory.yaml platform/kyverno/agent-tools.yaml ;;
+    *) echo "" ;;
+  esac
+}
+
+# factory solve N: a deterministic solution of the lesson without a model. Swaps the exercise's files for the version from
+# lesson N+1, deploys them to the cluster and prints every step: from where, to where, checksums before and after, every command.
+step() { printf '  [%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }   # on stderr: redirecting a command's output does not hide the step
+run() { step "\$ $*"; "$@"; }
+sha() { [ -f "$1" ] || { echo "none"; return; }; { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12; }
+
+wait_and_approve() {   # lesson 10: the replay stops at the human; approve as factory-solve and wait for the end
+  local w="" i
+  for i in $(seq 1 90); do
+    w=$(argo list -n "$NS" --running -o name 2>/dev/null | grep -v "^No workflows" | head -1)
+    if [ -n "$w" ] && argo get -n "$NS" "$w" -o json 2>/dev/null | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if any(n['type']=='Suspend' and n['phase']=='Running' for n in d['status'].get('nodes',{}).values()) else 1)"; then
+      step "run $w waits for a human"; run env WHO=factory-solve make -s approve W="$w"; break
+    fi
+    sleep 10
+  done
+  [ -n "$w" ] && run argo wait -n "$NS" "$w" >/dev/null
+}
+
+cmd_solve() {
+  repo; local n; n=$(lesson_no "${1:-}"); tags
+  info "factory solve $n: the solution without a model, step by step"
+  if [ "$n" = final ]; then
+    echo "  The finale opens an issue and a PR on your fork, so I do not do it for you. The steps (lessons/final-github.md):"
+    echo "    make github && make issue O=hw-001 && make pull AGENT=replay && gh pr list"
+    return 1
+  fi
+  local files; files=$(exercise_files "$n")
+  if [ -n "$files" ]; then
+    local next; next=$(lesson_tag $((n + 1))); local p before after tmp
+    step "source: tag $next (the final version of exercise $n)"
+    for p in $files; do
+      before=$(sha "$p"); tmp=$(mktemp); [ -f "$p" ] && cp "$p" "$tmp"
+      solution_file "$n" "$p" > "$p" || die "Cannot read the solution of $p"
+      after=$(sha "$p")
+      if [ "$before" = "$after" ]; then step "unchanged   $p (already the final version)"
+      else step "swapped     $p  ← $(solution_source "$n" "$p")  (sha256 $before → $after, $(git diff --no-index --numstat "$tmp" "$p" 2>/dev/null | awk '{print "+"$1" -"$2" lines"}'))"; fi
+      rm -f "$tmp"
+    done
+    ready "$n" >/dev/null && step "reference copy: solutions/$(printf 'lesson-%02d' "$n")/ (files *-f$n)"
+    case "$n" in 3|6) run make -s agents-md >/dev/null ;; esac
+  fi
+  if cluster_exists; then
+    context
+    case "$n" in
+      1) run kubectl apply -f platform/kagent/agent-intake.yaml; run kubectl wait --for=condition=Ready agent/intake -n "$NS" --timeout=180s ;;
+      3|4|8) run make -s send >/dev/null ;;
+      5) run make -s replay O=hw-001; step "\$ make fetch"; make -s fetch | wc -l | xargs -I{} echo "    fetched files: {} (.sdlc/out/)" ;;
+      10) step "\$ make replay O=startle   (in the background; attempt 2 stops at the human)"
+          make -s replay O=startle > "${TMPDIR:-/tmp}/factory-solve-10.log" 2>&1 &
+          wait_and_approve; wait; tail -2 "${TMPDIR:-/tmp}/factory-solve-10.log" | sed 's/^/    /'
+          step "\$ make fetch"; make -s fetch | wc -l | xargs -I{} echo "    fetched files: {} (.sdlc/out/)" ;;
+      *) step "\$ factory sync   (make setup, make line, Kyverno, the Argo configuration, the cosign key)"; sync ;;
+    esac
+  else
+    step "no cluster: skipping the deployment (factory start, then factory solve $n again)"
+  fi
+  [ -n "$files" ] && { step "changes against lesson $n (git diff --stat):"; git --no-pager diff --stat -- $files | sed 's/^/    /'; }
+  echo
+  cmd_check "$n"
+}
+
+# Logging Claude Code in, in Codespaces: after login claude.ai redirects to http://localhost:<port>/callback, and that localhost
+# is the laptop, not the codespace. The address from the browser bar has to reach the codespace: factory callback.
+claude_logged_in() { [ -n "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || claude auth status >/dev/null 2>&1; }
+
+login_help() {
+  cat <<'TXT'
+  Logging Claude Code in, in Codespaces (once per codespace):
+    1. In this terminal: factory login   (or /login in Claude Code). Open the link and log in.
+    2. The browser ends on a page "localhost refused to connect". That is expected: copy the WHOLE address from the bar
+       (it starts with http://localhost:...callback?code=...).
+    3. A second terminal (+ in the Terminal panel): factory callback 'PASTED_ADDRESS'. The first terminal shows you logged in.
+  Without a browser: claude setup-token on the laptop, and add the token as the Codespaces secret CLAUDE_CODE_OAUTH_TOKEN
+  (github.com/settings/codespaces → New secret, access: your fork), then rebuild or restart the codespace.
+TXT
+}
+
+cmd_login() {
+  command -v claude >/dev/null || die "No claude command. Install it: curl -fsSL https://claude.ai/install.sh | bash"
+  if claude_logged_in; then info "Claude Code is already logged in."; return 0; fi
+  login_help; echo
+  exec claude auth login
+}
+
+cmd_callback() {
+  local u="${1:-}"
+  case "$u" in http://localhost:*|http://127.0.0.1:*) ;; *) die "Pass the address from the browser bar in quotes: factory callback 'http://localhost:…/callback?code=…'" ;; esac
+  curl -fsS "$u" >/dev/null && info "Handed over to Claude Code. Go back to the first terminal." || die "Nobody listens at that address: the login in the first terminal expired or was cancelled. Start again with factory login."
+}
+
+cmd_autopilot() {
+  local n; n=$(lesson_no "${1:-}"); local f="$DATA/autopilot/$( [ "$n" = final ] && echo final || printf %02d "$n").md"
+  [ -f "$f" ] || die "No prompt $f. Run: factory update"
+  # Inside Claude Code (the /factory-autopilot command) or in a pipe: the prompt only, Claude runs it itself.
+  local prompt; prompt=$(cat "$f")
+  if cs_active; then
+    prompt="This directory is a copy of the repo from the codespace where the cluster runs. Run factory commands as usual (they go to the codespace by themselves). Run make, kubectl, argo and python3 sdlc/… through: factory cs <command>. Edit files here, locally.
+
+$prompt"
+  fi
+  if [ "${2:-}" = "--prompt" ] || [ -n "${CLAUDECODE:-}" ] || [ ! -t 1 ]; then printf '%s\n' "$prompt"; return 0; fi
+  if ! command -v claude >/dev/null || ! claude --version >/dev/null 2>&1; then
+    echo "The autopilot runs Claude Code, and this terminal has no claude command."
+    echo "  Install:       curl -fsSL https://claude.ai/install.sh | bash   (then: factory login)"
+    echo "  Without Claude: factory solve $n                                (the solution without a model, prints every step)"
+    echo "  A ready file:  solutions/lesson-$(printf %02d "${n/final/11}")/  (appears after factory lesson $n)"
+    echo "  The prompt:    factory autopilot $n --prompt"
+    return 1
+  fi
+  repo
+  if ! claude_logged_in; then
+    echo "Claude Code is not logged in. Log in once, then run the autopilot again."
+    [ -n "${CODESPACE_NAME:-}" ] && login_help || echo "  claude auth login"
+    return 1
+  fi
+  # The same permissions as the /factory-autopilot command: the list from its allowed-tools header.
+  local tools; tools=$(sed -n 's/^allowed-tools: //p' "$HOME/.claude/commands/factory-autopilot.md" 2>/dev/null | sed 's/, /,/g')
+  info "Autopilot for lesson $n: starting Claude Code with the lesson's prompt. Watch what it does; it asks you for approvals."
+  if [ -n "$tools" ]; then exec claude --allowed-tools="$tools" -- "$prompt"; else exec claude -- "$prompt"; fi
+}
+
+# Ready variants of an exercise: files from lesson N+1 as solutions/lesson-NN/<name>-fN.<ext>. A separate directory, because
+# e.g. rules-f6.js next to the original would be picked up by the tools. The directory is in .gitignore and .git/info/exclude:
+# it never reaches git status or the stash, and the next lesson builds it again.
+# The solution file of exercise N: first from the tools (solutions/lesson-NN/<path>), when tag N+1 has more in that file than
+# the exercise itself (lesson 9: factory.yaml of lesson 10 already has the ledger step), otherwise from tag N+1.
+solution_file() {   # $1: lesson number, $2: path in the repo; prints the content
+  local o; o="$DATA/solutions/$(printf 'lesson-%02d' "$1")/$2"
+  if [ -f "$o" ]; then cat "$o"; else git show "$(lesson_tag $(($1 + 1))):$2"; fi
+}
+solution_source() { [ -f "$DATA/solutions/$(printf 'lesson-%02d' "$1")/$2" ] && echo "the tools (a version with exercise $1 only)" || echo "$(lesson_tag $(($1 + 1))):$2"; }
+
+ready() {
+  local n=$1 top; top=$(git rev-parse --show-toplevel)
+  rm -rf "$top/solutions"
+  local ex; ex=$(git rev-parse --git-path info/exclude); mkdir -p "$(dirname "$ex")"
+  grep -qx '/solutions/' "$ex" 2>/dev/null || echo '/solutions/' >> "$ex"
+  local dir; dir="$top/solutions/$( [ "$n" = final ] && echo final || printf 'lesson-%02d' "$n")"
+  local files=""; [ "$n" = final ] || files=$(exercise_files "$n")
+  if [ -z "$files" ]; then   # an exercise of commands, not files: the ready variant is a list of commands
+    mkdir -p "$dir"
+    case "$n" in
+      5) printf '%s\n' "# Lesson 5: the line. The solution is a run, not a file." "make replay O=hw-001      # at the end: Result: Succeeded" "make fetch" "factory check 5" ;;
+      10) printf '%s\n' "# Lesson 10: the trace and tampering with the ledger." "make replay O=startle   # attempt 2 stops at the human; in a second terminal: make approve W=<run>" "make fetch" "make ledger-verify F=.sdlc/out/startle/attempt-2/ledger.jsonl" "factory check 10" ;;
+      *) printf '%s\n' "# Finale: the factory on your fork (lessons/final-github.md)." "make github" "make issue O=hw-001" "make pull AGENT=replay" "gh pr list" "factory check final" ;;
+    esac > "$dir/commands-$( [ "$n" = final ] && echo final || echo "f$n").txt"
+    echo "solutions/$(basename "$dir")/commands-$( [ "$n" = final ] && echo final || echo "f$n").txt"
+    return 0
+  fi
+  local next; next=$(lesson_tag $((n + 1))); git rev-parse -q --verify "refs/tags/$next" >/dev/null || return 0
+  mkdir -p "$dir"
+  local p b target
+  for p in $files; do
+    b=$(basename "$p"); target="${b%.*}-f$n.${b##*.}"
+    solution_file "$n" "$p" > "$dir/$target" 2>/dev/null || { rm -f "$dir/$target"; continue; }
+    printf '%s  →  %s\n' "$target" "$p" >> "$dir/WHERE.txt"
+    echo "solutions/$(printf 'lesson-%02d' "$n")/$target"
+  done
+}
+
+cmd_ready() { repo; local n; n=$(lesson_no "${1:-}"); tags; ready "$n" | sed 's/^/  /'; }
+
+# A cluster port in the browser. In Codespaces localhost works only in the codespace's terminal, so we give GitHub's
+# forwarding address (https://<codespace>-<port>.app.github.dev); on a laptop plain localhost.
+url() {
+  if [ -n "${CODESPACE_NAME:-}" ]; then
+    echo "https://${CODESPACE_NAME}-$1.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}$2"
+  else
+    echo "http://localhost:$1$2"
+  fi
+}
+
+cmd_urls() {
+  echo
+  echo "  Your addresses (Cmd+click or Ctrl+click opens them in the browser):"
+  echo
+  echo "  The floor (Argo Workflows): the line's runs";  echo "    $(url "$HALL_PORT" /workflows/factory)"
+  echo "  The floor: the line's template";                echo "    $(url "$HALL_PORT" /workflow-templates/factory)"
+  echo "  Jaeger: traces (pick a service, Find Traces)";  echo "    $(url "$JAEGER_PORT" /search)"
+  echo "  kagent: the agents in the cluster";             echo "    $(url "$KAGENT_UI_PORT" /)"
+  echo "  Hobby Wizard: the game from your repo";          echo "    $(url 5173 /)"
+  echo "  Hobby Wizard: the fix (after factory play fix)"; echo "    $(url 5174 /)"
+  if [ -n "${CODESPACE_NAME:-}" ]; then
+    echo "  This codespace's editor";                     echo "    https://${CODESPACE_NAME}.github.dev/"
+    echo
+    echo "  The ports are private: open them in a browser logged in to your GitHub account."
+  fi
+  cluster_exists || echo "  No cluster yet, so the pages will not answer: factory start first."
+  echo
+}
+
+# Play Hobby Wizard in the browser. Before the lessons: the game with its planted bug. After a fix: the same game with it.
+#   factory play                the game as your repo has it now, port 5173 (main keeps bug HW-001); Codespaces starts it for you
+#   factory play fix [order]    your repo plus the newest patch the factory fetched (make fetch), default hw-001, port 5174
+#   factory play <git ref>      any branch or commit, e.g. agent/issue-3 after the finale, port 5174
+# A fix or a ref is played from a separate copy ($DATA/play), so your working tree stays as it is.
+cmd_play() {
+  repo
+  local what=${1:-} port=${FACTORY_PLAY_PORT:-5174} dir="$DATA/play" label patch order ref
+  case "$what" in
+    ""|now) dir="$PWD"; port=${FACTORY_PLAY_PORT:-5173}; label="your repo as it is now (it reloads when the files change)" ;;
+    fix)
+      order=${2:-hw-001}
+      patch=$(ls -t .sdlc/out/"$order"/attempt-*/change.patch 2>/dev/null | head -1)
+      [ -n "$patch" ] || die "No fetched patch for $order. Run the work order and fetch it first: make replay O=$order && make fetch"
+      ref=HEAD; label="your repo + the factory's fix from $patch" ;;
+    *)
+      git rev-parse -q --verify "$what^{commit}" >/dev/null 2>&1 || git fetch -q origin "$what:refs/remotes/origin/$what" 2>/dev/null
+      if git rev-parse -q --verify "$what^{commit}" >/dev/null 2>&1; then ref=$what
+      elif git rev-parse -q --verify "origin/$what^{commit}" >/dev/null 2>&1; then ref=origin/$what
+      else die "No branch or commit called $what. After the finale: git fetch origin, then factory play agent/issue-<N>"; fi
+      label="$ref" ;;
+  esac
+  if [ "$dir" != "$PWD" ]; then
+    git worktree remove --force "$dir" >/dev/null 2>&1; rm -rf "$dir"; git worktree prune
+    git worktree add -q --detach "$dir" "$ref" || die "Could not check out $ref."
+    if [ -n "${patch:-}" ]; then git -C "$dir" apply "$PWD/$patch" || die "The patch does not apply on your current commit: $patch"; fi
+    [ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile) || die "pnpm install failed in system/."
+    ln -s "$PWD/system/node_modules" "$dir/system/node_modules"
+  else
+    [ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile) || die "pnpm install failed in system/."
+  fi
+  (cd "$dir/system" && pnpm run assets >/dev/null 2>&1) || die "Building the game's assets failed (pnpm assets in system/)."
+  echo
+  echo "  🎮 Hobby Wizard: $label"
+  echo "     $(url "$port" /)"
+  echo
+  echo "  Keys: arrows walk, Z jumps, X charges, T raises a ticket. HW-001: walk through the bush on the plateau, hold right."
+  echo "  Ctrl+C stops the game."
+  echo
+  cd "$dir/system" && __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.app.github.dev,.github.dev exec pnpm exec vite --host 0.0.0.0 --port "$port" --strictPort --clearScreen false
+}
+
+cmd_welcome() {
+  local w="$DATA/welcome.txt"
+  [ -f "$w" ] && cat "$w" || help
+}
+
+# The model key: the script from the tools (from main), so every lesson tag uses the same, newest version.
+cmd_key() {
+  repo; [ -f "$DATA/key.sh" ] || die "No key script in the tools. Run: factory update"
+  cluster_exists || die "The key goes into the cluster, and there is no cluster yet: factory start first."
+  context
+  FACTORY_REPO=$PWD bash "$DATA/key.sh"
+}
+
+cmd_update() {
+  local tmp; tmp=$(mktemp -d)
+  if git rev-parse --show-toplevel >/dev/null 2>&1 && git fetch -q origin main 2>/dev/null && git archive FETCH_HEAD lessons/tools scripts/key.sh .devcontainer/welcome.txt 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then :;
+  else git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD lessons/tools scripts/key.sh .devcontainer/welcome.txt | tar -x -C "$tmp" || die "Could not fetch the tools."; fi
+  bash "$tmp/lessons/tools/install.sh"; rm -rf "$tmp"
+}
+
+help() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+
+# Codespace mode (a laptop after factory connect): the factory's commands run where the cluster is.
+if cs_active; then
+  case "${1:-help}" in
+    connect|disconnect|autopilot|login|callback|welcome|update|help|-h) ;;
+    cs) shift; [ $# -gt 0 ] || die "Name a command: factory cs make replay O=hw-001"; cs_run "$*"; exit $? ;;
+    *) cs_run "factory $(printf '%q ' "$@")"; exit $? ;;
+  esac
+fi
+
+case "${1:-help}" in
+  connect) cmd_connect "${2:-}" ;;
+  disconnect) cmd_disconnect ;;
+  cs) die "factory cs works after connecting to a codespace: factory connect" ;;
+  start) cmd_start ;;
+  lesson) cmd_lesson "${2:-}" ;;
+  map) cmd_map ;;
+  check) cmd_check "${2:-}" ;;
+  autopilot) cmd_autopilot "${2:-}" "${3:-}" ;;
+  ready) cmd_ready "${2:-}" ;;
+  solve) cmd_solve "${2:-}" ;;
+  login) cmd_login ;;
+  callback) cmd_callback "${2:-}" ;;
+  reset) cmd_reset ;;
+  urls) cmd_urls ;;
+  play) cmd_play "${2:-}" "${3:-}" ;;
+  welcome) cmd_welcome ;;
+  key) cmd_key ;;
+  update) cmd_update ;;
+  sync) repo; sync ;;
+  *) help ;;
+esac
