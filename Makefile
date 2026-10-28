@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup send doctor lesson key a2a port-forward floor test route agents-md
+.PHONY: help cluster setup send doctor lesson key a2a port-forward floor test route intake agents-md
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -46,6 +46,10 @@ test: ## The game's gate: typecheck, lint with the architecture rules, tests, bu
 route: ## Routing, locally: make route O=hw-001 (a work order file) or make route T="title" [B="body"]
 	@if [ -n "$(O)" ]; then python3 sdlc/context.py route --title "$$(python3 sdlc/orders.py $(O) --title)" --body "$$(python3 sdlc/orders.py $(O) --body)"; \
 	else python3 sdlc/context.py route --title "$(T)" --body "$(B)"; fi
+
+intake: ## Intake, locally (routing + criteria + the intake agent's questions): make intake O=double-jump
+	@python3 sdlc/context.py route --title "$$(python3 sdlc/orders.py $(O) --title)" --body "$$(python3 sdlc/orders.py $(O) --body)" >/dev/null 2>&1
+	@python3 sdlc/intake.py --title "$$(python3 sdlc/orders.py $(O) --title)" --body "$$(python3 sdlc/orders.py $(O) --body)" 2>/dev/null
 
 agents-md: ## Rebuild AGENTS.md from the sources (module.json, system/docs, ops, history)
 	@python3 sdlc/context.py agents-md
