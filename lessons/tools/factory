@@ -74,14 +74,22 @@ tags() {
 }
 
 # ------------------------------------------------------------------ the cluster in the state of the current lesson
-# The lesson tags carry an A2A client that cannot read an agent that asks back (intake: input-required). The tools
-# carry the fixed one from main: one commit on branch work, so make a2a, make intake and the line's images use it.
-a2a_fix() {
-  local mine="$DATA/sdlc/a2a.py"
-  [ -f "$mine" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$mine" sdlc/a2a.py || return 0
-  cp "$mine" sdlc/a2a.py
-  git -c user.name=factory -c user.email=factory@workshop commit -q --no-verify -m "factory: the A2A client from main" -- sdlc/a2a.py >/dev/null 2>&1 \
-    && echo "sdlc/a2a.py: the client from main (one commit on branch work)"
+# The lesson tags carry things fixed later on main, and a fork's tags never change. factory lesson and factory sync
+# put the fixes on branch work as one commit, so make a2a, make intake, make floor and the line's images use them:
+#   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
+#   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
+tags_fix() {
+  local changed=""
+  if [ -f "$DATA/sdlc/a2a.py" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$DATA/sdlc/a2a.py" sdlc/a2a.py; then
+    cp "$DATA/sdlc/a2a.py" sdlc/a2a.py; changed="sdlc/a2a.py"
+  fi
+  if grep -q '^	@\. scripts/workshop\.env; open http://localhost' Makefile 2>/dev/null; then
+    sed -i.factory 's#^	@\. scripts/workshop\.env; open http://localhost.*#	@factory urls#' Makefile && rm -f Makefile.factory
+    changed="$changed Makefile"
+  fi
+  [ -n "$changed" ] || return 0
+  git -c user.name=factory -c user.email=factory@workshop commit -q --no-verify -m "factory: fixes from main ($changed)" -- $changed >/dev/null 2>&1 \
+    && echo "Fixes from main on branch work:$changed"
 }
 
 # factory key saves the API address and the model (never the key) in $DATA/model.env. cluster.sh of every lesson applies
@@ -94,7 +102,7 @@ model_restore() {
 sync() {
   cluster_exists || die "No kind cluster \"$CLUSTER\". First: factory start"
   context
-  a2a_fix
+  tags_fix
   model_restore
   if has_target setup; then
     info "Cluster: make setup (images, workshop, agents, line; a few minutes the first time)"
@@ -156,7 +164,7 @@ cmd_lesson() {
     git stash push -q -u -m "factory: before lesson $n" && echo "Your changes are in git stash (git stash list)."
   fi
   git switch -q -C work "$target" || die "Could not switch to $target."
-  a2a_fix
+  tags_fix
   date -u +%Y-%m-%dT%H:%M:%SZ > "$(git rev-parse --git-dir)/factory-lesson"   # runs of this lesson count from now
   echo "Branch work = $( [ "$n" = final ] && echo 'main (finale)' || echo "$target" )"
   cluster_exists && sync || echo "No cluster yet: factory start"
