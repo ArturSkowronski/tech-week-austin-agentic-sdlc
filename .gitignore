@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+.sdlc/
+.factory.env
+node_modules
+system/.oracle/
+platform/**/cosign.key
+platform/line/cosign/cosign.key
+__pycache__/
+lessons/keynote/*.pptx
+lessons/images/out/
+/solutions/
+lessons/images/art/out/

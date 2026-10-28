@@ -1,0 +1,15 @@
+# The factory's model. One configuration for all agents: you change it here, not in each agent.
+# The key goes into the Secret `factory-llm` through `factory key`. Without a key the agents start but do not answer
+# (the line then works in replay mode).
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: factory-model
+  namespace: factory
+spec:
+  provider: OpenAI
+  model: ${LLM_MODEL}
+  apiKeySecret: factory-llm
+  apiKeySecretKey: LLM_API_KEY
+  openAI:
+    baseUrl: ${LLM_BASE_URL}

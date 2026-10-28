@@ -1,0 +1,17 @@
+# The factory cluster: one node, UI ports exposed on localhost without port-forward.
+# scripts/cluster.sh fills the host ports from scripts/workshop.env (defaults below), so a second cluster
+# on the same laptop can take other ports: HALL_PORT, KAGENT_API_PORT, KAGENT_UI_PORT, JAEGER_PORT in .factory.env.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ${KIND_CLUSTER}
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30746   # Argo Workflows UI (the factory floor)
+        hostPort: ${HALL_PORT}
+      - containerPort: 30083   # kagent controller: A2A and API
+        hostPort: ${KAGENT_API_PORT}
+      - containerPort: 30082   # kagent dashboard
+        hostPort: ${KAGENT_UI_PORT}
+      - containerPort: 30686   # Jaeger UI (traces)
+        hostPort: ${JAEGER_PORT}

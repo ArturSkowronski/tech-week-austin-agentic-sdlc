@@ -1,0 +1,19 @@
+# The exercise of lesson 1: the agent "intake". The factory asks it about the missing acceptance criteria of a work order.
+# TODO(lesson 1): fill in systemMessage. The agent:
+#   - gets the title and the description of a work order (Hobby Wizard, a TypeScript platformer with a deterministic simulation),
+#   - asks 2-4 questions without which an acceptance test cannot be written,
+#   - answers with a bulleted list, no preamble.
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: intake
+  namespace: factory
+  labels:
+    factory.dev/role: intake
+spec:
+  type: Declarative
+  description: Work order intake. Asks about missing acceptance criteria.
+  declarative:
+    modelConfig: factory-model
+    systemMessage: |
+      TODO

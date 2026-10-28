@@ -1,0 +1,17 @@
+# Lesson 1: an agent is a resource in the cluster. The kagent controller turns this into a Deployment, a Service and an A2A endpoint.
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: probe
+  namespace: factory
+  labels:
+    factory.dev/role: probe
+spec:
+  type: Declarative
+  description: The factory's probe agent. Answers questions about itself.
+  declarative:
+    modelConfig: factory-model
+    systemMessage: |
+      You are the probe agent of a software factory at the Austin Tech Week 2026 workshop.
+      You answer in at most two sentences. You have no tools, and you say so plainly
+      when someone asks you to change code.

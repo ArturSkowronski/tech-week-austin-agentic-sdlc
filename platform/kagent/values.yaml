@@ -1,0 +1,29 @@
+# The kagent profile for the workshop: controller, UI, kmcp (the MCPServer CRD) and Postgres. No sample agents.
+# Installed by scripts/cluster.sh (KAGENT_VERSION).
+providers:
+  default: openAI
+  openAI:
+    provider: OpenAI
+    model: gpt-5-mini
+    apiKeySecretRef: kagent-openai
+    apiKeySecretKey: OPENAI_API_KEY
+otel:
+  tracing:
+    enabled: true
+    exporter:
+      otlp:
+        endpoint: http://jaeger.factory.svc:4317
+        protocol: grpc
+        insecure: true
+kagent-tools: {enabled: false}
+k8s-agent: {enabled: false}
+kgateway-agent: {enabled: false}
+istio-agent: {enabled: false}
+promql-agent: {enabled: false}
+observability-agent: {enabled: false}
+argo-rollouts-agent: {enabled: false}
+helm-agent: {enabled: false}
+cilium-policy-agent: {enabled: false}
+cilium-manager-agent: {enabled: false}
+cilium-debug-agent: {enabled: false}
+grafana-mcp: {enabled: false}
