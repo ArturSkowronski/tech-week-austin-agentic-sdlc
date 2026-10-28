@@ -1,0 +1,24 @@
+# The depot: the pod through which you put a snapshot of the repo into the cluster (make order) and take results out (make fetch).
+# No git server, no tokens: `tar | kubectl exec -i ... tar -x`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: depot
+  namespace: factory
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: depot}}
+  template:
+    metadata: {labels: {app: depot}}
+    spec:
+      containers:
+        - name: depot
+          image: factory-toolbox:lesson
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+          volumeMounts: [{name: work, mountPath: /work}]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+      volumes:
+        - name: work
+          persistentVolumeClaim: {claimName: workshop}

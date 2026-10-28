@@ -1,0 +1,35 @@
+# The agent's workshop: an MCP server (streamable HTTP) on the shared disk. The MCPServer CRD comes from kmcp (part of kagent);
+# the controller makes a Deployment and a Service, and kagent discovers the tools by itself (kubectl get mcpserver -n factory).
+#
+# The agent's boundaries are here, in the server's configuration, not in the prompt:
+#   PROTECTED_PATHS  writes rejected
+#   HIDDEN_PATHS     reads rejected and recorded as holdout.peek
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: workshop
+  namespace: factory
+spec:
+  transportType: http
+  httpTransport:
+    targetPort: 3000
+    path: /mcp
+  timeout: 10m
+  deployment:
+    image: factory-workshop:lesson
+    imagePullPolicy: IfNotPresent
+    port: 3000
+    env:
+      WORK_DIR: /work/repo
+      EVENTS_FILE: /work/events.jsonl
+      # TODO(lesson 2): the paths the agent must not change: the gates, the line, the paired tests, the oracle.
+      PROTECTED_PATHS: ""
+      # TODO(lesson 7): the paths the agent must not even read: the oracle.
+      HIDDEN_PATHS: ""
+    volumeMounts: [{name: work, mountPath: /work}]
+    volumes:
+      - name: work
+        persistentVolumeClaim: {claimName: workshop}
+    resources:
+      requests: {cpu: 200m, memory: 512Mi}
+      limits: {memory: 2Gi}

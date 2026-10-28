@@ -1,0 +1,12 @@
+# The factory's shared disk: /work/repo (a copy of the repository), /work/out (results), /work/events.jsonl (tool events).
+# One node in kind, so ReadWriteOnce is enough: the depot, the MCP server and the line's steps run on the same node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: workshop
+  namespace: factory
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
