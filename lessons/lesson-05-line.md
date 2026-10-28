@@ -13,10 +13,9 @@ and can pause a run for a human (lesson 9). Every step is a container with the s
 only the script differs.
 
 ```
-prepare ─▶ intake ─▶ builder ─▶ change
-  branch     routing    A2A to       commit on branch agent/<order>,
-  of the     + criteria the builder  patch and description in /work/out
-  order
+prepare ──────▶ intake ───────▶ builder ──────▶ change
+branch of       routing         A2A to          commit on branch agent/<order>,
+the order       + criteria      the builder     patch and description in /work/out
 ```
 
 | Part | File |
