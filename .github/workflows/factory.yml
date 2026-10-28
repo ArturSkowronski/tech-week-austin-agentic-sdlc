@@ -1,0 +1,128 @@
+# The factory's gates outside the cluster (finale). They run on GitHub's infrastructure, out of the agent's reach:
+# it has no GitHub token, and an agent/* branch that changes .github/ fails in the `provenance` job.
+#
+# Rule: tools and gates always come from main (sdlc/, scenarios/, system/architecture/, the bug tests, the gate
+# configs, the cosign key), the code from the PR. An agent may propose a new rule, but it applies only after a human merges it.
+#
+#   gates       typecheck, lint (architecture rules), tests, planted-bug check, test weakening detector
+#   oracle      holdout scenarios from main (the vault only as a decision)
+#   review      risk and deterministic review (DET-*), SARIF to code scanning, one comment in the PR
+#   provenance  the factory ledger: chain, cosign signature, PR code = the commit that passed the gates in the cluster
+#
+# These four names are required checks on main (make github), so lights-out auto-merge waits for them.
+name: factory
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BASE: origin/${{ github.base_ref }}
+  TITLE: ${{ github.event.pull_request.title }}
+  HEAD_REF: ${{ github.head_ref }}
+  SUMMARY_FILE: ${{ github.workspace }}/.summary.md
+  GATES_FROM_MAIN: sdlc scenarios system/architecture system/bugs/tests system/tools/bugs system/eslint.config.js system/package.json system/tsconfig.json system/vitest.config.ts system/vitest.bugs.config.ts platform/line/cosign/cosign.pub
+
+jobs:
+  gates:
+    name: gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - name: Gates from main
+        run: git checkout "$BASE" -- $GATES_FROM_MAIN
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.27.1}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: pnpm, cache-dependency-path: system/pnpm-lock.yaml}
+      - name: Dependencies
+        run: cd system && pnpm install --frozen-lockfile
+      - name: Typecheck, lint, tests and planted bugs
+        run: |
+          set +e; bash sdlc/build.sh system > build.log 2>&1; code=$?; set -e
+          tail -n 40 build.log
+          python3 sdlc/gates.py report --log build.log --exit-code $code >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+      - name: Test weakening
+        run: python3 sdlc/gates.py weakening --base "$BASE" --head HEAD | tee -a "$GITHUB_STEP_SUMMARY"
+
+  oracle:
+    name: oracle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - name: Oracle from main
+        run: git checkout "$BASE" -- $GATES_FROM_MAIN
+      - uses: pnpm/action-setup@v4
+        with: {version: 11.27.1}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22", cache: pnpm, cache-dependency-path: system/pnpm-lock.yaml}
+      - name: Dependencies
+        run: cd system && pnpm install --frozen-lockfile
+      - name: Holdout scenarios
+        run: python3 sdlc/scenarios.py run --work-order "$TITLE" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  review:
+    name: review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0}
+      - name: Review from main
+        run: git checkout "$BASE" -- $GATES_FROM_MAIN
+      - name: Risk and deterministic review
+        run: |
+          agent=""; case "$HEAD_REF" in agent/*) agent="--agent" ;; esac
+          python3 sdlc/risk.py --base "$BASE" --head HEAD $agent --work-order "$TITLE" > risk.md
+          set +e; python3 sdlc/review.py --base "$BASE" --head HEAD --out-md review.md --out-sarif review.sarif --fail-on-blocking > /dev/null; code=$?; set -e
+          cat risk.md review.md >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_ENV"
+      - name: SARIF to code scanning
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with: {sarif_file: review.sarif, category: factory-review}
+      - name: One comment in the PR (updated, not added)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          { echo "<!-- factory-ci -->"; echo "## 🧱 GitHub gates: review"; cat risk.md review.md; } > comment.md
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq '.[] | select(.body | startswith("<!-- factory-ci -->")) | .id' | head -1)
+          if [ -n "$id" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null; fi
+      - name: A blocking finding stops the merge
+        run: exit "$code"
+
+  provenance:
+    name: provenance
+    runs-on: ubuntu-latest
+    steps:
+      # The PR head, not the commit merged with main: the ledger talks about the commit on the agent's branch.
+      - uses: actions/checkout@v5
+        with: {fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}"}
+      - name: Tools and key from main
+        run: git checkout "$BASE" -- $GATES_FROM_MAIN
+      - name: cosign
+        run: |
+          curl -fsSL -o /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64
+          chmod +x /usr/local/bin/cosign && cosign version | head -3
+      - name: Ledger, signature, commit, boundaries
+        run: |
+          set +e; python3 sdlc/provenance.py --base "$BASE" --head HEAD --branch "$HEAD_REF"; code=$?; set -e
+          cat "$SUMMARY_FILE" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          exit $code

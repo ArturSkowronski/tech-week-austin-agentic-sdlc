@@ -1,5 +1,5 @@
 # Everything you need in the workshop. `make help` shows the list.
-.PHONY: help cluster setup line order replay naive approve fetch cosign-keys ledger-verify send doctor lesson key a2a port-forward floor test oracle route intake agents-md
+.PHONY: help cluster setup line order replay naive approve fetch cosign-keys ledger-verify send doctor lesson key a2a port-forward floor test oracle route intake agents-md github issue pull tools
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -86,3 +86,15 @@ intake: ## Intake, locally (routing + criteria + the intake agent's questions): 
 
 agents-md: ## Rebuild AGENTS.md from the sources (module.json, system/docs, ops, history)
 	@python3 sdlc/context.py agents-md
+
+github: ## Finale: connect the factory to your fork (issues, Actions, main protection, Secret, poller): make github [GH_REPO=login/repo]
+	@scripts/github.sh
+
+issue: ## Finale: a work order as an issue on your fork: make issue O=hw-001 (a planted bug gets the labels bug, planted)
+	@. scripts/github-env.sh && python3 sdlc/github.py issue "$(O)"
+
+pull: ## Finale: the factory takes an issue now, without waiting for the cron: make pull [AGENT=replay]
+	@argo submit -n factory --from cronwf/factory-pull -p agent=$${AGENT:-kagent} --generate-name factory-pull-now- -o name | sed 's/^/Poller: /'
+
+tools: ## The participant's tools outside the repo: factory (lesson, map, check, solve, autopilot) and /factory-autopilot in Claude Code
+	@bash lessons/tools/install.sh

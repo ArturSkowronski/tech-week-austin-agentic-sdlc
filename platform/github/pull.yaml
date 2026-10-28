@@ -1,0 +1,103 @@
+# Finale: the factory pulls work orders from GitHub. Every two minutes it takes the oldest issue labelled `factory` or
+# `planted` (the label the game's "Raise ticket on GitHub" sets, ADR-006) from your fork and runs the line on it
+# (WorkflowTemplate factory, source=github).
+#
+# A cluster on a laptop cannot take a webhook from the internet, so we ask GitHub ourselves (polling). One work order at a
+# time (concurrencyPolicy: Forbid and waiting for the run): the line and the agent share one /work disk.
+# The poller has its own account with the right to create runs. The line's steps do not have that right.
+# Deployed by make github (with the Secret factory-github). Trigger it now: make pull.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: factory-pull, namespace: factory}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: factory-pull, namespace: factory}
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows"]
+    verbs: ["create", "get", "list", "watch", "patch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: factory-pull, namespace: factory}
+subjects: [{kind: ServiceAccount, name: factory-pull, namespace: factory}]
+roleRef: {kind: Role, name: factory-pull, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: factory-pull
+  namespace: factory
+spec:
+  schedules: ["*/2 * * * *"]
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    serviceAccountName: factory-pull
+    entrypoint: pull
+    arguments:
+      parameters:
+        - {name: agent, value: kagent}   # replay: the line without a model (plan B)
+    templates:
+      - name: pull
+        steps:
+          - - name: take
+              template: take
+          - - name: line
+              template: line
+              when: "'{{steps.take.outputs.parameters.issue}}' != ''"
+              arguments: {parameters: [{name: issue, value: "{{steps.take.outputs.parameters.issue}}"}]}
+
+      # The poller's code always from a fresh main of the fork, not from the /work disk the agent works on.
+      - name: take
+        outputs:
+          parameters:
+            - name: issue
+              valueFrom: {path: /tmp/outputs/issue, default: ""}
+        container:
+          image: factory-toolbox:lesson
+          imagePullPolicy: IfNotPresent
+          command: [bash, -eo, pipefail, -c]
+          args:
+            - |
+              mkdir -p /tmp/outputs
+              [ -n "$GH_TOKEN" ] || { echo "no Secret factory-github: make github"; exit 1; }
+              auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+              git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" clone -q --depth 1 "https://github.com/$GH_REPO.git" /tmp/repo
+              OUTPUTS_DIR=/tmp/outputs python3 /tmp/repo/sdlc/github.py pull
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - name: GH_TOKEN
+              valueFrom: {secretKeyRef: {name: factory-github, key: GH_TOKEN, optional: true}}
+            - name: GH_REPO
+              valueFrom: {secretKeyRef: {name: factory-github, key: GH_REPO, optional: true}}
+
+      # The line's run for the issue. The poller waits for the end (andon too), so the next issue starts after it.
+      - name: line
+        inputs:
+          parameters: [{name: issue}]
+        resource:
+          action: create
+          successCondition: status.phase in (Succeeded, Failed, Error)
+          manifest: |
+            apiVersion: argoproj.io/v1alpha1
+            kind: Workflow
+            metadata:
+              generateName: factory-issue-{{inputs.parameters.issue}}-
+              namespace: factory
+            spec:
+              workflowTemplateRef: {name: factory}
+              arguments:
+                parameters:
+                  - {name: order, value: "issue-{{inputs.parameters.issue}}"}
+                  - {name: source, value: github}
+                  - {name: agent, value: "{{workflow.parameters.agent}}"}
