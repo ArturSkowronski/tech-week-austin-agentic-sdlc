@@ -375,12 +375,14 @@ git apply --stat .sdlc/out/hw-001/attempt-1/change.patch   # 👀 which files th
 factory check 5              # 🟢 the bug went through the pipeline and you have the patch
 ```
 
-👀 **Watch it:** `factory urls` → open the floor (Argo) → run `factory-hw-001-…`: the steps prepare → intake → builder → change.
+👀 **Watch it:** open the floor (**PORTS** → **The floor (Argo Workflows)**) before `make replay`: the run `factory-hw-001-…`
+appears there at once, and its steps prepare → intake → builder → change turn green one by one.
 🔑 **With a model key:** `make order O=hw-001` runs a real agent (2–5 minutes). In a second terminal,
 `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl` shows every tool the agent calls, live.
 
-🎮 **Play the fix:** `factory play fix` starts the game with the agent's patch on top of your repo, on port 5174
-(**🎮 Hobby Wizard (the fix)**). Walk through the bush again: right is right, and the creature is gone.
+🎮 **Play the fix:** in a **second terminal** (it runs until Ctrl+C), `factory play fix` starts the game with the agent's
+patch on top of your repo, on port 5174 (**🎮 Hobby Wizard (the fix)**). Walk through the bush again: right is right, and
+the creature is gone. Port 5173 is still your repo, with the bug: the patch is not applied, the next lessons check it first.
 
 ![The fix on port 5174: no creature in the bush, and holding → walks right.](lessons/images/gif/play-hw-001-fixed.gif)
 <sub>The fix on port 5174: no creature in the bush, and holding → walks right.</sub>
@@ -747,6 +749,7 @@ The issues and PRs from the finale stay on your fork. If you got a model key in 
 | `factory: command not found` | Wait for the codespace's build to finish, then open a new terminal |
 | `factory start`: not enough memory | The codespace must be the 4-core/16 GB machine: create it again from the fork's **Code** → **Codespaces** |
 | Not sure what is wrong | `factory doctor`: every red line says what to run |
+| `factory update` brings old tools (no `factory doctor`, no `factory ask`) | Once: `t=$(mktemp -d) && git clone -q --depth 1 https://github.com/ArturSkowronski/tech-week-austin-agentic-sdlc $t && bash $t/lessons/tools/install.sh`, then a new terminal |
 | `make a2a A=intake …`: "the agent returned no text (task state: input-required)" | `factory update`, then `factory sync` (the fixed A2A client on your branch), or ask with `factory ask intake "…"` |
 | `factory start` fails on a timeout | Run it again; then `factory reset` |
 | `factory start`: `ghcr.io … 403: denied` for kagent | An old Docker login to ghcr.io breaks the anonymous chart pull: `docker logout ghcr.io`, then `factory start` |

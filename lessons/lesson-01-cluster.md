@@ -40,7 +40,7 @@ agent fixes it, and you will play the fix.
 
 You already ran `factory lesson 1` and `factory start` ([README, Step 2](../README.md#step-2-the-cluster-and-lesson-1)).
 
-1. Open the floor, the kagent dashboard and Jaeger: `make floor` (kagent is http://localhost:8082).
+1. Open the kagent dashboard: the **PORTS** tab → **kagent dashboard** (port 8082), or the link from `factory urls`.
 
    ![The kagent dashboard: `builder`, `intake` and `probe` are resources in the cluster, each with its model and state.](images/gif/l01-kagent-agents.gif)
    <sub>The kagent dashboard: `builder`, `intake` and `probe` are resources in the cluster, each with its model and state.</sub>

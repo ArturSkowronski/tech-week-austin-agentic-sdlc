@@ -19,8 +19,8 @@ of every model and tool call to Jaeger.
 | The ledger | `sdlc/ledger.py`, the `ledger` step in the line | `.sdlc/out/<order>/attempt-N/ledger.jsonl` after `make fetch` |
 | The signature | `cosign sign-blob` with the key from the Secret `factory-cosign` | `ledger.sigstore.json`, `make ledger-verify` |
 | The work order card | `sdlc/factory.py card` | `card.md` in the results |
-| The run's trace | Argo + `sdlc/tracing.py` (steps, tools) → kagent (agent, model) → Jaeger | http://localhost:16686 |
-| The floor | Argo Workflows UI | http://localhost:2746, every run in the room |
+| The run's trace | Argo + `sdlc/tracing.py` (steps, tools) → kagent (agent, model) → Jaeger | **PORTS** → **Jaeger (traces)**, port 16686 |
+| The floor | Argo Workflows UI | **PORTS** → **The floor (Argo Workflows)**, port 2746 |
 
 ## Before you start
 

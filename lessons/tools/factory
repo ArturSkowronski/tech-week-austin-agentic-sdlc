@@ -164,6 +164,7 @@ cmd_lesson() {
   local mat; mat=$(ls lessons/ 2>/dev/null | grep -E "^lesson-$(printf %02d "${n/final/11}")|^final" | head -1)
   info "Lesson $n ready."
   echo "  material:   lessons/${mat:-final-github.md}"
+  echo "              the newest version: ${UPSTREAM%.git}/blob/main/lessons/${mat:-final-github.md}"
   echo "  exercise:   factory autopilot $n  (runs Claude Code; inside Claude Code: /factory-autopilot $n)"
   echo "  check:      factory check $n"
   local g; g=$(ready "$n")
@@ -694,10 +695,13 @@ cmd_key() {
 }
 
 cmd_update() {
-  local tmp; tmp=$(mktemp -d)
-  if git rev-parse --show-toplevel >/dev/null 2>&1 && git fetch -q origin main 2>/dev/null && git archive FETCH_HEAD lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then :;
-  else git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt | tar -x -C "$tmp" || die "Could not fetch the tools."; fi
+  # Always from the instructor's repo: origin is the participant's fork, and a fork does not get new commits by itself.
+  local tmp files="lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py .devcontainer/welcome.txt"
+  tmp=$(mktemp -d)
+  git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD $files | tar -x -C "$tmp" \
+    || die "Could not fetch the tools from $UPSTREAM."
   bash "$tmp/lessons/tools/install.sh"; rm -rf "$tmp"
+  echo "Tools from $UPSTREAM ($(date +%H:%M)). Open a new terminal for Tab completion."
 }
 
 help() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; }

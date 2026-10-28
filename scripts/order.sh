@@ -11,7 +11,7 @@ ATTEMPT=${3:-1}
 scripts/send.sh >/dev/null
 name=$(argo submit -n factory --from workflowtemplate/factory -p "order=$O" -p "agent=$AGENT" -p "attempt=$ATTEMPT" -p "variant=${REPLAY_VARIANT:-}" \
   --generate-name "factory-$O-" -o name)
-echo "Run: $name (agent=$AGENT, attempt $ATTEMPT). The floor: http://localhost:$HALL_PORT/workflows/factory/$name"
+echo "Run: $name (agent=$AGENT, attempt $ATTEMPT). The floor: https://${CODESPACE_NAME:-?}-$HALL_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/workflows/factory/$name"
 argo watch -n factory "$name" 2>/dev/null | tail -n 25 || true
 status=$(argo get -n factory "$name" -o json | jq -r .status.phase)
 echo "Result: $status. Fetch: make fetch"

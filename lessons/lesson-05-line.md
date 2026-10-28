@@ -31,39 +31,58 @@ The agent is replaceable: `kagent` (a real model) or `replay` (a recorded patch 
 
 ## ✏️ Exercise: send HW-001 through the line (8 min)
 
+In this lesson you write nothing. You send bug HW-001 down the line, watch every step on the floor, and read the
+patch that comes out. Without a model key the `builder` step applies a recorded fix (`replay`): the line is the
+same, only the agent is swapped for a recording.
+
+**A. Set up and look at the line**
+
 1. Set up the lesson: `factory lesson 5`.
 2. See the line in the cluster: `kubectl get workflowtemplate -n factory`.
-   👀 You should see: one template, `factory`.
+   👀 You should see: one template, `factory`. This one file is the whole pipeline.
 3. Run `factory check 5`.
-   🔴 You should see: `no successful run of HW-001: make replay O=hw-001`.
-4. Run HW-001 with the recorded fix: `make replay O=hw-001` (1 to 2 minutes).
-   👀 You should see at the end: `Result: Succeeded`.
-5. Watch it on the floor (the Argo dashboard): `factory urls` (or `make floor`), open the floor, click the run `factory-hw-001-…`.
-   👀 You should see: the steps prepare → intake → builder → change, each with its log.
+   🔴 You should see: `no successful run of HW-001: make replay O=hw-001`. Nothing has gone down the line yet.
+
+**B. Open the floor before you start the run**
+
+4. In the **PORTS** tab, open **The floor (Argo Workflows)** (port 2746) in a new browser tab, or click the first link
+   of `factory urls`. Keep the tab open: the run appears there as soon as you start it.
+
+**C. Send HW-001 down the line**
+
+5. In the terminal: `make replay O=hw-001`. It takes 1 to 2 minutes and the terminal waits until the end.
+   👀 In the browser: the run `factory-hw-001-…` appears and its steps turn green one by one:
+   prepare → intake → builder → change. Click a step to read its log.
+   👀 In the terminal, at the end: `Result: Succeeded`.
 
    ![The floor (Argo): the HW-001 run with every step green. Click a step to open its details.](images/gif/l05-argo-hw001.gif)
    <sub>The floor (Argo): the HW-001 run with every step green. Click a step to open its details.</sub>
 
-6. Copy the results from the cluster to `.sdlc/out/`: `make fetch`.
-7. Read what the agent says it did: `cat .sdlc/out/hw-001/attempt-1/description.md`.
-8. See which files the fix touches: `git apply --stat .sdlc/out/hw-001/attempt-1/change.patch`.
-   👀 You should see: `system/game/sim/input-map.ts`, a new test in `system/tests/sim/`, and `system/bugs/manifest.json` (the HW-001 entry is removed).
+**D. Read what came out**
+
+6. The results are in the cluster. Copy them to your repo: `make fetch` (into `.sdlc/out/`).
+7. What the agent says it did: `cat .sdlc/out/hw-001/attempt-1/description.md`.
+8. Which files the fix touches, without applying it: `git apply --stat .sdlc/out/hw-001/attempt-1/change.patch`.
+   👀 You should see: `system/game/sim/input-map.ts`, a new test in `system/tests/sim/`, and `system/bugs/manifest.json`
+   (the HW-001 entry is removed).
 9. Run `factory check 5`.
    🟢 You should see: `HW-001 went through the line` and `patch fetched: .sdlc/out/hw-001/attempt-1/change.patch`.
 
-Stuck? `factory solve 5`.
+Stuck? `factory solve 5` does steps 5 to 9 for you and prints each one.
 
-Optional: apply the patch to your repo with `git apply .sdlc/out/hw-001/attempt-1/change.patch`.
+You do not apply the patch to your repo: the next lessons check the agent's change before anyone accepts it.
 
 ## 🎮 Play the fix
 
+The game from your repo already runs on port 5173 and still has the bug. The fix gets its own copy on port 5174.
+`factory play fix` keeps running until Ctrl+C, so start it in a **second terminal** (**+** in the Terminal panel):
+
 ```bash
-factory play fix   # the game with the factory's patch on top of your repo, port 5174
+factory play fix   # your repo + the factory's patch from make fetch, port 5174
 ```
 
-Open **🎮 Hobby Wizard (the fix)** (port 5174) and walk through the bush on the plateau again. 👀 Right is
-right, and the creature is gone. Compare with the game from your repo on port 5173 (`factory play`), which
-still has the bug.
+In **PORTS** open **🎮 Hobby Wizard (the fix)** (port 5174) and walk through the bush on the plateau. 👀 Right is
+right, and the creature is gone. Then open **🎮 Hobby Wizard (your repo)** (port 5173): the same bush, the bug is still there.
 
 ![Your repo (port 5173): the creature rides the hat, and holding → walks the wizard left.](images/gif/play-hw-001-bug.gif)
 <sub>Your repo (port 5173): the creature rides the hat, and holding → walks the wizard left.</sub>
@@ -73,20 +92,34 @@ still has the bug.
 
 ## 🔑 With a model key
 
-The same graph with a real agent:
+The same line with a real agent instead of the recording. Without a key, skip this part.
 
-1. Set the key if you have not yet: `factory key`. Then run `make order O=hw-001` (2 to 5 minutes).
-2. In a second terminal, watch every tool call live: `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl`.
-3. On the floor, open the `builder` step and read its log.
-4. Run `make fetch` and compare `.sdlc/out/hw-001/attempt-1/change.patch` with the replay version.
-5. Open Jaeger (http://localhost:16686), service `builder`: one trace with every model and tool call.
+1. Check that the key works: `factory doctor` (the line `the model answers`). No key yet: `factory key`.
+2. Terminal 1: `make order O=hw-001` (2 to 5 minutes).
+3. Terminal 2, every tool the agent calls, live: `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl`
+   (Ctrl+C stops it).
+4. On the floor, open the `builder` step of the new run and read its log.
+5. `make fetch`, then compare the agent's patch with the recording: `git apply --stat .sdlc/out/hw-001/attempt-1/change.patch`.
+6. Traces: in **PORTS** open **Jaeger (traces)** (port 16686), pick the service `builder`, **Find Traces**: one trace
+   with every model call and tool call.
 
    ![Jaeger: one trace for HW-001, the line's steps and under `builder` every model call and tool call.](images/gif/l05-jaeger-trace.gif)
    <sub>Jaeger: one trace for HW-001, the line's steps and under `builder` every model call and tool call.</sub>
 
-Try it once with an empty `owns` (undo lesson 3). The prompt now sends the same agent to `system/game/render`,
-and the decisions and the incident of `sim` are missing from it. Replay has no recording for `render` at all.
-The context changed the result. The prompt stayed the same.
+**Try it: the context changes the result.** Take away what lesson 3 gave `sim` and send the same bug again:
+
+```bash
+python3 - <<'PY'
+import json; from pathlib import Path
+p = Path("system/game/sim/module.json"); m = json.loads(p.read_text()); m["owns"] = []
+p.write_text(json.dumps(m, ensure_ascii=False, indent=2) + "\n")
+PY
+make route O=hw-001                                    # 👀 now it goes to `render`, as before lesson 3
+make order O=hw-001                                    # 👀 the agent works in system/game/render, without sim's decisions and incident
+git checkout -- system/game/sim/module.json            # put lesson 3 back
+```
+
+Replay has no recording for `render`, so this part needs a key. The prompt stayed the same; only the context changed.
 
 ## To discuss
 

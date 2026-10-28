@@ -65,8 +65,8 @@ a2a: ## Ask an agent over A2A: make a2a A=probe T="Introduce yourself"
 port-forward: ## If the ports from kind.yaml do not work: port-forward to kagent (8083) and Argo (2746)
 	@kubectl port-forward -n kagent svc/kagent-controller 8083:8083 & kubectl port-forward -n argo svc/argo-server 2746:2746 & wait
 
-floor: ## Open the factory floor (Argo UI), the kagent dashboard and Jaeger in the browser
-	@. scripts/workshop.env; open http://localhost:$$HALL_PORT http://localhost:$$KAGENT_UI_PORT http://localhost:$$JAEGER_PORT 2>/dev/null || echo "http://localhost:$$HALL_PORT  http://localhost:$$KAGENT_UI_PORT  http://localhost:$$JAEGER_PORT"
+floor: ## The links to the factory floor (Argo UI), the kagent dashboard and Jaeger in this codespace
+	@factory urls
 
 test: ## The game's gate: typecheck, lint with the architecture rules, tests, bugs:check (system/)
 	@[ -d system/node_modules ] || (cd system && pnpm install --frozen-lockfile)

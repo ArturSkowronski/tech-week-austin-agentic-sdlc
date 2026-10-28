@@ -80,10 +80,7 @@ kubectl wait --for=condition=Ready agent/probe -n factory --timeout=180s >/dev/n
 
 cat <<MSG
 
-The cluster is up. Addresses on localhost:
-  the floor (Argo Workflows)  http://localhost:$HALL_PORT
-  kagent dashboard            http://localhost:$KAGENT_UI_PORT
-  kagent API / A2A            http://localhost:$KAGENT_API_PORT
-  Jaeger (traces)             http://localhost:$JAEGER_PORT
-Check: make doctor
+The cluster is up. In the browser: the PORTS tab (the floor $HALL_PORT, kagent $KAGENT_UI_PORT, Jaeger $JAEGER_PORT),
+or the links from: factory urls
+Check: factory doctor
 MSG
