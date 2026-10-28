@@ -4,6 +4,7 @@ date: 2026-09-09
 status: accepted
 kind: decision
 supersedes: "Tiled JSON level data"
+modules: [content, trace-tool]
 ---
 
 # ADR-004: A room is a text map for collision plus an optional painting

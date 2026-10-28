@@ -1,0 +1,11 @@
+# Nominal owners. sdlc/context.py computes the actual ones from git history.
+/system/game/sim/          @hobby-wizard/gameplay
+/system/game/render/       @hobby-wizard/look
+/system/game/content/      @hobby-wizard/levels
+/system/tools/asset-kit/   @hobby-wizard/look
+/system/tools/trace/       @hobby-wizard/levels
+/system/bugs/              @hobby-wizard/gameplay
+/system/architecture/      @hobby-wizard/platform
+/scenarios/                @hobby-wizard/product
+/sdlc/                     @hobby-wizard/platform
+/platform/                 @hobby-wizard/platform

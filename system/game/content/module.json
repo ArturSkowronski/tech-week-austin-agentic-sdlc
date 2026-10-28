@@ -1,0 +1,19 @@
+{
+  "name": "content",
+  "kind": "content",
+  "purpose": "Rooms as text maps, one file per room, and the tile order of the atlas.",
+  "owns": [
+    "room",
+    "map"
+  ],
+  "keywords": [
+    "room",
+    "map",
+    "level",
+    "tile",
+    "glade",
+    "layout"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/levels"
+}

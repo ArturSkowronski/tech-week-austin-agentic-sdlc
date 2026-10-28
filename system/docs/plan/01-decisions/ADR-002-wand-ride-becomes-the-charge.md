@@ -4,6 +4,7 @@ date: 2026-09-09
 status: accepted
 kind: decision
 supersedes: "game-concept.md sections 3 and 4"
+modules: [sim]
 ---
 
 # ADR-002: The wand ride is the attack, not the locomotion

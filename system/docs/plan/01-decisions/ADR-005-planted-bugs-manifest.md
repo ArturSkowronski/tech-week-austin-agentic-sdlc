@@ -3,6 +3,7 @@ title: "ADR-005: Planted bugs live in a manifest paired with failing tests"
 date: 2026-09-09
 status: accepted
 kind: decision
+modules: [sim, bug-quest]
 ---
 
 # ADR-005: Planted bugs live in a manifest paired with failing tests

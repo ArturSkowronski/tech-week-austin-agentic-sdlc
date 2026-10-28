@@ -4,6 +4,7 @@ date: 2026-09-29
 status: accepted
 kind: decision
 supersedes: "the three beats of ADR-008 and the three-room level of the level design"
+modules: [content]
 ---
 
 # ADR-009: Season 1 is one room, the glade, drawn in tiles

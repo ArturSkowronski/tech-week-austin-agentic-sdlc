@@ -1,0 +1,31 @@
+{
+  "name": "render",
+  "kind": "ui",
+  "purpose": "PixiJS rendering, keyboard, sound and the HUD. Reads WorldState and never writes it.",
+  "owns": [
+    "hud",
+    "sprite",
+    "camera",
+    "sound",
+    "banner"
+  ],
+  "keywords": [
+    "keyboard",
+    "key",
+    "keys",
+    "arrow",
+    "screen",
+    "sprite",
+    "animation",
+    "camera",
+    "sound",
+    "music",
+    "hud",
+    "draw",
+    "debug",
+    "line",
+    "banner"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/look"
+}

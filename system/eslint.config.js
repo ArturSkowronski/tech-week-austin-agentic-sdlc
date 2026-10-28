@@ -1,9 +1,11 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
+import { architecture } from './architecture/rules.js';
+
 export default tseslint.config(
   {
-    ignores: ['dist/', 'coverage/', 'public/assets/', 'test-results/', 'playwright-report/'],
+    ignores: ['dist/', 'coverage/', 'public/assets/', 'test-results/', 'playwright-report/', '.oracle/'],
   },
   js.configs.recommended,
   tseslint.configs.recommended,
@@ -12,23 +14,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
-  {
-    // The sim/render split: game/sim/ is pure and knows nothing about drawing,
-    // so a replay stays a replay (docs/plan/02-design/simulation-architecture.md).
-    files: ['game/sim/**/*.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['**/render', '**/render/**', 'pixi.js'],
-              message:
-                'game/sim/ is the pure simulation: it never imports the renderer (docs/plan/02-design/simulation-architecture.md).',
-            },
-          ],
-        },
-      ],
-    },
-  },
+  // The sim/render split and the other structural rules live in architecture/rules.js, each with
+  // the reason it exists (docs/plan/02-design/simulation-architecture.md). The factory treats that
+  // directory as a gate: an agent cannot edit it.
+  ...architecture,
 );

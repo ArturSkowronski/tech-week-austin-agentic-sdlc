@@ -1,0 +1,15 @@
+{
+  "name": "bug-quest",
+  "kind": "tests",
+  "purpose": "The planted bugs: bugs/manifest.json and one paired failing test per entry under bugs/tests/ (ADR-005).",
+  "owns": [],
+  "keywords": [
+    "planted",
+    "manifest",
+    "paired",
+    "bug",
+    "quest"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/gameplay"
+}

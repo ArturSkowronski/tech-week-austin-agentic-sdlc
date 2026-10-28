@@ -4,6 +4,7 @@ date: 2026-09-09
 status: accepted
 kind: decision
 supersedes: "Jira project HW as the ticket system"
+modules: [render]
 ---
 
 # ADR-006: The report path is a prefilled GitHub issue

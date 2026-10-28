@@ -1,0 +1,23 @@
+{
+  "name": "sim",
+  "kind": "core",
+  "purpose": "The pure deterministic simulation: movement, physics, the creature, input mapping. tick(state, input) is the only writer of WorldState.",
+  "owns": [],
+  "keywords": [
+    "physics",
+    "movement",
+    "gravity",
+    "collision",
+    "jump",
+    "tick",
+    "replay",
+    "simulation",
+    "state",
+    "respawn",
+    "checkpoint",
+    "water",
+    "charge"
+  ],
+  "critical": true,
+  "owners": "@hobby-wizard/gameplay"
+}

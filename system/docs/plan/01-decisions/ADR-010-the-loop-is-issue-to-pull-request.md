@@ -4,6 +4,7 @@ date: 2026-10-09
 status: accepted
 kind: decision
 supersedes: "the branch model, the merge policy and step 7 of the visitor journey; the seed/main/stable plan of HWP-081; the merge policy of HWP-072"
+modules: [sim]
 ---
 
 # ADR-010: The loop is issue to pull request; one world, no branch ladder, no auto-merge

@@ -1,0 +1,17 @@
+{
+  "name": "trace-tool",
+  "kind": "tool",
+  "purpose": "The trace tool: paints collision over a room painting and saves the text map.",
+  "owns": [
+    "trace"
+  ],
+  "keywords": [
+    "trace",
+    "painting",
+    "brush",
+    "collision",
+    "editor"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/levels"
+}

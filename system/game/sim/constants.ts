@@ -118,3 +118,10 @@ export const CREATURE_TRAVEL_TICKS = 30;
 
 /** Ticks the creature rides the wizard before it lets go. */
 export const CREATURE_CARRY_TICKS = 600;
+
+/**
+ * Ticks the wizard stands startled after the creature climbs onto his hat: his
+ * buttons do nothing for that long, and the world goes on around him. Tuned by
+ * the designer for the startle work order; nothing reads it yet.
+ */
+export const CREATURE_STARTLE_TICKS = 18;

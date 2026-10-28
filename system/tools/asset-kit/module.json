@@ -1,0 +1,22 @@
+{
+  "name": "asset-kit",
+  "kind": "tool",
+  "purpose": "Turns raw art and audio in assets/ into public/assets/ with a manifest and provenance.",
+  "owns": [
+    "asset",
+    "provenance"
+  ],
+  "keywords": [
+    "asset",
+    "art",
+    "png",
+    "strip",
+    "atlas",
+    "painting",
+    "audio",
+    "provenance",
+    "build"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/look"
+}

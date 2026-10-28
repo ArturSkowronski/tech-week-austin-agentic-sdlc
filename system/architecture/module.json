@@ -1,0 +1,17 @@
+{
+  "name": "architecture",
+  "kind": "tests",
+  "purpose": "Architecture rules (ESLint): the boundaries between the simulation, the renderer and the browser.",
+  "owns": [
+    "eslint"
+  ],
+  "keywords": [
+    "architecture",
+    "rule",
+    "eslint",
+    "boundary",
+    "layer"
+  ],
+  "critical": false,
+  "owners": "@hobby-wizard/platform"
+}

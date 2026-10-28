@@ -3,6 +3,7 @@ title: "ADR-003: World units of a 320 by 180 view, rendered at two pixels per un
 date: 2026-09-09
 status: accepted
 kind: decision
+modules: [render]
 ---
 
 # ADR-003: World units of a 320 by 180 view, rendered at two pixels per unit
