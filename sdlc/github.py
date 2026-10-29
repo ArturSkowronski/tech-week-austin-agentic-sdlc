@@ -207,6 +207,16 @@ def _read(folder: Path, name: str) -> str:
     return path.read_text(encoding="utf-8").strip() if path.exists() else ""
 
 
+def codespace_links(text: str) -> str:
+    """Links written in the cluster point at its localhost ports. The github step knows the codespace's forwarded
+    addresses (FACTORY_JAEGER_UI, FACTORY_FLOOR from make github): put those in, matched by port."""
+    for url in filter(None, (os.environ.get("FACTORY_JAEGER_UI"), os.environ.get("FACTORY_FLOOR"))):
+        port = re.search(r"-(\d+)\.", url)
+        if port:
+            text = text.replace(f"http://localhost:{port.group(1)}", url.rstrip("/"))
+    return text
+
+
 def pr_body(out: Path, issue: int, decision: str, name: str, trace_url: str, run_url: str) -> str:
     """The PR description: why (the issue), what (the agent's description), how it passed (the card), where the trace is."""
     closes = f"Closes #{issue}" if decision in ("lights-out", "human", "waiting") else f"Work order #{issue}"
@@ -217,7 +227,7 @@ def pr_body(out: Path, issue: int, decision: str, name: str, trace_url: str, run
     return "\n\n".join(p for p in [
         f"{closes}. {who}",
         _read(out, "description.md"),
-        _read(out, "card.md"),
+        codespace_links(_read(out, "card.md")),
         " · ".join(l for l in links if l),
         "<sub>The factory opened this PR. The `builder` agent wrote the code; the gates are in the cluster and in GitHub Actions.</sub>",
     ] if p)

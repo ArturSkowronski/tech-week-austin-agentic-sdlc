@@ -139,6 +139,19 @@ class GitHubTest(unittest.TestCase):
         self.assertIn("[trace in Jaeger](http://j/trace/abc)", body)
         self.assertIn(".factory/issue-12/ledger.jsonl", body)
 
+    def test_pr_body_card_links_the_codespace_not_localhost(self):
+        # The card is written in the cluster, which only knows localhost; the github step knows the codespace.
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "card.md").write_text("| Trace | [Jaeger](http://localhost:16686/trace/abc) |")
+            os.environ["FACTORY_JAEGER_UI"] = "https://cs-16686.app.github.dev"
+            try:
+                body = github.pr_body(out, 12, "human", "issue-12", "", "")
+            finally:
+                os.environ.pop("FACTORY_JAEGER_UI")
+        self.assertIn("[Jaeger](https://cs-16686.app.github.dev/trace/abc)", body)
+        self.assertNotIn("localhost", body)
+
     def test_review_comments_only_for_changed_files(self):
         sarif = {"runs": [{"results": [
             {"ruleId": "DET-004", "level": "error", "message": {"text": "Math.random in the sim"},

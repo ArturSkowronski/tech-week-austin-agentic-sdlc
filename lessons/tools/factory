@@ -760,7 +760,8 @@ cmd_doctor() {
   fi
 
   info "Game and GitHub"
-  curl -fsS -m 3 -o /dev/null http://localhost:5173/ 2>/dev/null && ok "the game runs on port 5173" || no "the game does not run: factory play (in a separate terminal)"
+  # Not red: the factory works without the game (the finale needs only GitHub); it matters when you want to play.
+  curl -fsS -m 3 -o /dev/null http://localhost:5173/ 2>/dev/null && ok "the game runs on port 5173" || skip "the game does not run (needed only to play it): factory play, in a separate terminal"
   if [ -n "$fork" ] && command -v gh >/dev/null; then
     case "$(gh api "repos/$fork" --jq .has_issues 2>/dev/null)" in
       true)  ok "Issues on the fork are on (Raise ticket on GitHub works)"
