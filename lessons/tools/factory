@@ -79,6 +79,17 @@ labels_ensure() {
   printf '%s\n' "$have" | grep -qx bug || gh label create bug -R "$1" --color d73a4a >/dev/null 2>&1 || true
 }
 
+# A long command with a heartbeat: every 20 seconds without an end, "… still working (m:ss)" on stderr, so a few quiet
+# minutes (images, a cluster, the game's gate) never look like a hang. The command's own output goes through as is.
+busy() {   # $1 what it does, then the command
+  local what=$1 t0 pid hb rc; shift; t0=$(date +%s)
+  "$@" & pid=$!
+  ( while sleep 20; do kill -0 "$pid" 2>/dev/null || exit 0; s=$(( $(date +%s) - t0 ))
+      printf '  \033[2m… %s: still working (%d:%02d)\033[0m\n' "$what" $((s / 60)) $((s % 60)) >&2; done ) & hb=$!
+  wait "$pid"; rc=$?; kill "$hb" 2>/dev/null; wait "$hb" 2>/dev/null
+  return $rc
+}
+
 lesson_no() {
   case "${1:-}" in
     final|11) echo final ;;
@@ -108,10 +119,14 @@ tags() {
 #   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
 #   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
 #   system/vite.config.ts   "Raise ticket on GitHub" on the fork (origin), not on the game's closed upstream repository
-#   order.sh      make replay and make order print the floor's codespace address, not localhost
+#   order.sh, images.sh   progress while a run goes and while the images build; the floor's codespace address
 #   lessons/*.md  the newest lesson materials (Codespaces links, clearer steps), for the lessons the tag already has
 tags_fix() {
   local changed="" m
+  for m in order.sh images.sh; do
+    [ -f "$DATA/scripts/$m" ] && [ -f "scripts/$m" ] && ! cmp -s "$DATA/scripts/$m" "scripts/$m" || continue
+    cp "$DATA/scripts/$m" "scripts/$m"; changed="$changed scripts/$m"
+  done
   for m in "$DATA"/lessons/*.md; do
     [ -f "$m" ] && [ -f "lessons/${m##*/}" ] && ! cmp -s "$m" "lessons/${m##*/}" || continue
     cp "$m" "lessons/${m##*/}"; changed="$changed lessons/${m##*/}"
@@ -121,10 +136,6 @@ tags_fix() {
   fi
   if [ -f "$DATA/sdlc/a2a.py" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$DATA/sdlc/a2a.py" sdlc/a2a.py; then
     cp "$DATA/sdlc/a2a.py" sdlc/a2a.py; changed="$changed sdlc/a2a.py"
-  fi
-  if grep -q 'The floor: http://localhost' scripts/order.sh 2>/dev/null; then
-    sed -i.factory 's#The floor: http://localhost:$HALL_PORT/#The floor: https://${CODESPACE_NAME:-?}-$HALL_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/#' scripts/order.sh \
-      && rm -f scripts/order.sh.factory; changed="$changed scripts/order.sh"
   fi
   if grep -q '^	@\. scripts/workshop\.env; open http://localhost' Makefile 2>/dev/null; then
     sed -i.factory 's#^	@\. scripts/workshop\.env; open http://localhost.*#	@factory urls#' Makefile && rm -f Makefile.factory
@@ -149,7 +160,7 @@ sync() {
   model_restore
   if has_target setup; then
     info "Cluster: make setup (images, workshop, agents, line; a few minutes the first time)"
-    make -s setup || die "make setup failed. Show this log to the instructor or try: factory reset"
+    busy "make setup (images, workshop, agents)" make -s setup || die "make setup failed. Show this log to the instructor or try: factory reset"
   else
     info "Lesson 1: the cluster has only the agent \"probe\" (no tools). The MCP server \"workshop\" and the builder agent come in lesson 2."
   fi
@@ -196,7 +207,7 @@ cmd_start() {
   preflight
   info "kind cluster \"$CLUSTER\" (5-10 minutes the first time)"
   # cluster.sh is idempotent: on a slower machine pods come up after the timeout, and a second pass finds them.
-  make -s cluster || { info "The cluster comes up slower than usual, trying again"; make -s cluster; } || die "make cluster failed twice. factory reset, or show the log to the instructor."
+  busy "the cluster" make -s cluster || { info "The cluster comes up slower than usual, trying again"; busy "the cluster" make -s cluster; } || die "make cluster failed twice. factory reset, or show the log to the instructor."
   sync
   make -s doctor || true
   cmd_urls
@@ -356,12 +367,12 @@ check_6() {
   grep -q 'TODO(lesson 6)' "$f" && { no "$f still says TODO"; return; } || ok "a rule instead of the TODO"
   [ -d system/node_modules ] || { info "  pnpm install in system/ (once)"; (cd system && pnpm install --frozen-lockfile >/dev/null 2>&1); }
   info "  the gate on the current code (typecheck, lint, test, bugs:check; under a minute)"
-  bash sdlc/build.sh system >"${TMPDIR:-/tmp}/factory-build.log" 2>&1 && ok "the current code passes the rule" || { no "the build is red on the current code: the rule is too broad (log: ${TMPDIR:-/tmp}/factory-build.log)"; return; }
+  busy "the gate on the current code" bash -c 'bash sdlc/build.sh system >"$0" 2>&1' "${TMPDIR:-/tmp}/factory-build.log" && ok "the current code passes the rule" || { no "the build is red on the current code: the rule is too broad (log: ${TMPDIR:-/tmp}/factory-build.log)"; return; }
   info "  the naive startle with Math.random() (a recording) has to be red"
   # The working tree, not HEAD: the rule you just wrote does not have to be committed yet.
   local tmp; tmp=$(mktemp -d); tar -cf - --exclude node_modules --exclude .oracle system sdlc/replays sdlc/build.sh | tar -x -C "$tmp"
   ln -s "$PWD/system/node_modules" "$tmp/system/node_modules"
-  (cd "$tmp" && git init -q && git apply sdlc/replays/startle-naive.patch && bash sdlc/build.sh system >"$tmp/build.log" 2>&1); local code=$?
+  busy "the naive startle through the gate" bash -c 'cd "$0" && git init -q && git apply sdlc/replays/startle-naive.patch && bash sdlc/build.sh system >"$0/build.log" 2>&1' "$tmp"; local code=$?
   if [ $code -ne 0 ] && grep -q 'no-restricted' "$tmp/build.log" && grep -q 'game/sim/tick.ts' "$tmp/build.log"; then ok "the naive startle breaks the architecture rule"; else no "the naive startle passes: the rule does not catch Math.random() in game/sim"; fi
   rm -rf "$tmp"
   grep -qi 'sim_is_deterministic\|deterministic' AGENTS.md && ok "the rule's reason reached AGENTS.md" || skip "AGENTS.md without the new rule: make agents-md (and because as one literal)"
@@ -768,7 +779,7 @@ cmd_key() {
 
 cmd_update() {
   # Always from the instructor's repo: origin is the participant's fork, and a fork does not get new commits by itself.
-  local tmp files="lessons/tools lessons/*.md scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
+  local tmp files="lessons/tools lessons/*.md scripts/key.sh scripts/order.sh scripts/images.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
   tmp=$(mktemp -d)
   git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD $files | tar -x -C "$tmp" \
     || die "Could not fetch the tools from $UPSTREAM."
