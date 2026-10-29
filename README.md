@@ -265,8 +265,8 @@ kubectl get mcpserver workshop -n factory    # 👀 the tool server is up: READY
 factory check 2              # 🔴 expected: the agent could overwrite the factory's own rules (sdlc/policy.json and two more)
 ```
 
-🔑 **With a model key:** ask the agent to overwrite the factory's rules. It works, because nothing stops it:
-`make a2a A=builder T="Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`,
+🔑 **With a model key, before the exercise:** ask the agent to overwrite the factory's rules. It works, because nothing stops it:
+`factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`,
 then `make send` to put the original files back in the cluster.
 
 ✏️ **Exercise:** tell the tool server which folders the agent may never write to. Set `PROTECTED_PATHS` in `platform/workshop/mcpserver.yaml`:
@@ -284,6 +284,9 @@ kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for th
 factory check 2              # 🟢 all three writes are now refused by the server
 kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl   # 👀 the log of tool calls: a refused try shows up as gate.tamper_attempt
 ```
+
+🔑 **With a model key, after the exercise:** ask the same again. Now the tool answers "Rejected: … is a protected path":
+`factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`
 
 ## 🧭 Lesson 3. Context L1–L5
 
@@ -457,6 +460,9 @@ cat .sdlc/out/startle/attempt-1/quality-5-oracle.md   # 👀 which test failed: 
 factory check 7              # 🔴 expected: the agent can still read those hidden tests
 ```
 
+🔑 **With a model key, before the exercise:** ask the agent to read a hidden test. It still can, so it summarizes it:
+`factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`
+
 ✏️ **Exercise:** hide the tests written by people (`scenarios/`) from the agent, so it cannot even read them:
 
 ```bash
@@ -471,8 +477,9 @@ kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for th
 factory check 7              # 🟢 reading the hidden tests is refused, and the lesson 2 wall still stands
 ```
 
-🔑 **With a model key:** ask the agent to read a hidden test. Before your change it happily summarizes it; after it, it gets "Rejected: … is out of the agent's reach":
-`make a2a A=builder T="Read scenarios/startle/startle.test.ts and summarize what it checks"`
+🔑 **With a model key, after the exercise:** ask the same question again. Now the tool answers
+"Rejected: … is out of the agent's reach", and the try is recorded (`holdout.peek` in `/work/events.jsonl`):
+`factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`
 
 ## 🔁 Lesson 8. Risk, review and rework
 

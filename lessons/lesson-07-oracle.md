@@ -36,10 +36,16 @@ everyone has the same models.
 
 4. Run `factory check 7`.
    🔴 You should see: `in the cluster HIDDEN_PATHS has no scenarios` and `the server shows scenarios/ to the agent`.
-5. Open `platform/workshop/mcpserver.yaml` and set `HIDDEN_PATHS` to `scenarios`.
-6. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
-7. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
-8. Run `factory check 7`.
+5. 🔑 With a model key (no key: skip to step 6). Ask the builder to read a hidden test **now, before you hide it**:
+   `factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`
+   👀 You should see: a summary of the scenario. Writes to `scenarios/` were blocked in lesson 2, reads were not.
+6. Open `platform/workshop/mcpserver.yaml` and set `HIDDEN_PATHS` to `scenarios`.
+7. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
+8. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
+9. 🔑 With a model key: ask the same question again, `factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`.
+   👀 You should see: `Rejected: … is out of the agent's reach`, and the try is recorded:
+   `kubectl exec -n factory deploy/depot -- grep holdout.peek /work/events.jsonl`.
+10. Run `factory check 7`.
    🟢 You should see: `reading the oracle rejected by the server` and `the wall from lesson 2 still stands`.
 
 Stuck? `factory solve 7`.
@@ -54,17 +60,6 @@ The scenarios are in the same repo, so "the agent cannot see them" means two thi
 hides them, and the line takes them from `main`. In production you keep the vault in a separate repo.
 
 Optional: `make naive` now shows a red `build` gate. The rule from lesson 6 catches `Math.random()` in `game/sim/tick.ts`.
-
-## 🔑 With a model key
-
-Ask the builder to read a hidden test, before and after step 6:
-
-```bash
-make a2a A=builder T="Read scenarios/startle/startle.test.ts and summarize what it checks"
-```
-
-👀 Before: it summarizes the scenario (writes to `scenarios/` were blocked in lesson 2, reads were not).
-After: `Rejected: … is out of the agent's reach`, and `/work/events.jsonl` has `holdout.peek`.
 
 ## To discuss
 

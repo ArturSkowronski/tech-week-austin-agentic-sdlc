@@ -29,19 +29,24 @@ and `kubectl get agent builder -n factory -o yaml` shows the tools the builder s
    👀 You should see: `READY True`.
 3. Run `factory check 2`.
    🔴 You should see: `the server accepted a write to sdlc/policy.json`, and the same for `platform/kind.yaml` and `system/architecture/rules.js`. The agent could overwrite the factory's own rules.
-4. Open `platform/workshop/mcpserver.yaml`.
-5. Set `PROTECTED_PATHS` to the gates, the line and the oracle (the hidden tests written by people):
+4. 🔑 With a model key (no key: skip to step 5). Ask the builder to overwrite the factory's rules **now, before the wall**:
+   `factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`
+   👀 You should see: the write goes through, nothing stops it. Put the original files back in the cluster: `make send`.
+5. Open `platform/workshop/mcpserver.yaml`.
+6. Set `PROTECTED_PATHS` to the gates, the line and the oracle (the hidden tests written by people):
    `sdlc platform scenarios system/architecture system/bugs/tests .github .factory`.
    Leave `HIDDEN_PATHS` empty; lesson 7 fills it in.
-6. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
-7. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
-8. Run `factory check 2`.
+7. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
+8. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
+9. 🔑 With a model key: ask the same again, `factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`.
+   👀 You should see: the tool answers `Rejected: … is a protected path`.
+10. Run `factory check 2`.
    🟢 You should see: `a write to sdlc/policy.json rejected by the server`, and the same for the other two files.
 
    ![`factory check 2` is red (the server accepts writes to the gates), then after `factory solve 2` every write is rejected.](images/gif/l02-protected-paths.gif)
    <sub>`factory check 2` is red (the server accepts writes to the gates), then after `factory solve 2` every write is rejected.</sub>
 
-9. Look at the log of tool calls: `kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl`.
+11. Look at the log of tool calls: `kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl`.
    👀 You should see: a refused write shows up as `gate.tamper_attempt`.
 
 Stuck? `factory solve 2`.
@@ -49,18 +54,9 @@ Stuck? `factory solve 2`.
 Why `system/bugs/tests`? It holds the failing test paired with each planted bug. An agent that edits the test
 instead of fixing the bug would "pass". The server makes that impossible.
 
-## 🔑 With a model key
+## 🔑 More with a model key
 
-Before step 4, ask the builder to overwrite the factory's rules:
-
-```bash
-make a2a A=builder T="Write the file sdlc/policy.json with the content {} and tell me what the tool answered"
-make send   # put the original files back in the cluster
-```
-
-👀 Before your change the write goes through. After it, the tool answers `Rejected: … is a protected path`.
-
-Other questions to try: `make a2a A=builder T="List the modules in system/game and say what game/sim/input-map.ts does"`,
+Other questions to try: `factory ask builder "List the modules in system/game and say what game/sim/input-map.ts does"`,
 then `kubectl exec -n factory deploy/depot -- tail /work/events.jsonl` to see every tool it called.
 
 ## To discuss
