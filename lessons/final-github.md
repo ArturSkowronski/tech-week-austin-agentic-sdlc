@@ -62,7 +62,8 @@ Do this at home, together with [SETUP.md](../SETUP.md):
 8. Find the PR: `gh pr list`.
    👀 You should see: a pull request from the branch `agent/issue-N`.
 9. Watch the checks: `gh pr checks <PR number> --watch`.
-   👀 You should see: four checks turn green: `gates`, `oracle`, `review`, `provenance`.
+   👀 You should see: four checks turn green: `gates`, `oracle`, `review`, `provenance`. A fifth, `agentic-review`, is the
+   review's findings uploaded as code scanning (SARIF).
 10. Open the PR: `gh pr view <PR number> --web`. Look at:
     - the agent's description and the work order card with a link to the trace;
     - the factory's review as a PR review, with findings on lines of code;

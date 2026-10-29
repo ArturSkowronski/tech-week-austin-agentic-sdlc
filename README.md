@@ -744,7 +744,7 @@ make issue O=hw-001          # open issue #N on your fork: "HW-001: Left and rig
 make pull AGENT=replay       # let the factory pick it up now (it checks every 2 minutes anyway)
 argo list -n factory         # 👀 factory-issue-N-… Running, then Succeeded (a few minutes)
 gh pr list                   # 👀 a pull request opened by the factory, branch agent/issue-N
-gh pr checks <PR number> --watch   # 👀 four automatic checks turn green: gates, oracle, review, provenance
+gh pr checks <PR number> --watch   # 👀 four automatic checks turn green: gates, oracle, review, provenance (plus agentic-review: the review's findings as code scanning)
 gh pr view <PR number> --web       # 👀 open it: the description, the summary card, the trace link, review comments on the code
 ```
 
