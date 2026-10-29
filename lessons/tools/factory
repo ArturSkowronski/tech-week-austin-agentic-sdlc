@@ -108,8 +108,13 @@ tags() {
 #   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
 #   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
 #   system/vite.config.ts   "Raise ticket on GitHub" on the fork (origin), not on the game's closed upstream repository
+#   lessons/*.md  the newest lesson materials (Codespaces links, clearer steps), for the lessons the tag already has
 tags_fix() {
-  local changed=""
+  local changed="" m
+  for m in "$DATA"/lessons/*.md; do
+    [ -f "$m" ] && [ -f "lessons/${m##*/}" ] && ! cmp -s "$m" "lessons/${m##*/}" || continue
+    cp "$m" "lessons/${m##*/}"; changed="$changed lessons/${m##*/}"
+  done
   if [ -f "$DATA/system/vite.config.ts" ] && [ -f system/vite.config.ts ] && ! cmp -s "$DATA/system/vite.config.ts" system/vite.config.ts; then
     cp "$DATA/system/vite.config.ts" system/vite.config.ts; changed="$changed system/vite.config.ts"
   fi
@@ -146,7 +151,15 @@ sync() {
   if has_target line; then make -s line >/dev/null || true; fi
   # The Argo controller configuration (lesson 5) and the run traces (lesson 10) live in cluster.sh, which sync does not call:
   # we add them here, so a cluster started on lesson 1 catches up with the later lessons.
-  [ -f platform/argo/controller-configmap.yaml ] && JAEGER_PORT=$JAEGER_PORT envsubst '${JAEGER_PORT}' < platform/argo/controller-configmap.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null 2>&1 || true
+  # "Trace in Jaeger" on the floor opens Jaeger in the browser: the codespace's address (the tags still say localhost).
+  # argo-server reads the links only when it starts: restart it when they change.
+  if [ -f platform/argo/controller-configmap.yaml ]; then
+    local links; links=$(kubectl -n argo get cm workflow-controller-configmap -o jsonpath='{.data.links}' 2>/dev/null)
+    JAEGER_PORT=$JAEGER_PORT JAEGER_URL="$(url "$JAEGER_PORT" "")" envsubst '${JAEGER_PORT} ${JAEGER_URL}' < platform/argo/controller-configmap.yaml \
+      | sed "s#http://localhost:$JAEGER_PORT#$(url "$JAEGER_PORT" "")#g" | kubectl apply --server-side --force-conflicts -f - >/dev/null 2>&1 || true
+    [ "$links" = "$(kubectl -n argo get cm workflow-controller-configmap -o jsonpath='{.data.links}' 2>/dev/null)" ] \
+      || kubectl -n argo rollout restart deploy/argo-server >/dev/null 2>&1 || true
+  fi
   kubectl -n argo get deploy workflow-controller >/dev/null 2>&1 && kubectl -n argo set env deploy/workflow-controller \
     OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger.factory.svc:4317 OTEL_EXPORTER_OTLP_INSECURE=true OTEL_SERVICE_NAME=argo-workflows >/dev/null 2>&1 || true
   # The ledger key is your cluster's, and checking out a lesson restores the instructor's cosign.pub: rebuild it from the key.
@@ -750,7 +763,7 @@ cmd_key() {
 
 cmd_update() {
   # Always from the instructor's repo: origin is the participant's fork, and a fork does not get new commits by itself.
-  local tmp files="lessons/tools scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
+  local tmp files="lessons/tools lessons/*.md scripts/key.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
   tmp=$(mktemp -d)
   git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD $files | tar -x -C "$tmp" \
     || die "Could not fetch the tools from $UPSTREAM."

@@ -11,10 +11,11 @@ data:
     completed: 20
     failed: 10
   # From a run on the floor straight to its trace: step spans (service factory-line) carry the tag factory.run.
+  # JAEGER_URL is Jaeger's address in the browser: the codespace's forwarded port (scripts/cluster.sh, factory sync).
   links: |
     - name: Trace in Jaeger
       scope: workflow
-      url: http://localhost:${JAEGER_PORT}/search?service=factory-line&lookback=2d&tags=%7B%22factory.run%22%3A%22${metadata.name}%22%7D
+      url: ${JAEGER_URL}/search?service=factory-line&lookback=2d&tags=%7B%22factory.run%22%3A%22${metadata.name}%22%7D
   executor: |
     resources:
       requests: {cpu: 10m, memory: 64Mi}

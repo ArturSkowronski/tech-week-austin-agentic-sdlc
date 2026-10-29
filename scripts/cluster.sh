@@ -27,7 +27,8 @@ step "Argo Workflows $ARGO_VERSION (the line)"
 # Argo's CRDs carry annotations > 256 KiB, so apply has to be server-side. No artifact repository: results go to the /work disk.
 kubectl apply --server-side --force-conflicts -n argo \
   -f "https://github.com/argoproj/argo-workflows/releases/download/$ARGO_VERSION/install.yaml" >/dev/null
-JAEGER_PORT=$JAEGER_PORT envsubst '${JAEGER_PORT}' < platform/argo/controller-configmap.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
+JAEGER_URL="https://${CODESPACE_NAME:-localhost}-$JAEGER_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}" \
+  envsubst '${JAEGER_URL}' < platform/argo/controller-configmap.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
 # The floor without a login and over HTTP: it is a cluster in your codespace, behind its private ports.
 kubectl patch deploy argo-server -n argo --type=json -p '[
   {"op":"replace","path":"/spec/template/spec/containers/0/args","value":["server","--auth-mode=server","--secure=false"]},
