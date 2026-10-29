@@ -43,7 +43,8 @@ everyone has the same models.
 7. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
 8. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
 9. 🔑 With a model key: ask the same question again, `factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`.
-   👀 You should see: `Rejected: … is out of the agent's reach`, and the try is recorded:
+   👀 You should see: the tool refuses (`Rejected: … is out of the agent's reach`; the agent says it in its own words),
+   and the try is recorded, the same every time:
    `kubectl exec -n factory deploy/depot -- grep holdout.peek /work/events.jsonl`.
 10. Run `factory check 7`.
    🟢 You should see: `reading the oracle rejected by the server` and `the wall from lesson 2 still stands`.

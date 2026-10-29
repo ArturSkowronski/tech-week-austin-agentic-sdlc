@@ -37,8 +37,9 @@ quality ‖ review ─▶ decision ─▶ lights-out | human | rework (the line,
 
 3. Fetch the results: `make fetch`.
 4. Read what the agent was told: `cat .sdlc/out/startle/attempt-1/feedback.md`.
-   👀 You should see: only the names of the failed scenarios, never their code.
-5. Read the risk score: `cat .sdlc/out/startle/attempt-2/review-1-risk.md`.
+   👀 You should see: the names of the failed scenarios, never their code. With a key also the reviewer's blocking findings.
+5. Read the risk score: `cat .sdlc/out/startle/attempt-2/review-1-risk.md`. It says a person decides; the line itself
+   stops for that person only from lesson 9.
    👀 You should see: risk `critical`, because `game/sim` is the critical path (ADR-011) and it is a rework. Decision: human. The run did not wait (that comes in lesson 9).
 6. Open `.sdlc/out/startle/attempt-2/change.patch`.
    👀 You should see: the rework holds only the input. `tick.ts` hands the player step an empty frame (`NO_INPUT`) while he is startled, so gravity, the water and the props go on. The oracle is green.
@@ -63,10 +64,15 @@ Stuck? `factory solve 8`.
 
 ## 🔑 With a model key
 
-Run the startle again with a real reviewer: `make send && make order O=startle`.
+Run the startle again with a real reviewer: `make send && make replay O=startle`, then `make fetch`. Attempt 1 is the
+recorded bad change (an early return from `stepPlayer`, before gravity), so the reviewer reads the same bug every time,
+now with your rule LLM-002: `cat .sdlc/out/startle/attempt-1/review-2-review.md`.
 
 👀 Attempt 1 now fails on two independent layers: the oracle and the review. Each finding has a confidence
-level. Below `certain_confidence` it is marked "to verify".
+level. Below `certain_confidence` it is marked "to verify". The reviewer's wording varies from run to run.
+
+A real agent instead of the recording (`make order O=startle`) takes up to 15 minutes and may get the startle right on
+the first try: then the reviewer has nothing to catch.
 
 ## To discuss
 

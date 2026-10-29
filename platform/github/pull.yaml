@@ -44,6 +44,11 @@ spec:
   workflowSpec:
     serviceAccountName: factory-pull
     entrypoint: pull
+    # One poller at a time, also with make pull (it submits a workflow from this template, which concurrencyPolicy
+    # does not see): two pollers at once would both take the same issue before either labels it in progress.
+    synchronization:
+      mutexes:
+        - name: factory-pull
     arguments:
       parameters:
         - {name: agent, value: kagent}   # replay: the line without a model (plan B)

@@ -36,15 +36,21 @@ factory check N      # 🟢 green: done
 ```
 
 Stuck? `factory solve N` puts in the ready answer and prints every step it takes, or `factory autopilot N` lets
-Claude Code do the exercise and explain it. The ready answers are also in `solutions/lesson-NN/`.
+Claude Code do the exercise and explain it. The ready answers are also in `solutions/lesson-NN/`: the long Python
+snippets below (lessons 6, 8 and 9) are easier to replace with one `cp` of the ready file, as each lesson shows.
 You can start any lesson without doing the ones before it.
+
+`factory lesson N` takes 1.5 to 3 minutes: it rebuilds the factory's images and loads them into the cluster, so the
+cluster matches the lesson. It also puts your uncommitted changes aside with `git stash` (it says so); `git stash list`
+shows them and `git stash pop` brings them back. On a fork without the lesson tags it fetches them from the instructor's
+repo by itself.
 
 | Sign | Means |
 |---|---|
 | ✏️ | your exercise |
 | 🔴 / 🟢 | what `factory check` should say before / after the exercise |
 | 👀 | look at the output: this is the point of the step |
-| 🔑 | needs a model key (`factory key`, Step 3); without one, skip it: every lesson passes without a model |
+| 🔑 | needs a model key (`factory key`, Step 3); without one, skip it: every lesson passes without a model. A model's words and choices vary from run to run, so a 🔑 step shows the idea, not an exact output; the 👀 lines without 🔑 are deterministic |
 
 **🎮 When to open the game** (three moments):
 
@@ -118,6 +124,8 @@ git tag -l 'lesson-*' | wc -l  # 10
 
 **7. The floor, Jaeger and kagent in the browser** (after `factory start` in Step 2). The **Ports** tab next to
 Terminal (8). Hover over the row **The floor (Argo Workflows)** and click the globe icon **Open in Browser** (9).
+The floor opens on the namespace `argo` with "No workflows": switch the namespace to `factory` (or use the link from
+`factory urls`, which opens it there). Close the "what's new" popup on the first visit.
 The same for **Jaeger (traces)** and **kagent dashboard**. The ports are private: only you see them. `factory urls`
 prints the same addresses as links.
 
@@ -282,11 +290,13 @@ EOF
 kubectl apply -f platform/workshop/mcpserver.yaml                  # send the new config
 kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for the server to restart
 factory check 2              # 🟢 all three writes are now refused by the server
-kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl   # 👀 the log of tool calls: a refused try shows up as gate.tamper_attempt
 ```
 
-🔑 **With a model key, after the exercise:** ask the same again. Now the tool answers "Rejected: … is a protected path":
-`factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`
+🔑 **With a model key, after the exercise:** ask the same again. The tool refuses ("Rejected: … is a protected path";
+the agent tells it in its own words), and the refused try lands in the log of tool calls:
+`factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`, then
+`kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl` (👀 `gate.tamper_attempt`). `factory check 2`
+tries its writes off the record, so without a key the log stays empty.
 
 ## 🧭 Lesson 3. Context L1–L5
 
@@ -348,7 +358,7 @@ Criteria:
 - landing, a respawn or the water gives the second jump back; a charge does not
 - a jump off a ledge in coyote time counts as the first jump
 EOF
-make intake O=double-jump    # 👀 accepted now (with a note: no hidden tests exist for it yet); nothing builds it yet, see lesson 5
+make intake O=double-jump    # 👀 accepted now, with "no holdout scenarios … not without a human"; nothing builds it yet, see lesson 5
 factory check 4              # 🟢 the task is accepted
 ```
 
@@ -374,7 +384,7 @@ factory check 5              # 🔴 expected: nothing has gone through the pipel
 make replay O=hw-001         # run the pipeline with the recorded fix; 1–2 minutes, ends with "Result: Succeeded"
 make fetch                   # copy the results from the cluster to .sdlc/out/
 cat .sdlc/out/hw-001/attempt-1/description.md              # 👀 what the agent says it did
-git apply --stat .sdlc/out/hw-001/attempt-1/change.patch   # 👀 which files the fix touches: input-map.ts and the bug list
+git apply --stat .sdlc/out/hw-001/attempt-1/change.patch   # 👀 which files the fix touches: input-map.ts, its test and the bug list
 factory check 5              # 🟢 the bug went through the pipeline and you have the patch
 ```
 
@@ -412,6 +422,8 @@ factory check 6              # 🔴 expected: the rule file still says TODO
 
 ✏️ **Exercise:** add a rule to the code checks (ESLint): the game's physics in `game/sim` may not use random numbers or the clock:
 
+Or skip the snippet below: `cp solutions/lesson-06/rules-f6.js system/architecture/rules.js`, then the commands after `EOF`.
+
 ```bash
 python3 - <<'EOF'
 import re
@@ -437,7 +449,7 @@ rule = """  rule(
 """
 p.write_text(re.sub(r"  // TODO\(lesson 6\).*\n(  //.*\n)?", lambda _: rule, p.read_text(), count=1))
 EOF
-make test                    # today's code must still pass the new rule (under a minute)
+make test                    # today's code must still pass the new rule (under a minute); "HW-001 … fails as planted" is expected: the planted bug is still there
 make agents-md               # the rule's reason goes into the agent's guide too
 make send                    # send your changes to the cluster
 make naive                   # 👀 the same "quick" change is now stopped: "Result: Failed", step build is red
@@ -481,8 +493,9 @@ kubectl rollout status -n factory deploy/workshop --timeout=180s   # wait for th
 factory check 7              # 🟢 reading the hidden tests is refused, and the lesson 2 wall still stands
 ```
 
-🔑 **With a model key, after the exercise:** ask the same question again. Now the tool answers
-"Rejected: … is out of the agent's reach", and the try is recorded (`holdout.peek` in `/work/events.jsonl`):
+🔑 **With a model key, after the exercise:** ask the same question again. The tool refuses ("Rejected: … is out of the
+agent's reach"; the agent says it in its own words), and the try is recorded (`holdout.peek` in `/work/events.jsonl`,
+deterministic):
 `factory ask builder "Read scenarios/startle/startle.test.ts and summarize what it checks"`
 
 ## 🔁 Lesson 8. Risk, review and rework
@@ -499,12 +512,14 @@ factory check 7              # 🟢 reading the hidden tests is refused, and the
 factory lesson 8
 make replay O=startle        # 👀 attempt 1 fails the hidden tests, the factory starts attempt 2 by itself
 make fetch
-cat .sdlc/out/startle/attempt-1/feedback.md          # 👀 what the agent is told: only the names of the failed tests, never their code
-cat .sdlc/out/startle/attempt-2/review-1-risk.md     # 👀 the risk score: "critical", because it touches the game's physics and it is a second try
+cat .sdlc/out/startle/attempt-1/feedback.md          # 👀 what the agent is told: the names of the failed tests, never their code (with a key also the reviewer's blocking findings)
+cat .sdlc/out/startle/attempt-2/review-1-risk.md     # 👀 the risk score: "critical", because it touches the game's physics and it is a second try; a person decides (the line stops for them from lesson 9)
 factory check 8              # 🔴 expected: the AI reviewer has no rule about this kind of bug yet
 ```
 
 ✏️ **Exercise:** give the AI reviewer one precise rule, with what a good and a bad change look like:
+
+Or skip the snippet below: `cp solutions/lesson-08/review-rules-f8.json sdlc/review-rules.json`, then the commands after `EOF`.
 
 ```bash
 python3 - <<'EOF'
@@ -525,7 +540,10 @@ python3 -m json.tool sdlc/review-rules.json > /dev/null && echo "JSON OK"   # th
 factory check 8              # 🟢 the reviewer has the rule: "freeze the controls, not the physics"
 ```
 
-🔑 **With a model key:** `make send && make order O=startle`, and the reviewer points at the exact bug in attempt 1.
+🔑 **With a model key:** `make send && make replay O=startle`. Attempt 1 is the recorded bad change (it returns early
+from `stepPlayer`, before gravity), so the real reviewer always reads the same bug, now with your rule LLM-002:
+`cat .sdlc/out/startle/attempt-1/review-2-review.md` after `make fetch`. Its wording varies. A real agent
+(`make order O=startle`, up to 15 minutes) may get the startle right on the first try, and then there is nothing to catch.
 
 ## 🚥 Lesson 9. Lights, WIP and policy
 
@@ -543,6 +561,8 @@ factory check 9              # 🔴 expected: A. the pipeline never stops for a 
 ```
 
 ✏️ **Exercise A:** make the pipeline stop and wait for a person. The `human` step gets a `wait` (pause) inside:
+
+Or skip the snippet below: `cp solutions/lesson-09/factory-f9.yaml platform/line/factory.yaml`, then the commands after `EOF`.
 
 ```bash
 python3 - <<'EOF'
@@ -600,12 +620,16 @@ make approve W=<run name>          # terminal 2: approve it; your name is record
 
 ✏️ **Exercise B:** add a cluster rule (Kyverno): the coding agent may only use the tools of our tool server, nothing else:
 
+Or skip the snippet below: `cp solutions/lesson-09/agent-tools-f9.yaml platform/kyverno/agent-tools.yaml`, then the commands after `EOF`.
+
 ```bash
 kubectl apply --dry-run=server -f platform/kyverno/test/bad-agent.yaml   # 👀 an agent with extra tools is accepted: that is the hole
 python3 - <<'EOF'
 from pathlib import Path
 p = Path("platform/kyverno/agent-tools.yaml")
-p.write_text(p.read_text().replace('    - expression: "true"\n', """    - expression: >-
+text = p.read_text().replace("Rule 2 (TODO lesson 9)", "Rule 2 (lesson 9)")
+text = "".join(l for l in text.splitlines(keepends=True) if "TODO(lesson 9)" not in l and "Hint: object.spec" not in l)
+p.write_text(text.replace('    - expression: "true"\n', """    - expression: >-
         !(has(object.metadata.labels) && object.metadata.labels[?'factory.dev/role'].orValue('') == 'builder') ||
         object.spec.?declarative.?tools.orValue([]).all(t, t.type == 'McpServer' && t.?mcpServer.?name.orValue('') == 'workshop')
 """))
@@ -648,9 +672,11 @@ make ledger-verify F=$L      # 👀 OK again
 ```
 
 👀 **The summary card:** `cat .sdlc/out/startle/attempt-2/card.md`: how many attempts, the decision, who approved.
-🔑 **With a model key:** open Jaeger (`factory urls`), service `builder`, the newest trace: every model call and tool
-call on a timeline. Count the tool calls and compare with the lines in `tools.jsonl`. In the finale you get one trace
-for the whole task (service `factory-line`).
+🔑 **With a model key:** the replay above calls no model, so its `tools.jsonl` is empty. Run the real agent once:
+`make order O=hw-001` (2 to 10 minutes), `make fetch`, then open Jaeger (**PORTS** → **Jaeger (traces)**, or **Trace in
+Jaeger** on the run in the floor), service `builder`, the newest trace: every model call and tool call on a timeline.
+Count the tool calls and compare with the lines in `.sdlc/out/hw-001/attempt-1/tools.jsonl`. In the finale you get one
+trace for the whole task (service `factory-line`).
 
 ```bash
 factory map                  # 🟢 all ten blocks of the factory are working
@@ -678,7 +704,7 @@ own token (`GITHUB_TOKEN`, it starts with `ghu_`). It pushes code and opens issu
 with it `make github` ends with `HTTP 403 Resource not accessible by integration`.
 
 ```bash
-git pull                                                          # the newest scripts from main
+git pull origin main                                              # the newest scripts from main (branch work tracks nothing)
 env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow  # env -u + the variable's NAME, not the token's value
 ```
 
@@ -690,6 +716,10 @@ Answers to `gh`'s questions:
 | Authenticate Git with your GitHub credentials? | **Yes** |
 | How would you like to authenticate GitHub CLI? | **Login with a web browser** |
 | First copy your one-time code: `XXXX-XXXX` | Enter, then in the browser at github.com/login/device: paste the code, **Continue**, **Authorize github** |
+| GitHub: **Confirm access** (your password or 2FA) | Confirm: GitHub asks again before it grants new scopes |
+
+Then let `git push` use this login: `env -u GITHUB_TOKEN gh auth setup-git` (without it a push from the codespace can
+hang). If VS Code offers **Rebuild Now** for the dev container, ignore it: nothing in the container changed.
 
 Check before `make github`:
 
@@ -723,6 +753,10 @@ but it also adds the `Criteria:` list from `orders/hw-001.md`. An issue raised s
 so the factory sends it back with questions (lesson 4).
 HW-001 changes the game's physics, which is risky (ADR-010, ADR-011), so the PR gets the label `factory:human` and
 waits for you. A low-risk task with hidden tests (`hud-speed`) would merge by itself (`factory:lights-out`).
+In the finale the person approves the PR on GitHub, not with `make approve`: the line on GitHub ends with the PR.
+A red `review` step on the floor means a blocking finding (the decision goes to a person), not a crash. The `review`
+check in GitHub Actions says "LLM lenses: skipped": Actions has no agent, so it runs the deterministic rules only.
+One poller runs at a time, so `make pull` next to the 2-minute poller never takes the same issue twice.
 
 ✏️ **Exercise:** add a "quick fix" by hand on the agent's branch, after the checks. The provenance check notices that the code is no longer the code the factory checked and signed:
 

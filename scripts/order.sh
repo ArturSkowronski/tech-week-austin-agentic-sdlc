@@ -16,7 +16,7 @@ name=$(argo submit -n factory --from workflowtemplate/factory -p "order=$O" -p "
   --generate-name "factory-$O-" -o name)
 echo "Run: $name (agent=$AGENT, attempt $ATTEMPT). The floor: https://${CODESPACE_NAME:-?}-$HALL_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/workflows/factory/$name"
 case "$AGENT" in
-  kagent) echo "A real agent: usually 2 to 10 minutes. Every step below as it starts and ends:" ;;
+  kagent) echo "A real agent: usually 2 to 15 minutes. Every step below as it starts and ends:" ;;
   *)      echo "A recorded change: usually 1 to 2 minutes. Every step below as it starts and ends:" ;;
 esac
 

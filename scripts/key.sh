@@ -56,8 +56,9 @@ except Exception as e:
 PY
 fi
 
-kubectl create secret generic factory-llm -n factory --from-literal=LLM_API_KEY="$k" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-LLM_MODEL="$LLM_MODEL" LLM_BASE_URL="$LLM_BASE_URL" envsubst < platform/kagent/modelconfig.yaml | kubectl apply -f - >/dev/null
+# Server-side apply: the Secret was created without kubectl's last-applied annotation, and a client-side apply warns.
+kubectl create secret generic factory-llm -n factory --from-literal=LLM_API_KEY="$k" --dry-run=client -o yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
+LLM_MODEL="$LLM_MODEL" LLM_BASE_URL="$LLM_BASE_URL" envsubst < platform/kagent/modelconfig.yaml | kubectl apply --server-side --force-conflicts -f - >/dev/null
 # factory start and factory lesson put the default ModelConfig back (cluster.sh): factory remembers the API and the model.
 [ -n "${FACTORY_MODEL_ENV:-}" ] && printf 'LLM_BASE_URL=%s\nLLM_MODEL=%s\n' "$LLM_BASE_URL" "$LLM_MODEL" > "$FACTORY_MODEL_ENV"
 # The agents read the key when their pod starts: a restart, and we wait for it, so the next question gets the new key.

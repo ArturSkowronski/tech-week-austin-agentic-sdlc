@@ -39,15 +39,17 @@ and `kubectl get agent builder -n factory -o yaml` shows the tools the builder s
 7. Send it to the cluster: `kubectl apply -f platform/workshop/mcpserver.yaml`.
 8. Wait for the server to restart: `kubectl rollout status -n factory deploy/workshop --timeout=180s`.
 9. 🔑 With a model key: ask the same again, `factory ask builder "Write the file sdlc/policy.json with the content {} and tell me what the tool answered"`.
-   👀 You should see: the tool answers `Rejected: … is a protected path`.
+   👀 You should see: the tool refuses (`Rejected: … is a protected path`; the agent says it in its own words), and the
+   refused try is in the log of tool calls: `kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl` shows
+   `gate.tamper_attempt`.
 10. Run `factory check 2`.
    🟢 You should see: `a write to sdlc/policy.json rejected by the server`, and the same for the other two files.
 
    ![`factory check 2` is red (the server accepts writes to the gates), then after `factory solve 2` every write is rejected.](images/gif/l02-protected-paths.gif)
    <sub>`factory check 2` is red (the server accepts writes to the gates), then after `factory solve 2` every write is rejected.</sub>
 
-11. Look at the log of tool calls: `kubectl exec -n factory deploy/depot -- tail -3 /work/events.jsonl`.
-   👀 You should see: a refused write shows up as `gate.tamper_attempt`.
+`factory check 2` tries its writes off the record, so they are not in the log of tool calls: `gate.tamper_attempt`
+shows up there only after the agent's own try in step 9.
 
 Stuck? `factory solve 2`.
 

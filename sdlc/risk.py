@@ -133,7 +133,7 @@ def markdown(result: dict) -> str:
     else:
         out.append("No risk signals.")
     if result["needs_human"]:
-        out += ["", f"👤 Autonomy: **human** ({result['autonomy_reason']}). The run waits for a person."]
+        out += ["", f"👤 Autonomy: **human** ({result['autonomy_reason']}). A person decides; the line waits for them once its human step has a wait (lesson 9)."]
     else:
         out += ["", f"🌑 Autonomy: **lights-out** ({result['autonomy_reason']})."]
     return "\n".join(out)

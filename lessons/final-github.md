@@ -36,7 +36,11 @@ Do this at home, together with [SETUP.md](../SETUP.md):
 1. Your codespace is on your fork, so `origin` is already the fork (`git remote -v`).
 2. Log `gh` in, in the codespace's terminal: `env -u GITHUB_TOKEN gh auth login -h github.com -s repo,workflow`. The codespace's own token cannot change
    repo settings, and `make github` would end with `HTTP 403 Resource not accessible by integration`. The
-   [README finale](../README.md#-finale-the-factory-on-github) walks through `gh`'s questions.
+   [README finale](../README.md#-finale-the-factory-on-github) walks through `gh`'s questions. After **Authorize github**
+   GitHub may ask for your password or 2FA again (**Confirm access**): confirm it.
+3. Let `git push` use that login: `env -u GITHUB_TOKEN gh auth setup-git`. Without it a push from the codespace can hang.
+4. The newest scripts: `git pull origin main` (branch `work` tracks nothing, so a plain `git pull` fails).
+   If VS Code offers **Rebuild Now** for the dev container, ignore it.
 
 ## ✏️ Exercise 1: from issue to PR
 
@@ -63,7 +67,8 @@ Do this at home, together with [SETUP.md](../SETUP.md):
     - the agent's description and the work order card with a link to the trace;
     - the factory's review as a PR review, with findings on lines of code;
     - the commit `factory: the ledger of work order issue-<n> …`, which adds `.factory/issue-<n>/` with the ledger and the signature;
-    - the label `factory:human`. HW-001 changes `game/sim`, the critical path (ADR-010, ADR-011), so the PR waits for a human: no auto-merge. `Closes #<n>` closes the issue when someone merges it.
+    - the label `factory:human`. HW-001 changes `game/sim`, the critical path (ADR-010, ADR-011), so the PR waits for a human: no auto-merge. `Closes #<n>` closes the issue when someone merges it. Here the human approves on GitHub, not with `make approve`: on GitHub the line ends with the PR.
+    - the `review` check says "LLM lenses: skipped": GitHub Actions has no agent, so it runs the deterministic rules. A red `review` step on the floor means a blocking finding sent to a person, not a crash.
 11. Click the trace link.
     👀 You should see: one trace with the Argo run, the factory's steps (`attempt 1 · builder`), under them the agent (`invoke_agent`, `generate_content`, `execute_tool`) and the workshop tools (`workshop · write_file …`). The agent's refused attempts (✋) are red.
 12. Run `factory check final`.

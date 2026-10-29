@@ -60,8 +60,10 @@ Stuck? `factory solve 10`.
 
 1. Read the summary card: `cat .sdlc/out/startle/attempt-2/card.md`.
    👀 You should see: time, attempts, the decision, the line's hash, who approved.
-2. 🔑 With a model key: open Jaeger (**PORTS** → **Jaeger (traces)**, or **Trace in Jaeger** on the run in the floor), service `builder`, the newest trace.
-3. 🔑 Count the model and tool calls, and compare them with the lines in `tools.jsonl` in the results.
+2. 🔑 With a model key: the startle above is a replay and calls no model, so its `tools.jsonl` is empty. Run the real
+   agent once: `make order O=hw-001` (2 to 10 minutes), then `make fetch`. Open Jaeger (**PORTS** → **Jaeger (traces)**,
+   or **Trace in Jaeger** on the run in the floor), service `builder`, the newest trace.
+3. 🔑 Count the model and tool calls, and compare them with the lines in `.sdlc/out/hw-001/attempt-1/tools.jsonl`.
    In the finale you get one trace for the whole task (service `factory-line`).
 
    ![Jaeger: the startle run as one trace (`factory-line`): attempt 1 with the reviewer's model calls and the red oracle, then attempt 2.](images/gif/l10-jaeger-trace.gif)
