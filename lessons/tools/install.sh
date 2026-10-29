@@ -21,7 +21,7 @@ mkdir -p "$data/sdlc"; for f in a2a.py tracing.py lib.py; do [ -f "$src/../../sd
 # The game's config from main ("Raise ticket on GitHub" on the fork): factory lesson puts it on the old tags.
 mkdir -p "$data/system"; [ -f "$src/../../system/vite.config.ts" ] && cp "$src/../../system/vite.config.ts" "$data/system/"
 # The scripts with progress (make replay/order/naive, the images): factory lesson puts them on the old tags.
-mkdir -p "$data/scripts"; for f in order.sh images.sh; do [ -f "$src/../../scripts/$f" ] && cp "$src/../../scripts/$f" "$data/scripts/"; done
+mkdir -p "$data/scripts"; for f in order.sh images.sh fetch.sh; do [ -f "$src/../../scripts/$f" ] && cp "$src/../../scripts/$f" "$data/scripts/"; done
 # The lesson materials from main: factory lesson refreshes the ones a lesson tag already has.
 rm -rf "$data/lessons"; mkdir -p "$data/lessons"; cp "$src"/../*.md "$data/lessons/" 2>/dev/null || true
 # The welcome lives outside the repo too: lesson tags are older than .devcontainer, so after factory lesson N the file may be gone.

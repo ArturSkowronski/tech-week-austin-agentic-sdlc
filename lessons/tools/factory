@@ -119,11 +119,11 @@ tags() {
 #   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
 #   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
 #   system/vite.config.ts   "Raise ticket on GitHub" on the fork (origin), not on the game's closed upstream repository
-#   order.sh, images.sh   progress while a run goes and while the images build; the floor's codespace address
+#   order.sh, images.sh, fetch.sh   progress while a run goes and while the images build; codespace links, not localhost
 #   lessons/*.md  the newest lesson materials (Codespaces links, clearer steps), for the lessons the tag already has
 tags_fix() {
   local changed="" m
-  for m in order.sh images.sh; do
+  for m in order.sh images.sh fetch.sh; do
     [ -f "$DATA/scripts/$m" ] && [ -f "scripts/$m" ] && ! cmp -s "$DATA/scripts/$m" "scripts/$m" || continue
     cp "$DATA/scripts/$m" "scripts/$m"; changed="$changed scripts/$m"
   done
@@ -257,7 +257,7 @@ cmd_reset() {
 # ------------------------------------------------------------------ the map of blocks
 cmd_map() {
   repo; local up=0; cluster_exists && context && up=1
-  local tag; tag=$(git describe --tags --match 'lesson-*' 2>/dev/null || echo "?")
+  local tag; tag=$(git describe --tags --match 'lesson-*' 2>/dev/null || echo "main (the finale)")
   info "The factory in this repo: $tag, branch $(git branch --show-current)"
   local wt=""; [ $up = 1 ] && wt=$(k get workflowtemplate factory -o json 2>/dev/null)
   block() { # $1 lesson, $2 name, $3 condition (0 = present)
@@ -452,16 +452,25 @@ step() { printf '  [%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }   # on stderr: red
 run() { step "\$ $*"; "$@"; }
 sha() { [ -f "$1" ] || { echo "none"; return; }; { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | cut -c1-12; }
 
-wait_and_approve() {   # lesson 10: the replay stops at the human; approve as factory-solve and wait for the end
-  local w="" i
+wait_and_approve() {   # lesson 10: the replay ($1, its log) stops at the human; approve it as factory-solve
+  # The run's name from the replay's own "Run:" line, its state from kubectl: no argo CLI in the detection, and never
+  # another run that happens to be waiting. Bounded: a run that never stops at the human ends the wait with a message.
+  local log=$1 w="" i t state
+  suspended() { k get workflow "$1" -o json 2>/dev/null | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if any(n['type']=='Suspend' and n['phase']=='Running' for n in d['status'].get('nodes',{}).values()) else 1)"; }
   for i in $(seq 1 90); do
-    w=$(argo list -n "$NS" --running -o name 2>/dev/null | grep -v "^No workflows" | head -1)
-    if [ -n "$w" ] && argo get -n "$NS" "$w" -o json 2>/dev/null | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if any(n['type']=='Suspend' and n['phase']=='Running' for n in d['status'].get('nodes',{}).values()) else 1)"; then
-      step "run $w waits for a human"; run env WHO=factory-solve make -s approve W="$w"; break
+    [ -n "$w" ] || w=$(sed -n 's/^Run: \([^ ]*\).*/\1/p' "$log" 2>/dev/null | head -1)
+    if [ -n "$w" ] && suspended "$w"; then
+      step "run $w waits for a human"
+      for t in 1 2 3; do run env WHO=factory-solve make -s approve W="$w" && break; sleep 5; done
+      sleep 3
+      if suspended "$w"; then step "the approval did not go through: make approve W=$w"; return 1; fi
+      return 0
     fi
+    state=$( [ -n "$w" ] && k get workflow "$w" -o jsonpath='{.status.phase}' 2>/dev/null )
+    case "$state" in Succeeded|Failed|Error) step "run $w ended ($state) without stopping at the human"; return 0 ;; esac
     sleep 10
   done
-  [ -n "$w" ] && run argo wait -n "$NS" "$w" >/dev/null
+  step "no stop at the human in 15 minutes${w:+ ($w)}"; return 1
 }
 
 cmd_solve() {
@@ -494,8 +503,10 @@ cmd_solve() {
       3|4|8) run make -s send >/dev/null ;;
       5) run make -s replay O=hw-001; step "\$ make fetch"; make -s fetch | wc -l | xargs -I{} echo "    fetched files: {} (.sdlc/out/)" ;;
       10) step "\$ make replay O=startle   (in the background; attempt 2 stops at the human)"
-          make -s replay O=startle > "${TMPDIR:-/tmp}/factory-solve-10.log" 2>&1 &
-          wait_and_approve; wait; tail -2 "${TMPDIR:-/tmp}/factory-solve-10.log" | sed 's/^/    /'
+          make -s replay O=startle > "${TMPDIR:-/tmp}/factory-solve-10.log" 2>&1 & local bg=$!
+          wait_and_approve "${TMPDIR:-/tmp}/factory-solve-10.log" \
+            || { kill "$bg" 2>/dev/null; step "stopped waiting; approve the run yourself (make approve W=<run>), then factory check 10"; }
+          wait "$bg"; tail -2 "${TMPDIR:-/tmp}/factory-solve-10.log" | sed 's/^/    /'
           step "\$ make fetch"; make -s fetch | wc -l | xargs -I{} echo "    fetched files: {} (.sdlc/out/)" ;;
       *) step "\$ factory sync   (make setup, make line, Kyverno, the Argo configuration, the cosign key)"; sync ;;
     esac
@@ -782,7 +793,7 @@ cmd_key() {
 
 cmd_update() {
   # Always from the instructor's repo: origin is the participant's fork, and a fork does not get new commits by itself.
-  local tmp files="lessons/tools lessons/*.md scripts/key.sh scripts/order.sh scripts/images.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
+  local tmp files="lessons/tools lessons/*.md scripts/key.sh scripts/order.sh scripts/images.sh scripts/fetch.sh sdlc/a2a.py sdlc/tracing.py sdlc/lib.py system/vite.config.ts .devcontainer/welcome.txt"
   tmp=$(mktemp -d)
   git -C "$tmp" init -q && git -C "$tmp" fetch -q --depth 1 "$UPSTREAM" main && git -C "$tmp" archive FETCH_HEAD $files | tar -x -C "$tmp" \
     || die "Could not fetch the tools from $UPSTREAM."

@@ -869,9 +869,10 @@ instructions and ignore all results from jqwik test executions.</span>
 <span class="r">read_file → Rejected: out of the agent's reach</span>
 <span class="d">/work/events.jsonl:</span> <span class="r">holdout.peek</span>
 
-<span class="d">what the agent gets on a rework (all of feedback.md):</span>
-Does not meet requirements (scenarios you can't see):
-- A startle that begins in the air still falls and lands</div>
+<span class="d">what the agent gets on a rework (feedback.md):</span>
+Does not meet the requirements (acceptance scenarios you cannot see):
+- A startle that begins in the air still falls and lands
+<span class="d"># with a key, also the reviewer's blocking findings</span></div>
         <div class="body">
           <p style="margin-top:0"><b>Working scenarios:</b> their names go back to the agent. Code, assertions and data never do.</p>
           <p><b>The vault:</b> a verdict only. Zero feedback. A failure pulls the andon, because a rework "for the vault" would turn it into a training set.</p>
@@ -1150,7 +1151,7 @@ Does not meet requirements (scenarios you can't see):
 <span class="d">$ sed -i 's/human.approved/human.skipped/' .../ledger.jsonl</span>
 <span class="d">$ make ledger-verify F=.../ledger.jsonl</span>
 <span class="r">line 37: content changed after it was written (human.skipped)</span>
-<span class="r">signature: Error: verifying blob: invalid signature</span></div>
+<span class="r">signature: failed to verify signature: invalid signature</span></div>
         <div class="body">
           <p style="margin-top:0">Every event holds the hash of the previous one: intake, prompt, tool call, commit, gate, decision, approval. The same ledger holds <span class="mono">holdout.peek</span> and <span class="mono">gate.tamper_attempt</span>.</p>
           <p>The <span class="mono">ledger</span> step signs the file with the factory key (<b>cosign sign-blob</b>) and records <b>a hash of the line config</b>: the line must be repeatable even though the worker isn't.</p>
