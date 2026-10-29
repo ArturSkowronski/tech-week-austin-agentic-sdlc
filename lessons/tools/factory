@@ -108,6 +108,7 @@ tags() {
 #   sdlc/a2a.py   the client from main, which reads an agent that asks back (intake: input-required)
 #   make floor    factory urls, instead of sourcing workshop.env with sh (dash: "Bad substitution") and localhost links
 #   system/vite.config.ts   "Raise ticket on GitHub" on the fork (origin), not on the game's closed upstream repository
+#   order.sh      make replay and make order print the floor's codespace address, not localhost
 #   lessons/*.md  the newest lesson materials (Codespaces links, clearer steps), for the lessons the tag already has
 tags_fix() {
   local changed="" m
@@ -120,6 +121,10 @@ tags_fix() {
   fi
   if [ -f "$DATA/sdlc/a2a.py" ] && [ -f sdlc/a2a.py ] && ! cmp -s "$DATA/sdlc/a2a.py" sdlc/a2a.py; then
     cp "$DATA/sdlc/a2a.py" sdlc/a2a.py; changed="$changed sdlc/a2a.py"
+  fi
+  if grep -q 'The floor: http://localhost' scripts/order.sh 2>/dev/null; then
+    sed -i.factory 's#The floor: http://localhost:$HALL_PORT/#The floor: https://${CODESPACE_NAME:-?}-$HALL_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/#' scripts/order.sh \
+      && rm -f scripts/order.sh.factory; changed="$changed scripts/order.sh"
   fi
   if grep -q '^	@\. scripts/workshop\.env; open http://localhost' Makefile 2>/dev/null; then
     sed -i.factory 's#^	@\. scripts/workshop\.env; open http://localhost.*#	@factory urls#' Makefile && rm -f Makefile.factory

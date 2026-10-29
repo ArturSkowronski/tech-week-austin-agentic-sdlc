@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Finale: connect the factory to your fork on GitHub.
 #   1. the fork: issues, Actions, auto-merge, the factory's labels, main protection (required checks), the cosign key on main
-#   2. the Secret factory-github in the cluster (token and repo) for the line's steps that talk to GitHub
+#   2. the Secret factory-github in the cluster (token, repo, the codespace's floor and Jaeger addresses) for the line's steps that talk to GitHub
 #   3. the CronWorkflow factory-pull: every two minutes it takes the oldest issue labelled `factory` or `planted`
 # Repo: GH_REPO or origin. Token: GH_TOKEN or `gh auth token` (the repo scope is enough).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+. scripts/workshop.env   # HALL_PORT, JAEGER_PORT for the links in the PR
 if [ -z "${GH_REPO:-}" ]; then
   url=$(git remote get-url origin 2>/dev/null || true)
   GH_REPO=$(printf '%s' "$url" | sed -nE 's#^(https://github\.com/|git@github\.com:)([^/]+/[^/.]+)(\.git)?$#\2#p')
@@ -37,7 +38,10 @@ fi
 export GH_REPO GH_TOKEN
 echo "Fork: https://github.com/$GH_REPO"
 python3 sdlc/github.py fork
+# The links in the PR and the issue comments open in the browser: the codespace's forwarded ports, not localhost.
+cs="https://${CODESPACE_NAME:-?}-%s.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}"
 kubectl create secret generic factory-github -n factory --from-literal=GH_TOKEN="$GH_TOKEN" --from-literal=GH_REPO="$GH_REPO" \
+  --from-literal=FACTORY_JAEGER_UI="$(printf "$cs" "$JAEGER_PORT")" --from-literal=FACTORY_FLOOR="$(printf "$cs" "$HALL_PORT")" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl apply -f platform/github/pull.yaml >/dev/null
 echo "Cluster: the Secret factory-github and the CronWorkflow factory-pull are ready."

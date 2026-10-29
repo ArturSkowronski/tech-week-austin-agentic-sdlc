@@ -97,8 +97,8 @@ Exercises you must not skip: 2 (protected paths), 6 (the architecture rule), 9A 
 
 ## Codespaces, factory and the autopilot
 
-The only road is a fork and GitHub Codespaces (`.devcontainer/`, a 4-core machine, 16 GB). There is no laptop or other
-cloud variant; do not offer one in the room. The free quota of GitHub Free (120 core-hours) is enough for 30 hours.
+The only road is a fork and GitHub Codespaces (`.devcontainer/`, a 4-core machine, 16 GB). There is no other
+variant; do not offer one in the room. The free quota of GitHub Free (120 core-hours) is enough for 30 hours.
 Remind the room to turn on Issues on the fork (Settings → Features), otherwise "Raise ticket on GitHub" goes nowhere.
 Ask the room to run `factory start` before the workshop: the first cluster takes about 10 minutes.
 

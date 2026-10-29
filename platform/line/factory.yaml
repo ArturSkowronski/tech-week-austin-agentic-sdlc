@@ -399,6 +399,10 @@ spec:
             valueFrom: {secretKeyRef: {name: factory-github, key: GH_TOKEN, optional: true}}
           - name: GH_REPO
             valueFrom: {secretKeyRef: {name: factory-github, key: GH_REPO, optional: true}}
+          - name: FACTORY_JAEGER_UI
+            valueFrom: {secretKeyRef: {name: factory-github, key: FACTORY_JAEGER_UI, optional: true}}
+          - name: FACTORY_FLOOR
+            valueFrom: {secretKeyRef: {name: factory-github, key: FACTORY_FLOOR, optional: true}}
         volumeMounts: [{name: work, mountPath: /work}]
 
     # Finale: the result of the line on GitHub. lights-out and human get a PR (the agent's branch + a commit with the ledger),

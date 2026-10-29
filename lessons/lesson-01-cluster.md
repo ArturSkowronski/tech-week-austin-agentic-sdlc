@@ -1,6 +1,6 @@
 # Lesson 1: The cluster and the first agent (12 min)
 
-😬 **Problem:** an AI agent is often a script on one person's laptop. Nobody knows which version runs, who changed its instructions last week, or what it may do.
+😬 **Problem:** an AI agent is often a script someone runs by hand. Nobody knows which version runs, who changed its instructions last week, or what it may do.
 
 🛠️ **What we do:** we start the agent in Kubernetes from a short config file, the same way you start a web service. Then you write its first instructions.
 

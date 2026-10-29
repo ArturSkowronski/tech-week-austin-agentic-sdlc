@@ -194,7 +194,7 @@ a task goes in as an issue, a checked and signed pull request comes out, and a p
 
 ## 🚢 Lesson 1. The cluster and the first agent
 
-😬 **The problem:** You want an AI agent to help with your code. Today it is often a script on one person's laptop. Nobody knows which version is running, who changed its instructions last week, or what it is allowed to do.
+😬 **The problem:** You want an AI agent to help with your code. Today it is often a script someone runs by hand. Nobody knows which version is running, who changed its instructions last week, or what it is allowed to do.
 
 🛠️ **What we do:** We start the agent in Kubernetes from a short config file, the same way you start any web service. Then you write its first instructions: when a task is unclear, ask questions. Never write code.
 

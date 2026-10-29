@@ -34,7 +34,7 @@ kubectl get agent probe -n factory -o jsonpath='{.status.conditions[?(@.type=="R
 kubectl get deploy -n kyverno kyverno-admission-controller -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q 1 && pass "Kyverno" || fail "Kyverno does not run"
 kubectl get deploy -n factory jaeger -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q 1 && pass "Jaeger" || fail "Jaeger does not run"
 curl -fsS -m 5 "http://localhost:$KAGENT_API_PORT/api/a2a/factory/probe/.well-known/agent-card.json" >/dev/null 2>&1 \
-  && pass "A2A of the probe agent at http://localhost:$KAGENT_API_PORT" || fail "A2A does not answer on localhost:$KAGENT_API_PORT (kind.yaml, nodeports.yaml)"
+  && pass "A2A of the probe agent answers (port $KAGENT_API_PORT)" || fail "A2A does not answer on port $KAGENT_API_PORT (kind.yaml, nodeports.yaml)"
 for extra in scripts/doctor.d/*.sh; do [ -f "$extra" ] && . "$extra"; done
 
 [ $ok -eq 0 ] && printf '\n\033[32mAll set. See you in Austin!\033[0m\n' || printf '\n\033[31mFix the red items. If you get stuck, reply to the setup email.\033[0m\n'

@@ -153,7 +153,7 @@
       <div class="eyebrow"><i></i>Austin Tech Week 2026 · Cornerstone Workshop</div>
       <div class="grow"></div>
       <h2 class="xl">People write specs and&nbsp;scenarios. Agents write code. The factory decides where the lights go on.</h2>
-      <p class="lede">We build a working software factory on Linux Foundation projects, in a kind cluster on your laptop: from intake to a signed ledger. Next to every block we show the same thing running in <b>Visdom</b>, VirtusLab's AI-native SDLC platform. 120 minutes, 10 lessons, about 14 reveals.</p>
+      <p class="lede">We build a working software factory on Linux Foundation projects, in a kind cluster in your codespace: from intake to a signed ledger. Next to every block we show the same thing running in <b>Visdom</b>, VirtusLab's AI-native SDLC platform. 120 minutes, 10 lessons, about 14 reveals.</p>
     </div>
     <div class="foot"><span>0:00 · Artur Skowronski · VirtusLab · Linux Foundation</span><span>github.com/ArturSkowronski/tech-week-austin-agentic-sdlc</span></div>
   </section>
@@ -200,7 +200,7 @@
       <table class="t">
         <thead><tr><th>min</th><th>lesson</th><th>thesis</th><th>in Visdom</th></tr></thead>
         <tbody>
-          <tr><td class="m">0:07</td><td style="color:var(--c-line);font-weight:600">1 · Cluster and first agent</td><td>An agent is a cluster resource, not a script on a laptop</td><td class="m">AgentDefinition</td></tr>
+          <tr><td class="m">0:07</td><td style="color:var(--c-line);font-weight:600">1 · Cluster and first agent</td><td>An agent is a cluster resource, not a script someone runs by hand</td><td class="m">AgentDefinition</td></tr>
           <tr><td class="m">0:17</td><td style="color:var(--c-line);font-weight:600">2 · Workshop and tools</td><td>Agent permissions are a tool list, not a prompt</td><td class="m">tools, egress, AI Gateway</td></tr>
           <tr><td class="m">0:25</td><td style="color:var(--c-context);font-weight:600">3 · Context L1-L5</td><td>Owning a concept beats word frequency</td><td class="m">agent docs, Context Fabric</td></tr>
           <tr><td class="m">0:34</td><td style="color:var(--c-context);font-weight:600">4 · Intake</td><td>No spec, no work order</td><td class="m">ask-user</td></tr>
@@ -228,7 +228,7 @@
       <div class="cols">
         <div>
           <table class="t">
-            <thead><tr><th>layer</th><th>your laptop</th><th>foundation</th></tr></thead>
+            <thead><tr><th>layer</th><th>your codespace</th><th>foundation</th></tr></thead>
             <tbody>
               <tr><td>cluster</td><td class="m">kind, Kubernetes</td><td>CNCF</td></tr>
               <tr><td>agents</td><td class="m">kagent</td><td>CNCF Sandbox</td></tr>
@@ -252,7 +252,7 @@ Saved. Agents restart with the new key.
 <span class="d"># no key? replay mode passes every lesson</span>
 <span class="d">$ make replay O=hw-001</span></div>
       </div>
-      <p class="cap">Visdom track: orchestrator, Control Plane and TraceVault in a kind cluster on the presenter laptop, on Hobby Wizard, a game where <b>a GitHub issue is the only way to fix a bug</b>.</p>
+      <p class="cap">Visdom track: orchestrator, Control Plane and TraceVault in a kind cluster in the demo environment, on Hobby Wizard, a game where <b>a GitHub issue is the only way to fix a bug</b>.</p>
     </div>
     <div class="foot"><span>0:05 · setup</span><span>reveals: 0</span></div>
   </section>
@@ -266,7 +266,7 @@ Saved. Agents restart with the new key.
       <div class="kicker">Lesson 1</div>
       <div class="grow"></div>
       <h2 class="xl">Cluster and first agent</h2>
-      <p class="lede">An agent is a cluster resource, not a script on a laptop.</p>
+      <p class="lede">An agent is a cluster resource, not a script someone runs by hand.</p>
     </div>
     <div class="foot"><span>0:07 · lesson 1</span><span></span></div>
   </section>
@@ -278,7 +278,7 @@ Saved. Agents restart with the new key.
   <section class="slide dense" style="--st: var(--c-line)">
     <div class="in">
       <div class="eyebrow"><i></i>Lesson 1 · Cluster and first agent</div>
-      <h2>An agent is a cluster resource, not a script on a laptop. It has a manifest, a version, an owner, limits and an address.</h2>
+      <h2>An agent is a cluster resource, not a script someone runs by hand. It has a manifest, a version, an owner, limits and an address.</h2>
       <div class="cols wide-left">
         <div class="code"><span class="d">$ kubectl get agent -n factory</span>
 NAME        READY   AGE
@@ -300,7 +300,7 @@ service/probe            ClusterIP
     </div>
     <div class="foot"><span>0:07 · lesson 1</span><span>reveals: 0</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> make floor, the kagent dashboard (http://localhost:8082), then <b>kubectl get agent -n factory</b> and <b>kubectl get deploy,svc -n factory -l kagent=probe</b>. Agent card: <b>python3 sdlc/a2a.py --agent probe --card</b>.</aside>
+  <aside class="notes"><b>Show:</b> make floor, the kagent dashboard (PORTS → kagent dashboard, 8082), then <b>kubectl get agent -n factory</b> and <b>kubectl get deploy,svc -n factory -l kagent=probe</b>. Agent card: <b>python3 sdlc/a2a.py --agent probe --card</b>.</aside>
 </div>
 
 <!-- 6 -->
@@ -452,7 +452,7 @@ spec:
     </div>
     <div class="foot"><span>0:23 · lesson 2 · visdom</span><span>reveals: 1</span></div>
   </section>
-  <aside class="notes">Show the executor's secret list, then the checkout task holding the Gitea token (l02-task-holds-gitea-token.png): the agent that writes code can't push, the scripted step that pushes can't think. Honest: on the laptop cluster the egress list is recorded but not enforced (no NetworkPolicy CNI in kind), and agents call OpenAI directly. In production the Visdom AI Gateway holds provider keys and routes model aliases; it is not wired on this laptop.</aside>
+  <aside class="notes">Show the executor's secret list, then the checkout task holding the Gitea token (l02-task-holds-gitea-token.png): the agent that writes code can't push, the scripted step that pushes can't think. Honest: on the workshop's kind cluster the egress list is recorded but not enforced (no NetworkPolicy CNI in kind), and agents call OpenAI directly. In production the Visdom AI Gateway holds provider keys and routes model aliases; it is not wired in this setup.</aside>
 </div>
 
 <!-- opener: Lesson 3 -->
@@ -611,7 +611,7 @@ spec:
           <tbody>
             <tr><td class="m">intake.py decides</td><td>a decision node (CEL) decides, the agent only writes</td></tr>
             <tr><td class="m">questions in the terminal</td><td>Human Input: the run waits, the question and the agent's reasoning show up in the inbox</td></tr>
-            <tr><td class="m">orders/*.md</td><td>an issue in the repo (Gitea on the laptop, GitHub in production)</td></tr>
+            <tr><td class="m">orders/*.md</td><td>an issue in the repo (Gitea in the demo cluster, GitHub in production)</td></tr>
           </tbody>
         </table>
         <figure class="shot"><img src="images/visdom/l04-intake-asks-human-input.png" alt="Visdom run waiting on an agent question" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'images/visdom/l04-intake-asks-human-input.png'}))"><figcaption>Vague issue #2: the agent asks before it builds</figcaption></figure>
@@ -663,7 +663,7 @@ spec:
     </div>
     <div class="foot"><span>0:44 · lesson 5</span><span>reveals: 3</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model), <b>make floor</b>, Argo UI http://localhost:2746: click the run, graph and step logs. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
+  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model), <b>make floor</b>, Argo UI (PORTS → The floor, 2746): click the run, graph and step logs. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
 </div>
 
 <!-- 17 -->
@@ -688,7 +688,7 @@ write_file  system/game/render/input.ts
 run_build   <span class="g">✔</span>     <span class="r">← wrong module, green build</span></div>
         <div class="body">
           <p style="margin-top:0">With <span class="mono">owns</span> from lesson 3 the change lands in <span class="mono">game/sim</span>, where the input map lives. Go back to an empty <span class="mono">owns</span>: the same agent patches the keyboard in the renderer, tests green, module wrong.</p>
-          <p>Every model and tool call is in Jaeger (http://localhost:16686, service <span class="mono">builder</span>). The floor sees steps, the trace sees the conversation.</p>
+          <p>Every model and tool call is in Jaeger (PORTS → Jaeger, 16686, service <span class="mono">builder</span>). The floor sees steps, the trace sees the conversation.</p>
           <p class="cap">The change hasn't passed any check yet. The agent's green build is not a gate (lesson 6).</p>
         </div>
       </div>
@@ -1251,7 +1251,7 @@ Does not meet requirements (scenarios you can't see):
     </div>
     <div class="foot"><span>1:49 · finale · visdom</span><span>reveals: 13</span></div>
   </section>
-  <aside class="notes">Hobby Wizard is VirtusLab's customer sandbox (by Tomasz Łuczak): instead of clicking through a demo UI you play a small game, hit the bug, and the only way to fix it is an issue. Invite people to the booth to try it. On the laptop the repo lives in Gitea inside the cluster, standing in for GitHub; the flow is the same, a label fires a webhook. Show final-gitea-issue.png → final-run-succeeded.png → final-gitea-pr.png, or label a fresh issue live 15 minutes earlier.</aside>
+  <aside class="notes">Hobby Wizard is VirtusLab's customer sandbox (by Tomasz Łuczak): instead of clicking through a demo UI you play a small game, hit the bug, and the only way to fix it is an issue. Invite people to the booth to try it. In the demo the repo lives in Gitea inside the cluster, standing in for GitHub; the flow is the same, a label fires a webhook. Show final-gitea-issue.png → final-run-succeeded.png → final-gitea-pr.png, or label a fresh issue live 15 minutes earlier.</aside>
 </div>
 
 <!-- 35 -->
@@ -1263,7 +1263,7 @@ Does not meet requirements (scenarios you can't see):
       <h2>This room for two hours: how much the agents produced, and how much the factory accepted.</h2>
       <div class="cols wide-left">
         <div class="pane body">
-          <p style="margin-top:0"><b>On the projector:</b> Argo UI, http://localhost:2746, namespace <span class="mono">factory</span>, next to the Visdom runs view.</p>
+          <p style="margin-top:0"><b>On the projector:</b> Argo UI (PORTS → The floor, 2746), namespace <span class="mono">factory</span>, next to the Visdom runs view.</p>
           <p>Every run: where each order is, what waits for a human (yellow), what stopped on the andon (red), what went lights-out. The gap between "produced" and "accepted" is the opening thesis, this time on the room's data.</p>
         </div>
         <div class="body">
@@ -1298,7 +1298,7 @@ Does not meet requirements (scenarios you can't see):
     </div>
     <div class="foot"><span>1:55 · map</span><span>reveals: 14</span></div>
   </section>
-  <aside class="notes">The workshop promised the whole SDLC. Honestly: we built one path from order to signed patch and ledger, on a laptop. Everything participants touched today is a Linux Foundation project and stays theirs. The question for Monday: what do you stand up yourself, and what do you run as a product. Booth and Happy Hour (Bull &amp; Bowl, 4:30 PM) for the Visdom conversation.</aside>
+  <aside class="notes">The workshop promised the whole SDLC. Honestly: we built one path from order to signed patch and ledger, in a codespace. Everything participants touched today is a Linux Foundation project and stays theirs. The question for Monday: what do you stand up yourself, and what do you run as a product. Booth and Happy Hour (Bull &amp; Bowl, 4:30 PM) for the Visdom conversation.</aside>
 </div>
 
 <!-- 37 -->

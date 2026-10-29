@@ -1,7 +1,7 @@
 # Setup before the workshop (about 15 minutes)
 
-The whole workshop runs in GitHub Codespaces on your fork, in the browser. There is no laptop or other cloud
-variant: you install nothing. Do it at home or in the office, not on conference Wi-Fi.
+The whole workshop runs in GitHub Codespaces on your fork, in the browser. You install
+nothing. Do it at home or in the office, not on conference Wi-Fi.
 
 ## You need
 

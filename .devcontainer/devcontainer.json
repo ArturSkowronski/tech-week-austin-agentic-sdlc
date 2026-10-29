@@ -1,5 +1,5 @@
 // The workshop in the browser: GitHub Codespaces on your fork. The whole stack (kind, Argo, kagent, Kyverno, Jaeger)
-// runs in the codespace's container through Docker-in-Docker. The workshop runs only here: there is no laptop variant.
+// runs in the codespace's container through Docker-in-Docker. The whole workshop runs here.
 // A GitHub Free account has 120 core-hours and 15 GB a month: a 4-core machine is 30 hours of work.
 // When the quota runs out without a card on file, GitHub blocks further usage; it does not send a bill.
 {

@@ -26,7 +26,7 @@ VirtusLab, with its real git history, its ADRs and one incident that comes back 
 
 Bring:
 
-- a charged laptop with a browser, logged in to GitHub, with your codespace ready,
+- a browser logged in to GitHub, with your codespace ready,
 - a GitHub account. You get a model key in the room.
 
 If make doctor is red and you do not know why, reply to this email with the output.
