@@ -18,7 +18,7 @@ A language model is not needed. You get a key in the room; until then the line w
 3. On the fork: **Code → Codespaces → Create codespace on main** (a 4-core machine, 16 GB). The build takes about 5 minutes
    and installs everything: kind, kubectl, helm, argo, cosign, Node 22, pnpm, gh, Claude Code and `factory`.
 4. In the codespace's terminal: `factory lesson 1`, then `factory start` (5 to 10 minutes the first time, it pulls images).
-5. At the end `factory start` prints `make doctor`. Everything should be green.
+5. Check: `factory doctor`. Everything should be green; every red line says what to run.
 
 Step by step with screenshots: README.md, Step 1.
 
@@ -38,4 +38,4 @@ After the workshop delete the codespace at https://github.com/codespaces.
 - `factory start` fails on a timeout: run it again; then `factory reset`.
 - `ghcr.io … 403: denied` for kagent: `docker logout ghcr.io`, then `factory start`.
 - The `kagent-controller` pods restart a few times at startup: they wait for Postgres, that is normal.
-- A red `make doctor`: reply to the setup email with the output.
+- A red `factory doctor` you cannot fix: reply to the setup email with the output.

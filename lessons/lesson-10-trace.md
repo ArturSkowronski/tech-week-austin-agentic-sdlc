@@ -60,7 +60,7 @@ Stuck? `factory solve 10`.
 
 1. Read the summary card: `cat .sdlc/out/startle/attempt-2/card.md`.
    👀 You should see: time, attempts, the decision, the line's hash, who approved.
-2. 🔑 With a model key: open Jaeger (`factory urls` or `make floor`), service `builder`, the newest trace.
+2. 🔑 With a model key: open Jaeger (**PORTS** → **Jaeger (traces)**, or **Trace in Jaeger** on the run in the floor), service `builder`, the newest trace.
 3. 🔑 Count the model and tool calls, and compare them with the lines in `tools.jsonl` in the results.
    In the finale you get one trace for the whole task (service `factory-line`).
 

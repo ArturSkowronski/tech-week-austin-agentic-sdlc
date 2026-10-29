@@ -12,7 +12,7 @@ Everything runs in GitHub Codespaces on your fork, in the browser. Nothing to in
 1. Fork https://github.com/ArturSkowronski/tech-week-austin-agentic-sdlc
 2. On the fork: Settings → General → Features → tick Issues.
 3. On the fork: Code → Codespaces → Create codespace on main (a 4-core machine).
-4. In the codespace's terminal: factory start (about 10 minutes). At the end make doctor should be green.
+4. In the codespace's terminal: factory start (about 10 minutes), then factory doctor. Everything should be green.
 
 Codespaces is free for GitHub Free accounts: 120 core-hours a month, which is 30 hours on a 4-core
 machine. Without a card on file GitHub simply blocks usage when the quota runs out; it does not send a bill.
@@ -29,7 +29,7 @@ Bring:
 - a browser logged in to GitHub, with your codespace ready,
 - a GitHub account. You get a model key in the room.
 
-If make doctor is red and you do not know why, reply to this email with the output.
+If factory doctor is red and you do not know why, reply to this email with the output.
 
 See you there,
 Artur

@@ -50,7 +50,7 @@ You already ran `factory lesson 1` and `factory start` ([README, Step 2](../READ
 3. See what the controller made of the agent: `kubectl get deploy,svc -n factory -l kagent=probe`.
    👀 You should see: a Deployment and a Service, the same as for any web service.
 4. Read the agent card: `python3 sdlc/a2a.py --agent probe --card`.
-5. 🔑 Ask the agent over A2A: `make a2a A=probe T="Introduce yourself"`.
+5. 🔑 Ask the agent over A2A: `factory ask probe "Introduce yourself"`.
 
 ## ✏️ Exercise: the `intake` agent (8 min)
 
