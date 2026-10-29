@@ -47,6 +47,8 @@ same, only the agent is swapped for a recording.
 
 4. In the **PORTS** tab, open **The floor (Argo Workflows)** (port 2746) in a new browser tab, or click the first link
    of `factory urls`. Keep the tab open: the run appears there as soon as you start it.
+   On the very first visit the floor may show the namespace `argo` with "No workflows": the `factory urls` link (or
+   switching the namespace to `factory` once) fixes it for good, the floor remembers it.
 
 **C. Send HW-001 down the line**
 

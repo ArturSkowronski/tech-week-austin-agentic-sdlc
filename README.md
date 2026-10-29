@@ -124,8 +124,9 @@ git tag -l 'lesson-*' | wc -l  # 10
 
 **7. The floor, Jaeger and kagent in the browser** (after `factory start` in Step 2). The **Ports** tab next to
 Terminal (8). Hover over the row **The floor (Argo Workflows)** and click the globe icon **Open in Browser** (9).
-The floor opens on the namespace `argo` with "No workflows": switch the namespace to `factory` (or use the link from
-`factory urls`, which opens it there). Close the "what's new" popup on the first visit.
+On the very first visit the floor opens on the namespace `argo` with "No workflows". Open the floor's link from
+`factory urls` once (it goes to `/workflows/factory`), or switch the namespace to `factory`: the floor remembers it, and
+from then on the **Open in Browser** button opens it there too. Close the "what's new" popup on the first visit.
 The same for **Jaeger (traces)** and **kagent dashboard**. The ports are private: only you see them. `factory urls`
 prints the same addresses as links.
 
