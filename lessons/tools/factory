@@ -624,7 +624,7 @@ cmd_urls() {
 
 # Play Hobby Wizard in the browser. Before the lessons: the game with its planted bug. After a fix: the same game with it.
 #   factory play                the game as your repo has it now, port 5173 (main keeps bug HW-001); the codespace starts it for you
-#   factory play fix [order]    your repo plus the newest patch the factory fetched (make fetch), default hw-001, port 5174
+#   factory play fix [order]    your repo plus the newest patch the factory fetched (make fetch), of any order or the one named, port 5174
 #   factory play <git ref>      any branch or commit, e.g. agent/issue-3 after the finale, port 5174
 # A fix or a ref is played from a separate copy ($DATA/play), so your working tree stays as it is.
 cmd_play() {
@@ -633,10 +633,13 @@ cmd_play() {
   case "$what" in
     ""|now) dir="$PWD"; port=${FACTORY_PLAY_PORT:-5173}; label="your repo as it is now (it reloads when the files change)" ;;
     fix)
-      order=${2:-hw-001}
-      patch=$(ls -t .sdlc/out/"$order"/attempt-*/change.patch 2>/dev/null | head -1)
-      [ -n "$patch" ] || die "No fetched patch for $order. Run the work order and fetch it first: make replay O=$order && make fetch"
-      ref=HEAD; label="your repo + the factory's fix from $patch" ;;
+      # No order named: the newest patch make fetch brought, whichever work order it was (a double jump built with
+      # make order O=double-jump, not always HW-001).
+      order=${2:-}
+      if [ -n "$order" ]; then patch=$(ls -t .sdlc/out/"$order"/attempt-*/change.patch 2>/dev/null | head -1)
+      else patch=$(ls -t .sdlc/out/*/attempt-*/change.patch 2>/dev/null | head -1); order=$(printf '%s' "$patch" | cut -d/ -f3); fi
+      [ -n "$patch" ] || die "No fetched patch${order:+ for $order}. Run a work order and fetch it first: make replay O=${order:-hw-001} && make fetch"
+      ref=HEAD; label="your repo + the factory's change for $order ($patch)" ;;
     *)
       git rev-parse -q --verify "$what^{commit}" >/dev/null 2>&1 || git fetch -q origin "$what:refs/remotes/origin/$what" 2>/dev/null
       if git rev-parse -q --verify "$what^{commit}" >/dev/null 2>&1; then ref=$what

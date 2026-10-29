@@ -63,6 +63,10 @@ Stuck? `factory solve 4`.
 Holdout scenarios are hidden tests written by people (lesson 7). The double jump has none, so a human will
 have to approve it (lesson 9).
 
+This lesson only lets the double jump in; nothing builds it yet, so the game does not change. With a model key the
+factory builds it in lesson 5 (`make order O=double-jump`, then `factory play fix double-jump`). Without a key it stays
+a work order: there is no recording of it.
+
 ## To discuss
 
 - Who writes acceptance criteria in your team today? Who will write them when agents write the code?

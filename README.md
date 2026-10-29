@@ -348,7 +348,7 @@ Criteria:
 - landing, a respawn or the water gives the second jump back; a charge does not
 - a jump off a ledge in coyote time counts as the first jump
 EOF
-make intake O=double-jump    # 👀 accepted now (with a note: no hidden tests exist for it yet)
+make intake O=double-jump    # 👀 accepted now (with a note: no hidden tests exist for it yet); nothing builds it yet, see lesson 5
 factory check 4              # 🟢 the task is accepted
 ```
 
@@ -382,6 +382,10 @@ factory check 5              # 🟢 the bug went through the pipeline and you ha
 appears there at once, and its steps prepare → intake → builder → change turn green one by one.
 🔑 **With a model key:** `make order O=hw-001` runs a real agent (2–5 minutes). In a second terminal,
 `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl` shows every tool the agent calls, live.
+
+🔑 **With a model key, the double jump:** lesson 4 only let it in. Build it: `make order O=double-jump`, `make fetch`,
+then `factory play fix double-jump` (port 5174: Z, then Z again in the air). Without a key there is no recording of it,
+so the game stays without the double jump.
 
 🎮 **Play the fix:** in a **second terminal** (it runs until Ctrl+C), `factory play fix` starts the game with the agent's
 patch on top of your repo, on port 5174 (**🎮 Hobby Wizard (the fix)**). Walk through the bush again: right is right, and

@@ -121,6 +121,18 @@ git checkout -- system/game/sim/module.json            # put lesson 3 back
 
 Replay has no recording for `render`, so this part needs a key. The prompt stayed the same; only the context changed.
 
+**Build the double jump (lesson 4's work order).** It has criteria now, so the line accepts it. There is no recording
+for it, so only a real agent builds it:
+
+```bash
+make order O=double-jump        # 2 to 5 minutes; the agent writes the double jump in game/sim
+make fetch
+factory play fix double-jump    # second terminal; port 5174: jump (Z), then Z again in the air
+```
+
+👀 You should see: in the game on port 5174 the wizard jumps a second time in the air. Port 5173 is still your repo,
+without it. No key? Then the double jump stays a work order: `make replay O=double-jump` has no recording to apply.
+
 ## To discuss
 
 - What does the floor show that the agent's logs do not? And the other way round?
