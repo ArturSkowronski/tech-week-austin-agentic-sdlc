@@ -290,7 +290,7 @@ deployment.apps/probe    1/1
 service/probe            ClusterIP
 
 <span class="d">$ factory ask probe "Introduce yourself"</span>
-<span class="d">→ http://kagent-controller.kagent.svc:8083/api/a2a/factory/probe/</span>
+<span class="d"># A2A: kagent-controller:8083/api/a2a/factory/probe/</span>
 <span class="g">I am the factory's probe agent (...)</span></div>
         <div class="body">
           <p style="margin-top:0">The kagent controller turns an <span class="mono">Agent</span> CRD (<span class="mono">platform/kagent/agent-probe.yaml</span>) into a Deployment, a Service and an A2A endpoint. The mechanism you have used for years to deploy services now deploys agents.</p>
@@ -971,8 +971,8 @@ Does not meet requirements (scenarios you can't see):
             <tr><td>critical path</td><td class="m">+4</td><td>module.json, ADR-011</td></tr>
             <tr><td>sensitive file (bugs manifest, rooms)</td><td class="m">+2</td><td><span class="mono">sensitive_paths</span></td></tr>
             <tr><td>no scenarios for the order</td><td class="m">+2</td><td>scenarios/index.json</td></tr>
-            <tr><td>code without test changes</td><td class="m">+2</td><td>diff</td></tr>
-            <tr><td>incident in module, many changes in 30 days, author: agent</td><td class="m">+1</td><td>ops/, git log</td></tr>
+            <tr><td>code without test changes; a large diff (medium: +1)</td><td class="m">+2</td><td>diff</td></tr>
+            <tr><td>incident in module, many changes in 30 days, author: agent, reaches the critical path</td><td class="m">+1</td><td>ops/, git log, module.json</td></tr>
             <tr><td>rework number N</td><td class="m">+N−1</td><td>parameter <span class="mono">attempt</span></td></tr>
           </tbody>
         </table>
@@ -1314,7 +1314,7 @@ Does not meet requirements (scenarios you can't see):
     </div>
     <div class="foot"><span>1:59 · Q&amp;A</span><span class="wow">reveals: 14 in 120 min</span></div>
   </section>
-  <aside class="notes">Q&amp;A. Invite people to fork and to propose their own lessons (one commit, one thesis, one exercise). Revoke model keys after the workshop. The cluster goes away with one <b>kind delete cluster --name factory</b>.</aside>
+  <aside class="notes">Q&amp;A. Invite people to fork and to propose their own lessons (one commit, one thesis, one exercise). Revoke model keys after the workshop. Everything goes away with the codespace: github.com/codespaces → <b>Delete</b> (the fork with its issues and PRs stays).</aside>
 </div>
 
 </main>
