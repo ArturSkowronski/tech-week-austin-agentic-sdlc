@@ -95,7 +95,7 @@ right, and the creature is gone. Then open **🎮 Hobby Wizard (your repo)** (po
 The same line with a real agent instead of the recording. Without a key, skip this part.
 
 1. Check that the key works: `factory doctor` (the line `the model answers`). No key yet: `factory key`.
-2. Terminal 1: `make order O=hw-001` (2 to 5 minutes).
+2. Terminal 1: `make order O=hw-001` (2 to 10 minutes; while the agent works the terminal shows its tool calls).
 3. Terminal 2, every tool the agent calls, live: `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl`
    (Ctrl+C stops it).
 4. On the floor, open the `builder` step of the new run and read its log.
@@ -125,7 +125,7 @@ Replay has no recording for `render`, so this part needs a key. The prompt staye
 for it, so only a real agent builds it:
 
 ```bash
-make order O=double-jump        # 2 to 5 minutes; the agent writes the double jump in game/sim
+make order O=double-jump        # up to 10 minutes; the agent writes the double jump in game/sim
 make fetch
 factory play fix double-jump    # second terminal; port 5174: jump (Z), then Z again in the air
 ```

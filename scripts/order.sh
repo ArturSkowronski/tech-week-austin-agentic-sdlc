@@ -16,7 +16,7 @@ name=$(argo submit -n factory --from workflowtemplate/factory -p "order=$O" -p "
   --generate-name "factory-$O-" -o name)
 echo "Run: $name (agent=$AGENT, attempt $ATTEMPT). The floor: https://${CODESPACE_NAME:-?}-$HALL_PORT.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}/workflows/factory/$name"
 case "$AGENT" in
-  kagent) echo "A real agent: usually 2 to 5 minutes. Every step below as it starts and ends:" ;;
+  kagent) echo "A real agent: usually 2 to 10 minutes. Every step below as it starts and ends:" ;;
   *)      echo "A recorded change: usually 1 to 2 minutes. Every step below as it starts and ends:" ;;
 esac
 
@@ -48,8 +48,17 @@ while :; do
   done < <(jq -r "$steps" <<<"$json")
   phase=$(jq -r '.status.phase // "Pending"' <<<"$json")
   case "$phase" in Pending|Running) ;; *) break ;; esac
-  # Nothing new for a while (a model thinking, a build): say that it still works.
-  if [ $printed = 1 ]; then quiet=$now; elif [ $((now - quiet)) -ge 20 ]; then echo "  [$clock] … still working"; quiet=$now; fi
+  # Nothing new for a while: say that it still works. While the agent works, say what it does: the workshop server
+  # writes every tool call to /work/events.jsonl (the line empties it before the builder starts).
+  if [ $printed = 1 ]; then quiet=$now; elif [ $((now - quiet)) -ge 20 ]; then
+    doing=""
+    if jq -e '.status.nodes // {} | to_entries | any(.value.displayName == "builder" and .value.phase == "Running")' <<<"$json" >/dev/null 2>&1; then
+      doing=$(kubectl exec -n factory deploy/depot -- sh -c 'wc -l < /work/events.jsonl; tail -1 /work/events.jsonl' 2>/dev/null \
+        | jq -rRs 'split("\n") | (.[0] | gsub(" "; "") | tonumber? // 0) as $n | (.[1] | fromjson? // {}) as $e
+            | if $n > 0 then "\($n) tool calls, the last: \($e.data.tool // "?") \($e.data.path // "")" else "" end' 2>/dev/null) || doing=""
+    fi
+    echo "  [$clock] … still working${doing:+ (the agent: $doing)}"; quiet=$now
+  fi
   sleep 3
 done
 echo "Result: $phase. Fetch: make fetch"

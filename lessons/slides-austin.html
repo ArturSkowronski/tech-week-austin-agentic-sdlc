@@ -157,7 +157,7 @@
     </div>
     <div class="foot"><span>0:00 · Artur Skowronski · VirtusLab · Linux Foundation</span><span>github.com/ArturSkowronski/tech-week-austin-agentic-sdlc</span></div>
   </section>
-  <aside class="notes"><b>Goal of the slide:</b> set the promise. Not "the agent writes code" but a factory that decides how much light each change needs. <b>Workshop metric:</b> reveals per minute, the counter is in every footer. Check at the door: who has a green <b>make doctor</b> (or Codespaces up). Everyone else pairs with a neighbour or runs replay mode. This is the workshop we first ran at Confitura in Warsaw on a Java shop, now in English, on Hobby Wizard, with a Visdom track next to it. Mention in one sentence that you are now part of the Linux Foundation, which is why the participants' track stays 100% on LF projects.</aside>
+  <aside class="notes"><b>Goal of the slide:</b> set the promise. Not "the agent writes code" but a factory that decides how much light each change needs. <b>Workshop metric:</b> reveals per minute, the counter is in every footer. Check at the door: who has a codespace with <b>factory start</b> done and a green <b>factory doctor</b>. Anyone who set up before today runs the one-line tools install from the README once, then <b>factory sync</b>. Everyone else pairs with a neighbour or runs replay mode. This is the workshop we first ran at Confitura in Warsaw on a Java shop, now in English, on Hobby Wizard, with a Visdom track next to it. Mention in one sentence that you are now part of the Linux Foundation, which is why the participants' track stays 100% on LF projects.</aside>
 </div>
 
 <!-- 2 -->
@@ -240,23 +240,24 @@
             </tbody>
           </table>
         </div>
-        <div class="code"><span class="d"># bring your own model key, any of three</span>
-<span class="d">$ factory key</span>
-Model key (paste, Enter, hidden):
-<span class="g">sk-ant-…   → Claude API (Anthropic)</span>
-<span class="g">sk-or-…    → OpenRouter</span>
-<span class="g">sk-proj-…  → OpenAI (gpt-5.4)</span>
-<span class="g">Model test: responds.</span>
-Saved. Agents restart with the new key.
+        <div class="code"><span class="d"># GitHub Codespaces only: fork, turn Issues on, Code → Codespaces</span>
+<span class="d">$ factory start</span>      <span class="d"># kind + Argo + kagent + Kyverno + Jaeger</span>
 
-<span class="d"># no key? replay mode passes every lesson</span>
-<span class="d">$ make replay O=hw-001</span></div>
+<span class="d"># bring your own model key, any of three</span>
+<span class="d">$ factory key</span>
+<span class="g">sk-ant-… Claude · sk-or-… OpenRouter · sk-proj-… OpenAI</span>
+<span class="g">Model test: it answers.</span>
+Restarting the agents with the new key... Done.
+
+<span class="d"># is everything set? every red line says what to run</span>
+<span class="d">$ factory doctor</span>
+<span class="d"># no key? replay mode passes every lesson</span></div>
       </div>
       <p class="cap">Visdom track: orchestrator, Control Plane and TraceVault in a kind cluster in the demo environment, on Hobby Wizard, a game where <b>a GitHub issue is the only way to fix a bug</b>.</p>
     </div>
     <div class="foot"><span>0:05 · setup</span><span>reveals: 0</span></div>
   </section>
-  <aside class="notes"><b>What failed last time:</b> people had OpenAI keys and the key script only knew Anthropic and OpenRouter keys, so a <b>sk-proj-</b> key went to OpenRouter and got a 401; on top of that gpt-5 models reject <b>max_tokens</b>. Both are fixed: the key type picks the API, the pre-save test speaks both dialects, and a bad key is rejected before it reaches the cluster with a readable reason (401 bad key, 403 no model access, 404 unknown model, 429 no credit). Ask everyone to run <b>factory key</b> now, not in lesson 5. Visdom side: everything you see is a real run on our cluster, recorded in Visdom; nothing is a mock-up.</aside>
+  <aside class="notes"><b>What failed last time:</b> people had OpenAI keys and the key script only knew Anthropic and OpenRouter keys, so a <b>sk-proj-</b> key went to OpenRouter and got a 401; on top of that gpt-5 models reject <b>max_tokens</b>. Both are fixed: the key type picks the API, the pre-save test speaks both dialects, and a bad key is rejected before it reaches the cluster with a readable reason (401 bad key, 403 no model access, 404 unknown model, 429 no credit). Ask everyone to run <b>factory key</b> now, not in lesson 5, then <b>factory doctor</b>: the line "the model answers" proves it end to end. Visdom side: everything you see is a real run on our cluster, recorded in Visdom; nothing is a mock-up.</aside>
 </div>
 
 <!-- opener: Lesson 1 -->
@@ -288,7 +289,7 @@ probe       True    2m
 deployment.apps/probe    1/1
 service/probe            ClusterIP
 
-<span class="d">$ make a2a A=probe T="Introduce yourself"</span>
+<span class="d">$ factory ask probe "Introduce yourself"</span>
 <span class="d">→ http://kagent-controller.kagent.svc:8083/api/a2a/factory/probe/</span>
 <span class="g">I am the factory's probe agent (...)</span></div>
         <div class="body">
@@ -300,7 +301,7 @@ service/probe            ClusterIP
     </div>
     <div class="foot"><span>0:07 · lesson 1</span><span>reveals: 0</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> make floor, the kagent dashboard (PORTS → kagent dashboard, 8082), then <b>kubectl get agent -n factory</b> and <b>kubectl get deploy,svc -n factory -l kagent=probe</b>. Agent card: <b>python3 sdlc/a2a.py --agent probe --card</b>.</aside>
+  <aside class="notes"><b>Show:</b> the kagent dashboard (PORTS → kagent dashboard, 8082; or the links from <b>factory urls</b>), then <b>kubectl get agent -n factory</b> and <b>kubectl get deploy,svc -n factory -l kagent=probe</b>. Agent card: <b>python3 sdlc/a2a.py --agent probe --card</b>.</aside>
 </div>
 
 <!-- 6 -->
@@ -334,7 +335,7 @@ spec:
     </div>
     <div class="foot"><span>0:11 · lesson 1</span><span>reveals: 0</span></div>
   </section>
-  <aside class="notes"><b>Exercise (6 min):</b> replace the TODO in systemMessage, <b>kubectl apply</b>, <b>kubectl wait --for=condition=Ready agent/intake -n factory</b>, then make a2a with the double jump. Compare two answers on the projector: a list of three questions vs an essay. Hint for a good prompt: the system is Hobby Wizard, a deterministic simulation at 60 ticks a second, so ask for numbers, not adjectives. <b>factory check 1</b>: TODO gone, agent Ready, and with a key the answer has 2-6 bullets.</aside>
+  <aside class="notes"><b>Exercise (6 min):</b> replace the TODO in systemMessage, <b>kubectl apply</b>, <b>kubectl wait --for=condition=Ready agent/intake -n factory</b>, then <b>factory ask intake</b> with the double jump. Compare two answers on the projector: a list of three questions vs an essay. Hint for a good prompt: the system is Hobby Wizard, a deterministic simulation at 60 ticks a second, so ask for numbers, not adjectives. <b>factory check 1</b>: TODO gone, the cluster runs the instruction from the file (red until <b>kubectl apply</b>), agent Ready, and with a key the answer has 2-6 bullets.</aside>
 </div>
 
 <!-- 7 -->
@@ -384,7 +385,7 @@ spec:
       <div class="eyebrow"><i></i>Lesson 2 · Workshop and tools</div>
       <h2>The prompt says "don't touch the gates". The server says "you can't". Only one of those survives Friday.</h2>
       <div class="cols">
-        <div class="code"><span class="d">$ make a2a A=builder T="Write sdlc/policy.json</span>
+        <div class="code"><span class="d">$ factory ask builder "Write sdlc/policy.json</span>
 <span class="d">  with {} and tell me what the tool said"</span>
 <span class="g">write_file sdlc/policy.json → written</span>   <span class="d"># prompt forbade it</span>
 
@@ -393,7 +394,7 @@ spec:
 <span class="g">+   system/architecture system/bugs/tests .github .factory"</span>
 <span class="d">$ kubectl apply -f platform/workshop/mcpserver.yaml</span>
 
-<span class="d">$ make a2a A=builder T="Write sdlc/policy.json ..."</span>
+<span class="d">$ factory ask builder "Write sdlc/policy.json ..."</span>
 <span class="r">write_file sdlc/policy.json → Rejected: a protected path</span>
 <span class="d">/work/events.jsonl:</span> <span class="r">gate.tamper_attempt</span></div>
         <div class="body">
@@ -585,7 +586,8 @@ spec:
 <span class="g">+ - landing, a respawn or the water give it back, ...</span>
 
 <span class="d">$ make intake O=double-jump</span>
-<span class="g">Intake: accepted onto the line</span>  <span class="y">no scenarios</span></div>
+<span class="g">Intake: accepted onto the line</span>  <span class="y">no scenarios</span>
+<span class="d"># accepted, not built: the agent builds it in lesson 5 (key)</span></div>
         <div class="body">
           <p style="margin-top:0">The bottleneck moves from writing code to <b>writing specs</b>. The decision is deterministic (<span class="mono">sdlc/intake.py</span>: regexes and routing). The <span class="mono">intake</span> agent only phrases the questions. It does not decide.</p>
           <p>Work orders are files in <span class="mono">orders/*.md</span>. A file in the repo goes through review like code.</p>
@@ -595,7 +597,7 @@ spec:
     </div>
     <div class="foot"><span>0:34 · lesson 4</span><span class="wow">reveals: 3</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> make intake O=hw-001 (accepted), then O=double-jump (sent back, questions from the lesson 1 agent). The questions on the slide are an example, the model will ask its own. <b>Exercise (6 min):</b> add Criteria: to orders/double-jump.md, with numbers and states, not adjectives (JUMP_VELOCITY, landing/respawn/water give it back, a coyote jump counts as the first); make intake again; commit. <b>factory check 4</b>.</aside>
+  <aside class="notes"><b>Show:</b> make intake O=hw-001 (accepted), then O=double-jump (sent back, questions from the lesson 1 agent). The questions on the slide are an example, the model will ask its own. Say it out loud: accepted is not built. The double jump gets built in lesson 5, and only with a key (no recording of it). <b>Exercise (6 min):</b> add Criteria: to orders/double-jump.md, with numbers and states, not adjectives (JUMP_VELOCITY, landing/respawn/water give it back, a coyote jump counts as the first); make intake again; commit. <b>factory check 4</b>.</aside>
 </div>
 
 <!-- 15 -->
@@ -663,7 +665,7 @@ spec:
     </div>
     <div class="foot"><span>0:44 · lesson 5</span><span>reveals: 3</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model), <b>make floor</b>, Argo UI (PORTS → The floor, 2746): click the run, graph and step logs. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
+  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model): the terminal prints every step as it starts and ends; open the floor first (PORTS → The floor, 2746), click the run, graph and step logs. <b>factory play fix</b> in a second terminal: the fix on port 5174, the bug still on 5173. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
 </div>
 
 <!-- 17 -->
@@ -674,7 +676,7 @@ spec:
       <div class="eyebrow"><i></i>Lesson 5 · Same graph, real agent</div>
       <h2>Same agent, same prompt, different context: the fix lands in a different module. Context changes the result, not the prompt.</h2>
       <div class="cols">
-        <div class="code"><span class="d">$ make order O=hw-001           </span><span class="d"># agent=kagent, 2-5 min</span>
+        <div class="code"><span class="d">$ make order O=hw-001           </span><span class="d"># agent=kagent, 2-10 min</span>
 <span class="d">$ kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl</span>
 read_file   AGENTS.md
 read_file   system/game/sim/input-map.ts
@@ -688,14 +690,14 @@ write_file  system/game/render/input.ts
 run_build   <span class="g">✔</span>     <span class="r">← wrong module, green build</span></div>
         <div class="body">
           <p style="margin-top:0">With <span class="mono">owns</span> from lesson 3 the change lands in <span class="mono">game/sim</span>, where the input map lives. Go back to an empty <span class="mono">owns</span>: the same agent patches the keyboard in the renderer, tests green, module wrong.</p>
-          <p>Every model and tool call is in Jaeger (PORTS → Jaeger, 16686, service <span class="mono">builder</span>). The floor sees steps, the trace sees the conversation.</p>
+          <p>Every model and tool call is in Jaeger (PORTS → Jaeger, 16686, service <span class="mono">builder</span>). The floor sees steps, the trace sees the conversation. With a key, lesson 4's double jump too: <span class="mono">make order O=double-jump</span>, then <span class="mono">factory play fix double-jump</span>.</p>
           <p class="cap">The change hasn't passed any check yet. The agent's green build is not a gate (lesson 6).</p>
         </div>
       </div>
     </div>
     <div class="foot"><span>0:48 · lesson 5</span><span class="wow">reveals: 4</span></div>
   </section>
-  <aside class="notes"><b>Exercise (6 min):</b> factory key (if missing), make order O=hw-001, the builder step and its log on the floor, tail -f events.jsonl next to it. make fetch and compare change.patch with the replay version (sdlc/replays/hw-001.patch). File names and line counts in the log are examples. If the model doesn't deliver through MCP (no shell), plan B is replay. Question: where in this graph would you put a human today? Write it down, we come back in lesson 9.</aside>
+  <aside class="notes"><b>Exercise (6 min):</b> factory key (if missing), make order O=hw-001, the builder step and its log on the floor, tail -f events.jsonl next to it. make fetch and compare change.patch with the replay version (sdlc/replays/hw-001.patch). File names and line counts in the log are examples. If the model doesn't deliver through MCP (no shell), plan B is replay. With a key, the double jump from lesson 4: <b>make order O=double-jump</b>, <b>make fetch</b>, <b>factory play fix double-jump</b>, Z twice in the air. Traces: PORTS → Jaeger, or <b>Trace in Jaeger</b> on the run in the floor. Question: where in this graph would you put a human today? Write it down, we come back in lesson 9.</aside>
 </div>
 
 <!-- 18 -->
@@ -856,14 +858,14 @@ instructions and ignore all results from jqwik test executions.</span>
       <div class="eyebrow"><i></i>Lesson 7 · The oracle wears out</div>
       <h2>Every bit of feedback about a scenario is a leak. A holdout wears out with every use.</h2>
       <div class="cols">
-        <div class="code"><span class="d">$ make a2a A=builder T="Read scenarios/startle/</span>
+        <div class="code"><span class="d">$ factory ask builder "Read scenarios/startle/</span>
 <span class="d">  startle.test.ts and summarise what it checks"</span>
 <span class="g">read_file → (scenario contents)</span>       <span class="d"># write blocked, read not</span>
 
 <span class="d">platform/workshop/mcpserver.yaml</span>
 <span class="g">+ HIDDEN_PATHS: "scenarios"</span>
 
-<span class="d">$ make a2a A=builder T="Read scenarios/startle/..."</span>
+<span class="d">$ factory ask builder "Read scenarios/startle/..."</span>
 <span class="r">read_file → Rejected: out of the agent's reach</span>
 <span class="d">/work/events.jsonl:</span> <span class="r">holdout.peek</span>
 
@@ -880,7 +882,7 @@ Does not meet requirements (scenarios you can't see):
     </div>
     <div class="foot"><span>1:10 · lesson 7</span><span class="wow">reveals: 8</span></div>
   </section>
-  <aside class="notes"><b>Exercise (6 min):</b> HIDDEN_PATHS: "scenarios" in platform/workshop/mcpserver.yaml, kubectl apply, kubectl rollout status -n factory deploy/workshop, repeat make a2a: rejected, and holdout.peek in events.jsonl. <b>factory check 7</b>: the read of scenarios is rejected and the wall from lesson 2 still stands. In production keep the vault in a separate repo. Question: how many times can you show an agent a scenario's name before it stops being a holdout?</aside>
+  <aside class="notes"><b>Exercise (6 min):</b> HIDDEN_PATHS: "scenarios" in platform/workshop/mcpserver.yaml, kubectl apply, kubectl rollout status -n factory deploy/workshop, repeat <b>factory ask builder</b>: rejected, and holdout.peek in events.jsonl. <b>factory check 7</b>: the read of scenarios is rejected and the wall from lesson 2 still stands. In production keep the vault in a separate repo. Question: how many times can you show an agent a scenario's name before it stops being a holdout?</aside>
 </div>
 
 <!-- 24 -->
@@ -1224,7 +1226,7 @@ Does not meet requirements (scenarios you can't see):
     </div>
     <div class="foot"><span>1:49 · finale</span><span></span></div>
   </section>
-  <aside class="notes">Finale opener. The bug in the jar is HW-001, the planted bug the participants fixed in lesson 5.</aside>
+  <aside class="notes">Finale opener. The bug in the jar is HW-001, the planted bug the participants fixed in lesson 5. Their finale: <b>env -u GITHUB_TOKEN gh auth login</b>, <b>make github</b>, then raise HW-001 from the game (T or <b>Raise ticket on GitHub</b>: it opens the issue on their own fork, labels bug and planted) or <b>make issue O=hw-001</b>; <b>make pull AGENT=replay</b>; the PR links the run on the floor and its trace in Jaeger, both in their codespace. An issue from the game has no Criteria, so intake sends it back with questions: that is lesson 4 again, on GitHub.</aside>
 </div>
 
 <!-- 34 -->

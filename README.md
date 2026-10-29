@@ -380,7 +380,7 @@ factory check 5              # 🟢 the bug went through the pipeline and you ha
 
 👀 **Watch it:** open the floor (**PORTS** → **The floor (Argo Workflows)**) before `make replay`: the run `factory-hw-001-…`
 appears there at once, and its steps prepare → intake → builder → change turn green one by one.
-🔑 **With a model key:** `make order O=hw-001` runs a real agent (2–5 minutes). In a second terminal,
+🔑 **With a model key:** `make order O=hw-001` runs a real agent (2–10 minutes; the terminal shows what it does). In a second terminal,
 `kubectl exec -n factory deploy/depot -- tail -f /work/events.jsonl` shows every tool the agent calls, live.
 
 🔑 **With a model key, the double jump:** lesson 4 only let it in. Build it: `make order O=double-jump`, `make fetch`,
