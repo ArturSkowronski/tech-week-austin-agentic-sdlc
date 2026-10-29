@@ -216,7 +216,7 @@
     </div>
     <div class="foot"><span>0:04 · plan</span><span>reveals: 0</span></div>
   </section>
-  <aside class="notes">The repo, the tooling and every command are in English. The system on the line is Hobby Wizard (VirtusLab, Apache-2.0): a TypeScript/PixiJS browser platformer, Node 22 and pnpm, with a deterministic simulation at 60 ticks a second. <b>factory check N</b> tells a participant whether the exercise is done. Each lesson ends with a "same in Visdom" slide: 90 seconds of demo on our cluster, no exercise. Participants stay on the Linux Foundation stack all the time.</aside>
+  <aside class="notes">The repo, the tooling and every command are in English. The system on the line is Hobby Wizard (VirtusLab, Apache-2.0): a TypeScript/PixiJS browser platformer, Node 22 and pnpm, with a deterministic simulation at 60 ticks a second. <b>factory check N</b> tells a participant whether the exercise is done. Each lesson ends with a "same in Visdom" slide: 90 seconds of demo on our cluster, no exercise. <b>factory lesson N</b> takes 1.5-3 minutes (it rebuilds the images) and puts uncommitted changes into git stash; say it before the first jump. Participants stay on the Linux Foundation stack all the time.</aside>
 </div>
 
 <!-- 4 -->
@@ -406,7 +406,7 @@ spec:
     </div>
     <div class="foot"><span>0:17 · lesson 2</span><span class="wow">reveals: 1</span></div>
   </section>
-  <aside class="notes"><b>Reveal:</b> the write goes through even though the builder's prompt says "don't change the gates". Only PROTECTED_PATHS and <b>kubectl rollout status -n factory deploy/workshop</b> close the door. Trace: <b>kubectl exec -n factory deploy/depot -- tail /work/events.jsonl</b>. Boundary tests: <b>cd platform/workshop &amp;&amp; python3 -m unittest</b>. <b>factory check 2</b> tries writes to sdlc/policy.json, platform/kind.yaml and system/architecture/rules.js: all three must be rejected.</aside>
+  <aside class="notes"><b>Reveal:</b> the write goes through even though the builder's prompt says "don't change the gates". Only PROTECTED_PATHS and <b>kubectl rollout status -n factory deploy/workshop</b> close the door. Trace: <b>kubectl exec -n factory deploy/depot -- tail /work/events.jsonl</b> after the agent's second try: only the agent's calls are logged, <b>factory check 2</b> probes off the record. Boundary tests: <b>cd platform/workshop &amp;&amp; python3 -m unittest</b>. <b>factory check 2</b> tries writes to sdlc/policy.json, platform/kind.yaml and system/architecture/rules.js: all three must be rejected.</aside>
 </div>
 
 <!-- 9 -->
@@ -665,7 +665,7 @@ spec:
     </div>
     <div class="foot"><span>0:44 · lesson 5</span><span>reveals: 3</span></div>
   </section>
-  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model): the terminal prints every step as it starts and ends; open the floor first (PORTS → The floor, 2746), click the run, graph and step logs. <b>factory play fix</b> in a second terminal: the fix on port 5174, the bug still on 5173. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
+  <aside class="notes"><b>Show:</b> <b>make replay O=hw-001</b> (no model): the terminal prints every step as it starts and ends; open the floor first (PORTS → The floor, 2746; it opens on namespace argo with "No workflows", so switch to factory, or use the link from <b>factory urls</b>), click the run, graph and step logs. <b>factory play fix</b> in a second terminal: the fix on port 5174, the bug still on 5173. <b>make fetch</b>, open .sdlc/out/hw-001/attempt-1/change.patch. <b>factory check 5</b>: a Succeeded run of hw-001 and the patch fetched.</aside>
 </div>
 
 <!-- 17 -->
@@ -937,13 +937,13 @@ Does not meet the requirements (acceptance scenarios you cannot see):
           <circle cx="60" cy="100" r="12" fill="var(--c-context)"/><text x="60" y="60" text-anchor="middle" fill="var(--ink)">intake</text>
           <circle cx="200" cy="100" r="12" fill="var(--c-line)"/><text x="200" y="60" text-anchor="middle" fill="var(--ink)">builder, try 1</text>
           <circle cx="350" cy="100" r="12" fill="var(--critical)"/><text x="350" y="60" text-anchor="middle" fill="var(--critical)" font-weight="600">oracle ✘</text>
-          <text x="350" y="145" text-anchor="middle" fill="var(--ink-3)" font-size="15">feedback.md: names only</text>
+          <text x="350" y="145" text-anchor="middle" fill="var(--ink-3)" font-size="15">feedback.md: names (+ review)</text>
           <circle cx="500" cy="100" r="12" fill="var(--c-line)"/><text x="500" y="60" text-anchor="middle" fill="var(--ink)">rework = line, try 2</text>
-          <text x="500" y="145" text-anchor="middle" fill="var(--ink-3)" font-size="15">template recursion in Argo</text>
+          <text x="500" y="172" text-anchor="middle" fill="var(--ink-3)" font-size="15">template recursion in Argo</text>
           <circle cx="650" cy="100" r="12" fill="var(--low)"/><text x="650" y="60" text-anchor="middle" fill="var(--ink)">oracle + vault ✔</text>
           <text x="650" y="145" text-anchor="middle" fill="var(--ink-3)" font-size="15">holds the input: NO_INPUT</text>
           <circle cx="800" cy="100" r="12" fill="var(--critical)"/><text x="800" y="60" text-anchor="middle" fill="var(--ink)">risk: critical</text>
-          <text x="800" y="145" text-anchor="middle" fill="var(--ink-3)" font-size="15">+1 per rework, +4 game/sim</text>
+          <text x="800" y="172" text-anchor="middle" fill="var(--ink-3)" font-size="15">+1 per rework, +4 game/sim</text>
           <circle cx="940" cy="100" r="12" fill="var(--alarm)"/><text x="940" y="60" text-anchor="middle" fill="var(--ink)">human</text>
         </g>
       </svg>
@@ -1227,7 +1227,7 @@ Does not meet the requirements (acceptance scenarios you cannot see):
     </div>
     <div class="foot"><span>1:49 · finale</span><span></span></div>
   </section>
-  <aside class="notes">Finale opener. The bug in the jar is HW-001, the planted bug the participants fixed in lesson 5. Their finale: <b>env -u GITHUB_TOKEN gh auth login</b>, <b>make github</b>, then raise HW-001 from the game (T or <b>Raise ticket on GitHub</b>: it opens the issue on their own fork, labels bug and planted) or <b>make issue O=hw-001</b>; <b>make pull AGENT=replay</b>; the PR links the run on the floor and its trace in Jaeger, both in their codespace. An issue from the game has no Criteria, so intake sends it back with questions: that is lesson 4 again, on GitHub.</aside>
+  <aside class="notes">Finale opener. The bug in the jar is HW-001, the planted bug the participants fixed in lesson 5. Their finale: <b>env -u GITHUB_TOKEN gh auth login</b>, <b>make github</b>, then raise HW-001 from the game (T or <b>Raise ticket on GitHub</b>: it opens the issue on their own fork, labels bug and planted) or <b>make issue O=hw-001</b>; <b>make pull AGENT=replay</b>; the PR links the run on the floor and its trace in Jaeger, both in their codespace. Before that: <b>git pull origin main</b> (work tracks nothing) and <b>env -u GITHUB_TOKEN gh auth setup-git</b>, or a push from the codespace can hang. They approve the PR on GitHub (label factory:human), not with make approve. One poller at a time: make pull next to the cron never takes the same issue twice. An issue from the game has no Criteria, so intake sends it back with questions: that is lesson 4 again, on GitHub.</aside>
 </div>
 
 <!-- 34 -->
